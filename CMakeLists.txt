@@ -22,6 +22,7 @@ set(SOURCES
 	src/sprite_editor/sprite_editor_frames.cpp
 	src/sprite_editor/sprite_editor_io.cpp
 	src/sprite_editor/sprite_editor_preview.cpp
+	src/sprite_editor/sprite_editor_tools.cpp
 	src/sprite_editor/sprite_editor_undo.cpp
 )
 

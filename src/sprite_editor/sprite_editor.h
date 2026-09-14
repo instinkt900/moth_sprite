@@ -34,6 +34,7 @@ private:
     void DrawDataEditor();
     void DrawFramesPane();
     void DrawClipsPane();
+    void DrawGridTool();
     void DrawImage(moth::gfx::Image const& image, moth::gfx::IntVec2 const& size,
                    moth::gfx::FloatVec2 const& uv0 = { 0.0f, 0.0f },
                    moth::gfx::FloatVec2 const& uv1 = { 1.0f, 1.0f });
@@ -88,4 +89,18 @@ private:
         FrameVec snapshot;
     };
     std::optional<FrameDragState> m_frameDrag;
+
+    // Tools > Grid popup state. Values persist between openings.
+    struct GridToolState {
+        int cellW    = 32;
+        int cellH    = 32;
+        int offsetX  = 0;
+        int offsetY  = 0;
+        int spacingX = 0;
+        int spacingY = 0;
+        int rows     = 1;
+        int cols     = 1;
+    };
+    GridToolState m_gridTool;
+    bool m_openGridTool = false; // set by the menu; the popup is opened outside the menu's ID scope
 };

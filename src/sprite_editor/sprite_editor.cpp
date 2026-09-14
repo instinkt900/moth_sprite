@@ -139,6 +139,13 @@ void SpriteEditor::Draw() {
                 }
                 ImGui::EndMenu();
             }
+            if (ImGui::BeginMenu("Tools")) {
+                bool const hasSheetImage = m_spriteSheet && m_spriteSheet->GetImage();
+                if (ImGui::MenuItem("Grid...", nullptr, false, hasSheetImage)) {
+                    m_openGridTool = true;
+                }
+                ImGui::EndMenu();
+            }
             if (ImGui::BeginMenu("Preferences")) {
                 auto& cfg = m_config;
                 ImGui::ColorEdit4("Normal border##pref",   cfg.SpriteEditorNormalColor.data,   ImGuiColorEditFlags_NoInputs);
@@ -150,6 +157,8 @@ void SpriteEditor::Draw() {
             }
             ImGui::EndMenuBar();
         }
+
+        DrawGridTool();
 
         if (ImGui::BeginTable("##sprite_layout", 2,
                 ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV)) {
