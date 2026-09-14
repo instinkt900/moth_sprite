@@ -1,0 +1,5 @@
+.venv/
+build/
+CMakeUserPresets.json
+imgui.ini
+moth_sprite.json
