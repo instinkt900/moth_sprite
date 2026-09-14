@@ -11,7 +11,7 @@ class MothSprite(ConanFile):
 
     settings = "os", "compiler", "build_type", "arch"
     generators = "CMakeToolchain", "CMakeDeps"
-    exports_sources = "CMakeLists.txt", "version.txt", "src/*", "external/nativefiledialog/*"
+    exports_sources = "CMakeLists.txt", "version.txt", "src/*", "external/nativefiledialog/*", "external/stb/*"
 
     def set_version(self):
         if not self.version:

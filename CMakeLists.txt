@@ -17,6 +17,7 @@ target_compile_options(nativefiledialog PRIVATE $<$<C_COMPILER_ID:Clang>:-Wno-un
 set(SOURCES
 	src/main.cpp
 	src/sprite_application.cpp
+	src/sprite_editor/frame_detection.cpp
 	src/sprite_editor/sprite_editor.cpp
 	src/sprite_editor/sprite_editor_clips.cpp
 	src/sprite_editor/sprite_editor_frames.cpp
@@ -31,6 +32,8 @@ find_package(moth_bridge REQUIRED)
 add_executable(${PROJECT_NAME} ${SOURCES})
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 target_include_directories(${PROJECT_NAME} PRIVATE src)
+# SYSTEM silences -Wall/-Werror noise from the vendored single-header library.
+target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE external/stb)
 target_link_libraries(${PROJECT_NAME} moth::bridge)
 target_link_libraries(${PROJECT_NAME} nativefiledialog)
 target_precompile_headers(${PROJECT_NAME} PRIVATE src/common.h)

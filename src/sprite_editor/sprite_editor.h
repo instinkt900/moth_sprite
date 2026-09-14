@@ -1,6 +1,7 @@
 #pragma once
 
 #include "editor_action.h"
+#include "frame_detection.h"
 
 #include <moth/graphics/graphics/asset_context.h>
 #include <moth/graphics/graphics/spritesheet.h>
@@ -35,6 +36,9 @@ private:
     void DrawFramesPane();
     void DrawClipsPane();
     void DrawGridTool();
+    void DrawDetectFramesTool();
+    // Append one frame per rect (pivot 0,0) as a single undoable action and select the first.
+    void AppendFrames(std::vector<moth::gfx::IntRect> const& rects);
     void DrawImage(moth::gfx::Image const& image, moth::gfx::IntVec2 const& size,
                    moth::gfx::FloatVec2 const& uv0 = { 0.0f, 0.0f },
                    moth::gfx::FloatVec2 const& uv1 = { 1.0f, 1.0f });
@@ -103,4 +107,14 @@ private:
     };
     GridToolState m_gridTool;
     bool m_openGridTool = false; // set by the menu; the popup is opened outside the menu's ID scope
+
+    // Tools > Detect Frames popup state. Options persist between openings.
+    struct DetectToolState {
+        FrameDetectOptions options;
+        std::optional<ImagePixels> pixels; // decoded sheet, held only while the popup is open
+        FrameDetectResult result;
+        bool dirty = true;                 // re-run detection on the next draw
+    };
+    DetectToolState m_detectTool;
+    bool m_openDetectTool = false;
 };

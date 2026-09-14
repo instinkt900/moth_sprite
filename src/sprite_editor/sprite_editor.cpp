@@ -144,6 +144,10 @@ void SpriteEditor::Draw() {
                 if (ImGui::MenuItem("Grid...", nullptr, false, hasSheetImage)) {
                     m_openGridTool = true;
                 }
+                // Detection decodes the image file, so it also needs a known image path.
+                if (ImGui::MenuItem("Detect Frames...", nullptr, false, hasSheetImage && m_imagePathBuffer[0] != '\0')) {
+                    m_openDetectTool = true;
+                }
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu("Preferences")) {
@@ -159,6 +163,7 @@ void SpriteEditor::Draw() {
         }
 
         DrawGridTool();
+        DrawDetectFramesTool();
 
         if (ImGui::BeginTable("##sprite_layout", 2,
                 ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV)) {
