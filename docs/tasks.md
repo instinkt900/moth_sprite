@@ -637,7 +637,7 @@ and are grouped in the menu under their own "Pivot" entry.
 6. In Selected Cell, click the TL and C buttons with several cells selected. Every selected cell changes, not only
    the prime cell. Each click is one undo step.
 
-### [todo] T-004 Export sheet option
+### [done] T-004 Export sheet option
 
 **Review:** reviewed 2026-09-15
 
@@ -650,14 +650,14 @@ location, so the next project save writes the new path. This is so you can impor
 export it to a new location, and be sure the project references the new location rather than the old.
 
 **Requirements:**
-- [ ] File > Export Sheet copies the sheet image file, unchanged and in the same format, to a location chosen by
+- [x] File > Export Sheet copies the sheet image file, unchanged and in the same format, to a location chosen by
   the user. The save dialog keeps the original extension.
-- [ ] Export Sheet is disabled when the project has no image path.
-- [ ] After export, the project's sheet image path points to the exported file.
-- [ ] Saving the project afterwards writes the new sheet image path.
-- [ ] The image path change is one undo action. Undo points the project back at the old image path. The exported
+- [x] Export Sheet is disabled when the project has no image path.
+- [x] After export, the project's sheet image path points to the exported file.
+- [x] Saving the project afterwards writes the new sheet image path.
+- [x] The image path change is one undo action. Undo points the project back at the old image path. The exported
   file stays on disk.
-- [ ] The sheet window shows the sheet image path as read-only text.
+- [x] The sheet window shows the sheet image path as read-only text.
 
 **Out of scope:**
 A file selector for changing the image path from the sheet window. It may be added later.
@@ -668,10 +668,38 @@ A file selector for changing the image path from the sheet window. It may be add
   window shows the image path as read-only text.
 
 **Notes:**
+- File > Export Sheet... sits after Import Sheet. It is enabled only when the project has an image path.
+- The save dialog's filter is the sheet's own extension, and it opens in the sheet's folder. The GTK dialog adds
+  the filter's extension when the typed name has none. `ExportSheet` also forces the sheet's extension, replacing
+  a different extension if the user typed one, so the copy always keeps the format.
+- The file is copied with `std::filesystem::copy_file`, overwriting an existing file (the GTK dialog asks before
+  overwriting). The pixels are never decoded or re-encoded. If the copy fails, an error is logged and the
+  project's path does not change.
+- Exporting onto the sheet file itself does nothing: no copy, and no undo action.
+- The path change is a `BasicAction` that sets `m_imagePathBuffer` to the new or the old path. The loaded texture
+  does not change, because the copy has the same pixels. `SaveSpriteSheet` already writes `image` from that
+  buffer, relative to the project file.
+- The Sheet window shows "Image" and a read-only text field with the path above its toolbar, when a sheet image
+  is loaded. The fit zoom leaves room for the row.
+- Assumption: the dialog starts in the sheet's folder. T-005 changes image dialogs to start in the last folder
+  an image dialog used.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- c3ee89f feat(T-004): File > Export Sheet copies the sheet image and repoints the project
 
 **Manual verification:**
+1. File > New. File > Export Sheet is disabled.
+2. File > Import Sheet a PNG from folder A. The Sheet window shows "Image" with the path to that file. Export
+   Sheet is enabled.
+3. File > Export Sheet. The dialog shows only `*.png` files. Go to folder B and type `copy` with no extension.
+   `B/copy.png` is created, and it is byte-identical to the original (`cmp A/sheet.png B/copy.png`). The Sheet
+   window's Image path now shows `B/copy.png`.
+4. Add a cell, then File > Save As `B/project.json`. The file's `image` is `copy.png`.
+5. Press Ctrl+Z until the Image path shows the folder A file again (the export is one undo step), then File > Save.
+   `image` points at the folder A file. `B/copy.png` is still on disk. Ctrl+Y: the path is `B/copy.png` again.
+6. Export again and type `copy2.jpg`. The file is written as `copy2.png`.
+7. Load a project whose image is a JPG. Export Sheet filters on `*.jpg`, and the copy is a `.jpg`.
 
 ### [todo] T-005 Recent files
 
