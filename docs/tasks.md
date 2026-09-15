@@ -430,7 +430,7 @@ animation look like" preview.
    large zoom, scrollbars appear and do not jump while the clip plays.
 6. Untick Window > Clip Preview, quit and start again. It is still closed. Tick it: it opens.
 
-### [todo] T-013 Remove the old UI window
+### [done] T-013 Remove the old UI window
 
 **Review:** reviewed 2026-09-15
 
@@ -440,11 +440,11 @@ animation look like" preview.
 Once all of the new windows are added, remove the single window that holds the old UI.
 
 **Requirements:**
-- [ ] The single window from T-007 is removed.
-- [ ] Its entry is removed from the Window menu and from the default layout.
-- [ ] The project path box from the old UI is replaced by the window title: `Moth Sprite - <project file name>`,
+- [x] The single window from T-007 is removed.
+- [x] Its entry is removed from the Window menu and from the default layout.
+- [x] The project path box from the old UI is replaced by the window title: `Moth Sprite - <project file name>`,
   or `Moth Sprite - Untitled` for a project that has not been saved.
-- [ ] No other existing functionality is lost.
+- [x] No other existing functionality is lost.
 
 **Out of scope:**
 Other windows, such as tools, stay as they are.
@@ -452,10 +452,36 @@ Other windows, such as tools, stay as they are.
 **Open questions:**
 
 **Notes:**
+- The "Sprite Editor" window, its Window menu entry, its slot in the default layout and `ShowSpriteEditorWindow`
+  are removed. A `moth_sprite.json` that still has the key loads; the key is ignored and is not written again.
+- The default layout's right side is now Selected Cell (top, 40%) and Cells (below).
+- The path box is replaced by the window title. `SpriteApplication` passes the editor a callback that calls
+  `UiWindow::SetWindowTitle`. The editor builds the title from the project path each frame and sets it only when
+  it changes: `Moth Sprite - <file name with extension>`, or `Moth Sprite - Untitled` when the project has no
+  path (on start, after File > New, or after Import Sheet into a new project). Save As changes the title to the
+  new file name.
+- The smoke launch finds the window by the name "Moth Sprite", which still matches the new titles.
+- An `imgui.ini` saved while the Sprite Editor window existed can keep an empty dock area where it was.
+  Window > Reset Layout removes it.
+- Found a problem outside this task: a failed File > Load still changes the project path, so the title names the
+  file that failed. Logged under Discovered.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- f493150 feat(T-013): remove the Sprite Editor window and show the project in the title
 
 **Manual verification:**
+1. Start with no `imgui.ini`, or choose Window > Reset Layout. There is no Sprite Editor window. The windows are
+   Sheet with Clips and Clip Preview below it on the left, and Selected Cell above Cells on the right. The Window
+   menu lists Sheet, Selected Cell, Cells, Clips, Clip Preview, then Reset Layout.
+2. The title bar reads "Moth Sprite - Untitled".
+3. Import a sheet, add cells and a clip, then File > Save As `hero.json`. The title changes to
+   "Moth Sprite - hero.json".
+4. File > New: the title is "Moth Sprite - Untitled" again. File > Load `hero.json`: the title is
+   "Moth Sprite - hero.json", and the cells and clips are back.
+5. Check that everything else still works across the windows: import, sheet zoom and cell drag, New Cell, the
+   cell list and form, pivot editing and presets, clip editing and playback, Tools > Grid and Detect Frames,
+   Preferences, Undo and Redo, Save.
 
 ### [todo] T-002 Multiple selection
 
@@ -647,3 +673,7 @@ Problems noticed during sessions that are outside the current tasks. Candidates 
   also reverts changes made in between. If focus moves straight from a later field to an earlier one, one of the
   two edits can end up with no undo step. The Clips window uses a per-widget pending edit
   (`TrackClipEdit`/`CommitClipEdit`) that avoids both problems. The form could use the same pattern.
+- **A failed File > Load still changes the project path (found in T-013).** The Load menu item copies the chosen
+  path into `m_pathBuffer` before `LoadSpriteSheet` runs. If the load fails, the previous project stays open, but
+  the window title (before T-013, the path box) shows the file that failed to load, and File > Save writes the
+  open project to that file.
