@@ -12,7 +12,7 @@ Session reports are in [sessions/](sessions/). `/task-planning` moves finished t
 
 ## Tasks
 
-### [todo] T-007 Docking setup
+### [done] T-007 Docking setup
 
 **Review:** reviewed 2026-09-15
 
@@ -27,18 +27,18 @@ Also add a Window menu with a toggle for every window, so the user can turn off 
 empty application window.
 
 **Requirements:**
-- [ ] The editor uses the ImGui docking branch, with docking enabled.
-- [ ] All of the existing UI is in a single dockable window.
-- [ ] No existing functionality is lost.
-- [ ] A Window menu has a toggle for every window, starting with the single window.
-- [ ] With every window turned off, only the empty application window is shown.
-- [ ] Whether each window is open or closed is remembered across runs, in `moth_sprite.json`.
-- [ ] The menus (File, Edit, Tools, Preferences, Window) are in the application's main menu bar, so they stay
+- [x] The editor uses the ImGui docking branch, with docking enabled.
+- [x] All of the existing UI is in a single dockable window.
+- [x] No existing functionality is lost.
+- [x] A Window menu has a toggle for every window, starting with the single window.
+- [x] With every window turned off, only the empty application window is shown.
+- [x] Whether each window is open or closed is remembered across runs, in `moth_sprite.json`.
+- [x] The menus (File, Edit, Tools, Preferences, Window) are in the application's main menu bar, so they stay
   available with every window turned off.
-- [ ] The area below the main menu bar is a dock space.
-- [ ] Ctrl+Z, Ctrl+Y, Delete and Esc work whenever the app has focus, except while a text field is active.
-- [ ] On first run (no `imgui.ini`), the windows start docked in a built-in default layout.
-- [ ] Window > Reset Layout restores the default layout.
+- [x] The area below the main menu bar is a dock space.
+- [x] Ctrl+Z, Ctrl+Y, Delete and Esc work whenever the app has focus, except while a text field is active.
+- [x] On first run (no `imgui.ini`), the windows start docked in a built-in default layout.
+- [x] Window > Reset Layout restores the default layout.
 
 **Out of scope:**
 Other windows, such as tools, stay as they are.
@@ -55,10 +55,44 @@ Other windows, such as tools, stay as they are.
 - Q: What is the layout on first run? A: A built-in default layout, with Window > Reset Layout to restore it.
 
 **Notes:**
+- The single window is named "Sprite Editor". Its open state is `ShowSpriteEditorWindow` in `moth_sprite.json`.
+  A settings file without the key opens the window.
+- The dock space is a borderless host window with a fixed dock space ID, not `DockSpaceOverViewport`. The
+  package has no `imgui.cpp`, so the ID that `DockSpaceOverViewport` uses cannot be checked, and the default
+  layout needs a known ID. The default layout is built when `imgui.ini` has no node for that ID: on first run,
+  or with an `imgui.ini` written before this change.
+- Assumption: Window > Reset Layout also opens every window, so the result matches the first-run layout.
+- Assumption: the shortcuts are also skipped while a modal tool popup (Grid, Detect Frames) is open. Before this
+  change they did not work there either, and Delete would otherwise remove a cell the user cannot see.
+- As the requirement says, Ctrl+Z and Ctrl+Y no longer undo the project while a text field is active. They
+  used to.
+- The Grid and Detect Frames popups are drawn outside every window, so Tools works with every window closed.
+- The DockBuilder functions come from `imgui_internal.h`.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- a3badf4 feat(T-007): dock space, main menu bar and Window menu
 
 **Manual verification:**
+1. Delete (or move away) `imgui.ini` in the folder you start the app from. Start the app. The File, Edit,
+   Tools, Preferences and Window menus are in the main menu bar. The "Sprite Editor" window fills the area
+   below it, docked.
+2. Check that the existing features still work in the window: File > Import Sheet, the sheet view (Fit, 1:1,
+   wheel zoom, select, drag, resize), New Cell, the frame list and form, the pivot preview and presets, clips
+   and playback, Tools > Grid and Tools > Detect Frames, File > Save and Load.
+3. Drag the window's tab out of the dock space and dock it again on a side. It docks.
+4. Window > Sprite Editor: untick it. Only the empty application window and the main menu bar are left. The
+   menus still work (for example Tools > Grid with a sheet loaded, or Edit > Undo).
+5. With the window closed, quit the app. Start it again. The window is still closed. Tick
+   Window > Sprite Editor. It opens where it was.
+6. Move the window out of the dock, then choose Window > Reset Layout. It returns to the default docked
+   layout. Close the window and choose Reset Layout again. It opens, docked.
+7. Select a cell. Click on an empty part of the dock space or on the main menu bar, so that the Sprite Editor
+   window does not have focus. Press Delete: the cell is removed. Press Ctrl+Z: it comes back. Press Ctrl+Y:
+   it is removed again.
+8. Click in a cell's X field so the text field is active. Press Delete and Ctrl+Z. They edit the text and do
+   not change the project's undo history.
+9. Click New Cell, move focus away from the window, then press Esc. New Cell mode ends.
 
 ### [todo] T-008 Sheet window
 
