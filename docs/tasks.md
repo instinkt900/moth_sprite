@@ -94,7 +94,7 @@ Other windows, such as tools, stay as they are.
    not change the project's undo history.
 9. Click New Cell, move focus away from the window, then press Esc. New Cell mode ends.
 
-### [todo] T-008 Sheet window
+### [done] T-008 Sheet window
 
 **Review:** reviewed 2026-09-15
 
@@ -104,13 +104,13 @@ Other windows, such as tools, stay as they are.
 A dockable window with the full tilesheet where the cells are shown, zoom options, etc.
 
 **Requirements:**
-- [ ] A dockable window shows the full tilesheet with the cells.
-- [ ] The window has the zoom options of today's sheet view: Fit, 1:1 and mouse-wheel zoom.
-- [ ] All existing sheet behaviour works in the window: clicking a cell selects it, dragging moves or resizes the
+- [x] A dockable window shows the full tilesheet with the cells.
+- [x] The window has the zoom options of today's sheet view: Fit, 1:1 and mouse-wheel zoom.
+- [x] All existing sheet behaviour works in the window: clicking a cell selects it, dragging moves or resizes the
   selected cell, and cell rects and pivot markers are drawn.
-- [ ] The New Cell button is in the window's toolbar, next to the zoom options. New Cell drawing works as today.
-- [ ] The window is part of the default layout from T-007.
-- [ ] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
+- [x] The New Cell button is in the window's toolbar, next to the zoom options. New Cell drawing works as today.
+- [x] The window is part of the default layout from T-007.
+- [x] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
 
 **Out of scope:**
 
@@ -118,10 +118,37 @@ A dockable window with the full tilesheet where the cells are shown, zoom option
 - Q: Which window has the New Cell button? A: The sheet window, in its toolbar.
 
 **Notes:**
+- The window is named "Sheet". Its open state is `ShowSheetWindow` in `moth_sprite.json`.
+- The default layout splits the dock space: Sheet on the left (60%), Sprite Editor on the right.
+- The Sprite Editor window no longer has the two-column table. It holds only the path box, frames and clips.
+- The New Cell button is removed from the frames pane. In the Sheet toolbar it comes first, then Fit, 1:1 and
+  the zoom percentage, so that the zoom text changing width does not move the button. The New Cell hint is at
+  the end of the toolbar.
+- Assumption: closing the Sheet window ends New Cell mode, because the mode draws on that window's canvas.
+- Assumption: with no sheet image, the Sheet window shows "Use File > Import Sheet to add a sheet image." instead
+  of staying blank.
+- An `imgui.ini` saved by the T-007 build already has a dock space node, so the default layout is not rebuilt
+  there, and the Sheet window first opens floating. Window > Reset Layout docks it.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- c08200b feat(T-008): dockable Sheet window with New Cell in its toolbar
 
 **Manual verification:**
+1. Start the app with no `imgui.ini` (or choose Window > Reset Layout). The Sheet window is docked on the left
+   and the Sprite Editor window on the right.
+2. With no sheet image, the Sheet window shows the Import Sheet hint. File > Import Sheet: the sheet appears,
+   fitted to the window.
+3. Click Fit, 1:1 and use the mouse wheel over the sheet. The zoom changes as before, and the wheel zooms around
+   the cursor.
+4. Add cells (Tools > Grid). Click a cell on the sheet: it is selected, and it is also selected in the frame
+   list. Drag inside it to move it, and drag an edge or corner to resize it. Ctrl+Z undoes each drag as one step.
+   Cell rects and pivot markers are drawn.
+5. Click New Cell in the Sheet toolbar. The hint appears, and the button is disabled. Drag on the sheet: a new
+   cell is added and selected. Click New Cell again and press Esc: the mode ends. The frames pane in the
+   Sprite Editor window has no New Cell button.
+6. Click New Cell, then untick Window > Sheet. Tick it again: New Cell mode has ended.
+7. Untick Window > Sheet, quit and start again. The Sheet window is still closed. Tick it: it opens.
 
 ### [todo] T-009 Selected cell window
 
