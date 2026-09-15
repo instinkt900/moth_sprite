@@ -130,6 +130,28 @@ namespace {
     }
 } // namespace
 
+void SpriteEditor::ZoomWithMouseWheel(float& zoom) {
+    if (!ImGui::IsWindowHovered()) {
+        return;
+    }
+    float const wheel = ImGui::GetIO().MouseWheel;
+    if (wheel == 0.0f) {
+        return;
+    }
+    ImVec2 const mouse   = ImGui::GetMousePos();
+    ImVec2 const winPos  = ImGui::GetWindowPos();
+    float const mouseRelX = (mouse.x - winPos.x) + ImGui::GetScrollX();
+    float const mouseRelY = (mouse.y - winPos.y) + ImGui::GetScrollY();
+    float const imgSpaceX = mouseRelX / zoom;
+    float const imgSpaceY = mouseRelY / zoom;
+
+    float const factor = (wheel > 0.0f) ? 1.1f : (1.0f / 1.1f);
+    zoom = std::clamp(zoom * factor, 0.05f, 32.0f);
+
+    ImGui::SetScrollX((imgSpaceX * zoom) - (mouse.x - winPos.x));
+    ImGui::SetScrollY((imgSpaceY * zoom) - (mouse.y - winPos.y));
+}
+
 void SpriteEditor::DrawPreview() {
     if (!m_spriteSheet) {
         ImGui::TextDisabled("No sprite sheet loaded.");
@@ -186,24 +208,7 @@ void SpriteEditor::DrawPreview() {
     ImGui::BeginChild("##preview_scroll", childSize, ImGuiChildFlags_None,
                       ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-    // Mouse-wheel zoom centered on cursor
-    if (ImGui::IsWindowHovered()) {
-        float const wheel = ImGui::GetIO().MouseWheel;
-        if (wheel != 0.0f) {
-            ImVec2 const mouse   = ImGui::GetMousePos();
-            ImVec2 const winPos  = ImGui::GetWindowPos();
-            float const mouseRelX = (mouse.x - winPos.x) + ImGui::GetScrollX();
-            float const mouseRelY = (mouse.y - winPos.y) + ImGui::GetScrollY();
-            float const imgSpaceX = mouseRelX / m_zoom;
-            float const imgSpaceY = mouseRelY / m_zoom;
-
-            float const factor = (wheel > 0.0f) ? 1.1f : (1.0f / 1.1f);
-            m_zoom = std::clamp(m_zoom * factor, 0.05f, 32.0f);
-
-            ImGui::SetScrollX((imgSpaceX * m_zoom) - (mouse.x - winPos.x));
-            ImGui::SetScrollY((imgSpaceY * m_zoom) - (mouse.y - winPos.y));
-        }
-    }
+    ZoomWithMouseWheel(m_zoom);
 
     float const displayW = imgW * m_zoom;
     float const displayH = imgH * m_zoom;

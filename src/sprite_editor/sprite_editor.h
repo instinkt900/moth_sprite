@@ -38,8 +38,12 @@ private:
     void ImportSheet(std::filesystem::path const& imagePath);
     void SaveSpriteSheet();
     void DrawPreview();
+    // Mouse-wheel zoom centered on the cursor, for the current scrolling child window.
+    static void ZoomWithMouseWheel(float& zoom);
     void DrawDataEditor();
     void DrawFramesPane();
+    // The Selected Cell window: the selected cell with zoom, pivot drag and pivot presets.
+    void DrawCellWindow();
     // Remove a frame as one undoable action, fixing up the selection and clip step indices.
     void DeleteFrame(int frameToDelete);
     void DrawClipsPane();
@@ -76,6 +80,7 @@ private:
     std::vector<moth::gfx::SpriteSheet::ClipEntry> m_clips;
     int m_selectedFrame = -1;
     float m_zoom = 1.0f; // -1 = auto-fit on next draw
+    float m_cellZoom = -1.0f; // Selected Cell window zoom; -1 = auto-fit on next draw
     char m_newClipNameBuffer[256] = {};
     int m_selectedClip = -1;
     bool m_clipPlaying = false;
@@ -90,7 +95,7 @@ private:
     std::optional<FrameVec> m_pendingFrameSnapshot;
     std::optional<ClipVec>  m_pendingClipSnapshot;
 
-    // Pivot drag state (click-drag in frame mini-preview)
+    // Pivot drag state (click-drag in the Selected Cell window)
     bool m_pivotDragging = false;
     std::optional<FrameVec> m_pivotDragSnapshot;
 

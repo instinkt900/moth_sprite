@@ -11,6 +11,7 @@ namespace {
     // Window names are also the IDs that imgui.ini uses to remember the layout. Do not rename them.
     char const* const kSpriteEditorWindow = "Sprite Editor";
     char const* const kSheetWindow = "Sheet";
+    char const* const kCellWindow = "Selected Cell";
     char const* const kDockSpaceHostWindow = "##dock_space_host";
     char const* const kDockSpaceId = "##dock_space";
 
@@ -20,9 +21,13 @@ namespace {
         ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceId, size);
         ImGuiID sheetId = 0;
+        ImGuiID rightId = 0;
+        ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, 0.6f, &sheetId, &rightId);
+        ImGuiID cellId = 0;
         ImGuiID editorId = 0;
-        ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, 0.6f, &sheetId, &editorId);
+        ImGui::DockBuilderSplitNode(rightId, ImGuiDir_Up, 0.4f, &cellId, &editorId);
         ImGui::DockBuilderDockWindow(kSheetWindow, sheetId);
+        ImGui::DockBuilderDockWindow(kCellWindow, cellId);
         ImGui::DockBuilderDockWindow(kSpriteEditorWindow, editorId);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
@@ -48,6 +53,7 @@ void SpriteEditor::NewSpriteSheet() {
     m_clipCurrentStep = 0;
     m_clipElapsedMs   = 0.0f;
     m_zoom            = 1.0f;
+    m_cellZoom        = -1.0f;
     m_spriteSheet     = std::make_shared<moth::gfx::SpriteSheet>(
         moth::gfx::Image{},
         std::vector<moth::gfx::SpriteSheet::FrameEntry>{},
@@ -194,11 +200,13 @@ void SpriteEditor::DrawMainMenuBar() {
     }
     if (ImGui::BeginMenu("Window")) {
         ImGui::MenuItem(kSheetWindow, nullptr, &m_config.ShowSheetWindow);
+        ImGui::MenuItem(kCellWindow, nullptr, &m_config.ShowCellWindow);
         ImGui::MenuItem(kSpriteEditorWindow, nullptr, &m_config.ShowSpriteEditorWindow);
         ImGui::Separator();
         if (ImGui::MenuItem("Reset Layout")) {
             // The default layout shows every window, as on first run.
             m_config.ShowSheetWindow = true;
+            m_config.ShowCellWindow = true;
             m_config.ShowSpriteEditorWindow = true;
             m_resetLayout = true;
         }
@@ -247,6 +255,13 @@ void SpriteEditor::Draw() {
     if (m_config.ShowSheetWindow) {
         if (ImGui::Begin(kSheetWindow, &m_config.ShowSheetWindow)) {
             DrawPreview();
+        }
+        ImGui::End();
+    }
+
+    if (m_config.ShowCellWindow) {
+        if (ImGui::Begin(kCellWindow, &m_config.ShowCellWindow)) {
+            DrawCellWindow();
         }
         ImGui::End();
     }
