@@ -264,7 +264,7 @@ The New Cell button. It moves to the sheet window (T-008).
    Select a cell and press Delete: it is removed.
 7. Untick Window > Cells, quit and start again. It is still closed. Tick it: it opens.
 
-### [todo] T-011 Clip editor window
+### [done] T-011 Clip editor window
 
 **Review:** reviewed 2026-09-15
 
@@ -279,22 +279,22 @@ behaviour. Timing will also need to be editable per frame on each clip. A play/p
 that auto scrolls through the selected clip.
 
 **Requirements:**
-- [ ] A dockable window where the user can create and remove clips.
-- [ ] Clips are stacked vertically, each shown as a horizontal timeline of frames.
-- [ ] Each frame on the timeline shows a thumbnail of its cell, with its duration (ms) editable below it.
-- [ ] Clicking a clip selects it.
-- [ ] Each clip can be renamed, and its loop type (Stop, Reset, Loop) changed.
-- [ ] Steps can be added ("+ Step" adds the selected cell) and removed.
-- [ ] Steps can be reordered by dragging them along the timeline.
-- [ ] Single click on a frame selects its cell and moves playback to that frame.
-- [ ] Double click on a frame starts picking a new cell for it. The frame is highlighted while picking. The next
+- [x] A dockable window where the user can create and remove clips.
+- [x] Clips are stacked vertically, each shown as a horizontal timeline of frames.
+- [x] Each frame on the timeline shows a thumbnail of its cell, with its duration (ms) editable below it.
+- [x] Clicking a clip selects it.
+- [x] Each clip can be renamed, and its loop type (Stop, Reset, Loop) changed.
+- [x] Steps can be added ("+ Step" adds the selected cell) and removed.
+- [x] Steps can be reordered by dragging them along the timeline.
+- [x] Single click on a frame selects its cell and moves playback to that frame.
+- [x] Double click on a frame starts picking a new cell for it. The frame is highlighted while picking. The next
   cell selected through any "select cell" behaviour (cell list or sheet) is assigned to the frame and picking
   ends. Esc cancels picking.
-- [ ] A play/pause button plays the selected clip. Pause stops on the current step, and play continues from
+- [x] A play/pause button plays the selected clip. Pause stops on the current step, and play continues from
   there. The timeline scrolls to keep the current step visible.
-- [ ] A Step button advances one step.
-- [ ] The window is part of the default layout from T-007.
-- [ ] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
+- [x] A Step button advances one step.
+- [x] The window is part of the default layout from T-007.
+- [x] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
 
 **Out of scope:**
 
@@ -307,10 +307,65 @@ that auto scrolls through the selected clip.
   always restarts from the first step.
 
 **Notes:**
+- The window is named "Clips". Its open state is `ShowClipEditorWindow` in `moth_sprite.json`. The default
+  layout docks it below the Sheet window (35% of the left side).
+- The clip list, the new-clip row and the Play/Step controls moved out of the Sprite Editor window. The
+  pivot-anchored clip preview stays there (`DrawClipPreview`) until T-012 moves it, so no feature is lost.
+- Each clip is a bordered block: name field, loop type, step count and an `X` remove button, then the
+  timeline. Each step is a 72 px thumbnail with its cell index in the corner, a duration field below it and an
+  `x` remove button. "+ Step" is at the end of each timeline. The selected clip's block uses the header colour.
+  The current step has the selected-border colour, and the step that is picking a cell has an orange outline.
+- Playback moved into `AdvanceClipPlayback`, called once per frame from `Draw()`. Before, it only ran while
+  the clips pane was drawn.
+- `SelectCell` is now the "select cell" behaviour for the cell list and the sheet. While picking, it assigns
+  the cell to the step as one clip undo action and ends picking. While picking, a click on the sheet only picks
+  a cell and never starts a move or resize, and a click on empty sheet space does nothing. Clicks on timeline
+  thumbnails select the cell without assigning it.
+- Picking also ends on undo, redo, New, Load, Import, and when a step is moved or removed or a clip is removed,
+  because the picked step's index may no longer name the same step.
+- Step reordering is drag and drop within one clip. Dropping on a step moves the dragged step to that index.
+  Dropping on another clip does nothing.
+- Undo for the name and duration fields uses a pending edit keyed by the widget's ImGui ID
+  (`TrackClipEdit`/`CommitClipEdit`), which replaces `m_pendingClipSnapshot`. With the old shared snapshot,
+  moving focus straight from one field to another could lose an undo step. The same problem in the cell form
+  is logged under Discovered.
+- Assumption: a single click on a step pauses playback on that step, as clicking a step row did before.
+- Assumption: Play on a Stop clip that has played to its end (on the last step, with no time spent on it)
+  starts again from the first step. Otherwise Play would do nothing. Pausing partway through the last step and
+  pressing Play continues from there.
+- Assumption: clicking the clip that is already selected does not reset playback. Selecting a different clip
+  moves playback to its first step, as before.
+- The timeline scrolls only while playing and after Step, and only when the current step is not fully visible,
+  so the user can scroll freely while paused.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- 05ff209 feat(T-011): dockable Clips window with step timelines
 
 **Manual verification:**
+1. Start with no `imgui.ini`, or choose Window > Reset Layout. The Clips window is docked below the Sheet
+   window. The Sprite Editor window shows the path box and "Select a clip in the Clips window to preview it."
+2. Import a sheet and add cells with Tools > Grid. In Clips, type a name and click "+ Clip". A clip block
+   appears and is selected. Add a second clip. The blocks are stacked. Click in the first block's empty area:
+   it becomes selected. Click `X` on a block: that clip is removed. Ctrl+Z restores it.
+3. Rename a clip, then change its loop type. Each change is one Ctrl+Z step.
+4. Select a cell and click "+ Step" several times, with different cells selected. Each step shows the cell's
+   thumbnail and index, and a duration below it. Edit a duration. Click `x` under a step: it is removed.
+   Each of these is one Ctrl+Z step.
+5. Click a step. Its cell is selected on the sheet, in Cells and in Selected Cell. The step gets the current
+   outline, the Sprite Editor preview shows that step, and the Step counter matches.
+6. Drag a step onto another step of the same clip. It moves to that position. Ctrl+Z restores the order.
+7. Double click a step. It gets an orange outline and a hint appears. Click a different cell on the sheet. The
+   step shows the new cell and the outline ends. Double click a step again and click a row in Cells: it is
+   assigned. Double click again and press Esc: picking ends and nothing changes. Ctrl+Z undoes an assignment in
+   one step.
+8. While picking, click the selected cell on the sheet. It is assigned, and the cell does not move.
+9. Add more steps than fit in the window width. Click Play. Playback runs, the outline moves along the
+   timeline, and the timeline scrolls to keep it visible. Click Pause: it stops on the current step. Click
+   Play: it continues from that step, not from the first. Click Step: it advances one step and pauses.
+10. With a Stop clip, let it play to the end, then click Play again. It plays from the first step.
+11. Close the Clips window while a clip plays. The Sprite Editor preview keeps animating.
+12. Untick Window > Clips, quit and start again. It is still closed. Tick it: it opens.
 
 ### [todo] T-012 Clip preview window
 
@@ -555,3 +610,10 @@ Changes to Preferences. They are editor settings, not project data.
 ## Discovered
 
 Problems noticed during sessions that are outside the current tasks. Candidates for `/task-new`.
+
+- **Cell form undo can lose an edit (found in T-011).** The X, Y, W, H and Pivot fields in the Cells window share
+  one `m_pendingFrameSnapshot`. It is taken when a field is activated only if none is pending, and it is dropped
+  only after an edit. If a field is focused without editing, the old snapshot stays and a later edit's undo step
+  also reverts changes made in between. If focus moves straight from a later field to an earlier one, one of the
+  two edits can end up with no undo step. The Clips window uses a per-widget pending edit
+  (`TrackClipEdit`/`CommitClipEdit`) that avoids both problems. The form could use the same pattern.
