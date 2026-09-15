@@ -764,7 +764,7 @@ their last location across runs.
 9. Delete the remembered folder `imgB`. File > Import Sheet opens in the current directory instead.
 10. File > Open Recent > Clear Recent. The list is empty and Open Recent is disabled. Restart: still empty.
 
-### [todo] T-006 Unsaved changes indicator and prompt
+### [done] T-006 Unsaved changes indicator and prompt
 
 **Review:** reviewed 2026-09-15
 
@@ -774,15 +774,15 @@ their last location across runs.
 Add an unsaved edits indicator, and a prompt on closing or starting a new project that warns of unsaved changes.
 
 **Requirements:**
-- [ ] When the project has unsaved changes, the window title (from T-013) ends with ` *`.
-- [ ] Every undoable action and Import Sheet mark the project as changed. Saving marks it as saved.
-- [ ] Undoing or redoing back to the state that was last saved marks the project as saved again.
-- [ ] When there are unsaved changes, these actions show a prompt first: closing the window, File > Exit,
+- [x] When the project has unsaved changes, the window title (from T-013) ends with ` *`.
+- [x] Every undoable action and Import Sheet mark the project as changed. Saving marks it as saved.
+- [x] Undoing or redoing back to the state that was last saved marks the project as saved again.
+- [x] When there are unsaved changes, these actions show a prompt first: closing the window, File > Exit,
   File > New, File > Load and File > Open Recent.
-- [ ] The prompt has Save, Don't Save and Cancel. Save runs Save, or Save As if the project has no path, and the
+- [x] The prompt has Save, Don't Save and Cancel. Save runs Save, or Save As if the project has no path, and the
   action continues only if saving succeeds. Don't Save continues without saving. Cancel returns to the editor.
-- [ ] If the project cannot be saved (it has no image), Save is disabled in the prompt.
-- [ ] Closing the window is intercepted in `SpriteApplication`, without changes to moth.
+- [x] If the project cannot be saved (it has no image), Save is disabled in the prompt.
+- [x] Closing the window is intercepted in `SpriteApplication`, without changes to moth.
 
 **Out of scope:**
 Changes to Preferences. They are editor settings, not project data.
@@ -797,10 +797,61 @@ Changes to Preferences. They are editor settings, not project data.
   redoing back to the saved state marks it as saved again.
 
 **Notes:**
+- Unsaved state: `AddSpriteAction` gives each action an id from a counter that is never reset (`m_undoIds`, next to
+  `m_undoStack`). `CurrentUndoId()` is the id of the newest applied action, or 0. `MarkSaved()` records it.
+  `HasUnsavedChanges()` is true when the current id differs from the recorded one, or when
+  `m_unsavedOutsideUndo` is set. Undo or redo back to the saved position matches again. A new action after undoing
+  past the saved position never matches, because its id is new. Every change to project data already goes
+  through `AddSpriteAction`, including the T-004 image path change.
+- `MarkSaved()` runs in `NewSpriteSheet` (so the app starts clean), after a successful `LoadSpriteSheet`, and after
+  a successful write in `SaveSpriteSheet`. Import Sheet clears the undo stack and sets `m_unsavedOutsideUndo`.
+- `SaveSpriteSheet` now returns whether the file was written. It also flushes the stream and checks it, so a
+  failed write does not count as saved.
+- The title from T-013 ends with ` *` while `HasUnsavedChanges()` is true.
+- Prompt flow: New, Load and Open Recent call `RequestProjectAction`. Without unsaved changes it runs the action at
+  once. With unsaved changes it keeps the action and opens the "Unsaved Changes" modal. File > Load shows the
+  prompt before the file dialog. The prompt names the project file (or "Untitled"). Save calls `SaveProject()`,
+  which runs Save, or Save As when there is no path. It is disabled, with a note, when the project has no sheet
+  image. If saving fails or the Save As dialog is cancelled, the prompt stays open. Don't Save runs the action.
+  Cancel, or Esc, closes the prompt and drops the action.
+- Quit: closing the window and File > Exit both send `EventRequestQuit`. `SpriteApplication` now overrides
+  `OnEvent`. For that event it calls `SpriteEditor::HoldQuitForUnsavedChanges()`. With unsaved changes the editor
+  opens the prompt and the event is consumed, so the app keeps running. After Save or Don't Save, the editor sets
+  `m_quitApproved` and fires `EventRequestQuit` again, which `SpriteApplication` passes to
+  `Application::OnEvent`. moth is not changed. `SpriteApplication` keeps a raw pointer to the editor layer and
+  clears it in `Shutdown`.
+- Opening the prompt while a Tools popup (Grid, Detect Frames) is open closes that popup, because ImGui opens the
+  prompt at the top popup level.
+- Assumption: an edit in a text or number field that has not been committed yet (the field is still active) is
+  not an unsaved change, because it is not on the undo stack until the field is left.
+- Preferences changes do not mark the project as changed (out of scope).
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed (the smoke launch closes a clean project, so it
+  also checks that no prompt appears then).
 
 **Commits:**
+- 912ee84 feat(T-006): unsaved changes indicator and prompt
 
 **Manual verification:**
+1. Start the app. The title is "Moth Sprite - Untitled" with no ` *`. Close the window: the app quits at once.
+2. File > Import Sheet. The title ends with ` *`. Click the close button: the "Unsaved Changes" prompt appears and
+   the app stays open. Click Cancel: the prompt closes and nothing changes.
+3. Choose File > Exit: the prompt appears. Click Don't Save: the app quits.
+4. Start again and import a sheet, add a cell, then File > Save As `a.json`. The title is "Moth Sprite - a.json"
+   with no ` *`.
+5. Move the cell: ` *` appears. Ctrl+Z: ` *` goes away. Ctrl+Y: it comes back. Ctrl+Z, then add a different cell:
+   ` *` stays, even after undoing and redoing to the same number of steps.
+6. With ` *` showing, choose File > New: the prompt appears. Click Save: `a.json` is written, the project is
+   replaced by a new one, and the title is "Moth Sprite - Untitled".
+7. Import a sheet and add a cell (so the project has no path and has changes). Choose File > Load: the prompt
+   appears before the file dialog. Click Save: the Save As dialog opens. Cancel it: the prompt is still open.
+   Click Save again and choose `b.json`: it saves, then the Load file dialog opens.
+8. Make a change, then choose an entry in File > Open Recent: the prompt appears. Don't Save loads the entry.
+9. File > New, import a sheet, add a cell, then press Ctrl+Z until nothing is left to undo. The title still ends
+   with ` *`, because Import Sheet is a change that is not on the undo stack. Close the window: the prompt appears.
+10. To see Save disabled: load a project file with no `image` field, make a change (for example, add a clip), and
+    close the window. Save is disabled, with the note that the project has no sheet image.
+11. Make a change, close the window, and click Save for a project with a path. The file is written, and the app
+    quits.
 
 ## Discovered
 
