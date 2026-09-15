@@ -588,7 +588,7 @@ Pivot changes for the whole selection. They are in T-003.
     sheet: it is assigned to the step, and only that cell is selected.
 12. Change Preferences > Prime border. The sheet and the Cells list use the new colour. Restart: it is kept.
 
-### [todo] T-003 Pivot helpers
+### [done] T-003 Pivot helpers
 
 **Review:** reviewed 2026-09-15
 
@@ -599,12 +599,12 @@ Under the Edit menu, there should be options for setting pivots by a rule. They 
 and are grouped in the menu under their own "Pivot" entry.
 
 **Requirements:**
-- [ ] Edit > Pivot submenu with nine options: Top Left, Top Center, Top Right, Center Left, Center,
+- [x] Edit > Pivot submenu with nine options: Top Left, Top Center, Top Right, Center Left, Center,
   Center Right, Bottom Left, Bottom Center, Bottom Right.
-- [ ] Each option sets the pivot of every selected cell, relative to that cell's own size, as one undo action.
-- [ ] Pivot positions match today's 3×3 preset grid: center is half the width or height, rounded down, and
+- [x] Each option sets the pivot of every selected cell, relative to that cell's own size, as one undo action.
+- [x] Pivot positions match today's 3×3 preset grid: center is half the width or height, rounded down, and
   right and bottom are the full width and height.
-- [ ] The 3×3 pivot preset grid in the selected cell window also applies to the whole selection.
+- [x] The 3×3 pivot preset grid in the selected cell window also applies to the whole selection.
 
 **Out of scope:**
 
@@ -613,10 +613,29 @@ and are grouped in the menu under their own "Pivot" entry.
   rule for pivots.
 
 **Notes:**
+- One function, `SetSelectionPivot(PivotAnchor x, PivotAnchor y)`, does the work for both the menu and the grid.
+  `PivotAnchor` is `Start` (0), `Center` (size / 2, rounded down) or `End` (full size), per axis, which are the
+  positions the old grid used.
+- Edit > Pivot comes after Undo and Redo, with separators between the top, center and bottom rows. It is disabled
+  when no cell is selected.
+- Assumption: when a rule changes no pivot (every selected cell already has that pivot), no undo action is added.
+  Before, a grid button always added one, even when nothing changed.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- e92f822 feat(T-003): Edit > Pivot rules for the whole selection
 
 **Manual verification:**
+1. With no cell selected, Edit > Pivot is disabled.
+2. Import a sheet and add cells of different sizes (for example, Tools > Grid, then resize some cells on the sheet).
+   Select several with Ctrl+click.
+3. Choose Edit > Pivot > Bottom Center. Each selected cell's pivot cross moves to the middle of its own bottom
+   edge (x = width / 2 rounded down, y = height). Unselected cells do not change.
+4. Press Ctrl+Z once: every selected pivot returns. Ctrl+Y: they move again.
+5. Try each of the nine options and check the positions: left/top is 0, center is half the size rounded down,
+   right/bottom is the full size. For an odd width such as 15, center is 7.
+6. In Selected Cell, click the TL and C buttons with several cells selected. Every selected cell changes, not only
+   the prime cell. Each click is one undo step.
 
 ### [todo] T-004 Export sheet option
 
