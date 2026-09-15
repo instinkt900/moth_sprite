@@ -1,10 +1,16 @@
 #include "common.h"
 #include "sprite_editor.h"
+#include "sprite_editor_config.h"
 
 #include <moth/graphics/graphics/igraphics.h>
 #include <moth/graphics/graphics/surface_context.h>
 #include <moth/graphics/graphics/asset_context.h>
 #include <moth/graphics/graphics/spritesheet_factory.h>
+
+namespace {
+    // File > Open Recent keeps this many projects.
+    constexpr size_t kMaxRecentProjects = 10;
+} // namespace
 
 void SpriteEditor::LoadSpriteSheet(std::filesystem::path const& path) {
     // Load and validate before touching any editor state so a failed load
@@ -65,6 +71,37 @@ void SpriteEditor::LoadSpriteSheet(std::filesystem::path const& path) {
         }
         m_clips.push_back(std::move(entry));
     }
+
+    AddRecentProject(path);
+}
+
+void SpriteEditor::AddRecentProject(std::filesystem::path const& path) {
+    std::error_code ec;
+    std::filesystem::path absolutePath = std::filesystem::absolute(path, ec);
+    if (ec) {
+        absolutePath = path;
+    }
+    std::string const entry = absolutePath.lexically_normal().string();
+    // Newest first, with no duplicates.
+    auto& recent = m_config.RecentProjects;
+    recent.erase(std::remove(recent.begin(), recent.end(), entry), recent.end());
+    recent.insert(recent.begin(), entry);
+    if (recent.size() > kMaxRecentProjects) {
+        recent.resize(kMaxRecentProjects);
+    }
+}
+
+void SpriteEditor::OpenRecentProject(std::string path) {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(path, ec)) {
+        moth::core::log::warn("SpriteEditor: recent project '{}' no longer exists, removed it from Open Recent", path);
+        auto& recent = m_config.RecentProjects;
+        recent.erase(std::remove(recent.begin(), recent.end(), path), recent.end());
+        return;
+    }
+    strncpy(m_pathBuffer, path.c_str(), sizeof(m_pathBuffer) - 1);
+    m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
+    LoadSpriteSheet(m_pathBuffer);
 }
 
 void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
@@ -230,6 +267,7 @@ void SpriteEditor::SaveSpriteSheet() {
         moth::core::log::error("SpriteEditor: failed to write '{}': {}", path.string(), e.what());
         return;
     }
+    AddRecentProject(path);
 
     // Flush the factory cache so a subsequent load picks up the new data
     auto& assetContext = m_assetContext;

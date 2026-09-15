@@ -47,6 +47,11 @@ private:
     void DrawDockSpace();
     void NewSpriteSheet();
     void LoadSpriteSheet(std::filesystem::path const& path);
+    // File > Open Recent: move a loaded or saved project to the front of the list, which keeps 10 projects.
+    void AddRecentProject(std::filesystem::path const& path);
+    // Load a project chosen from Open Recent. A project file that no longer exists is removed from the list instead.
+    // Takes a copy, because it changes the list the path comes from.
+    void OpenRecentProject(std::string path);
     void ImportSheet(std::filesystem::path const& imagePath);
     // Copy the sheet image file, unchanged, to exportPath (given the sheet's extension), then point the project at
     // the copy as one undoable action.

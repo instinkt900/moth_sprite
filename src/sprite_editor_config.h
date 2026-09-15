@@ -6,6 +6,8 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <string>
+#include <vector>
 
 struct SpriteEditorConfig {
     moth::gfx::Color SpriteEditorNormalColor = moth::gfx::Color{ 1.0f, 1.0f, 0.0f, 200.0f / 255.0f };
@@ -18,6 +20,12 @@ struct SpriteEditorConfig {
     bool ShowCellListWindow = true;
     bool ShowClipEditorWindow = true;
     bool ShowClipPreviewWindow = true;
+    // File > Open Recent: project file paths, newest first.
+    std::vector<std::string> RecentProjects;
+    // The folders that the project dialogs (Load, Save As) and the image dialogs (Import Sheet, Export Sheet)
+    // last used. Empty until a dialog is used.
+    std::string LastProjectDir;
+    std::string LastImageDir;
 };
 
 inline void to_json(nlohmann::json& j, SpriteEditorConfig const& config) {
@@ -30,6 +38,9 @@ inline void to_json(nlohmann::json& j, SpriteEditorConfig const& config) {
     j["ShowCellListWindow"] = config.ShowCellListWindow;
     j["ShowClipEditorWindow"] = config.ShowClipEditorWindow;
     j["ShowClipPreviewWindow"] = config.ShowClipPreviewWindow;
+    j["RecentProjects"] = config.RecentProjects;
+    j["LastProjectDir"] = config.LastProjectDir;
+    j["LastImageDir"] = config.LastImageDir;
 }
 
 inline void from_json(nlohmann::json const& j, SpriteEditorConfig& config) {
@@ -42,4 +53,7 @@ inline void from_json(nlohmann::json const& j, SpriteEditorConfig& config) {
     config.ShowCellListWindow = j.value("ShowCellListWindow", config.ShowCellListWindow);
     config.ShowClipEditorWindow = j.value("ShowClipEditorWindow", config.ShowClipEditorWindow);
     config.ShowClipPreviewWindow = j.value("ShowClipPreviewWindow", config.ShowClipPreviewWindow);
+    config.RecentProjects = j.value("RecentProjects", config.RecentProjects);
+    config.LastProjectDir = j.value("LastProjectDir", config.LastProjectDir);
+    config.LastImageDir = j.value("LastImageDir", config.LastImageDir);
 }

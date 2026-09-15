@@ -17,6 +17,15 @@ namespace {
     char const* const kDockSpaceHostWindow = "##dock_space_host";
     char const* const kDockSpaceId = "##dock_space";
 
+    // The folder a file dialog starts in: the remembered folder while it still exists, else the fallback.
+    std::string DialogFolder(std::string const& remembered, std::filesystem::path const& fallback) {
+        std::error_code ec;
+        if (!remembered.empty() && std::filesystem::is_directory(remembered, ec)) {
+            return remembered;
+        }
+        return fallback.string();
+    }
+
     // Replace the dock space's layout with the built-in default.
     void BuildDefaultLayout(ImGuiID dockSpaceId, ImVec2 size) {
         ImGui::DockBuilderRemoveNode(dockSpaceId);
@@ -134,13 +143,16 @@ void SpriteEditor::HandleShortcuts() {
 }
 
 void SpriteEditor::DrawMainMenuBar() {
+    // Project dialogs (Load, Save As) and image dialogs (Import Sheet, Export Sheet) each start in the folder that
+    // their kind of dialog last used, and remember the folder of the file chosen.
     auto const doLoad = [this]() {
         nfdchar_t* outPath = nullptr;
-        std::string const currentPath = std::filesystem::current_path().string();
-        if (NFD_OpenDialog("json", currentPath.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
+        std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
+        if (NFD_OpenDialog("json", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
             strncpy(m_pathBuffer, outPath, sizeof(m_pathBuffer) - 1);
             m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
             NFD_Free(outPath);
+            m_config.LastProjectDir = std::filesystem::path(m_pathBuffer).parent_path().string();
             LoadSpriteSheet(m_pathBuffer);
         }
     };
@@ -155,6 +167,25 @@ void SpriteEditor::DrawMainMenuBar() {
         if (ImGui::MenuItem("Load...")) {
             doLoad();
         }
+        // The entry is opened after the submenu is drawn, because opening a project changes the list.
+        std::optional<std::string> recentToOpen;
+        if (ImGui::BeginMenu("Open Recent", !m_config.RecentProjects.empty())) {
+            for (size_t i = 0; i < m_config.RecentProjects.size(); ++i) {
+                ImGui::PushID(static_cast<int>(i));
+                if (ImGui::MenuItem(m_config.RecentProjects[i].c_str())) {
+                    recentToOpen = m_config.RecentProjects[i];
+                }
+                ImGui::PopID();
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Clear Recent")) {
+                m_config.RecentProjects.clear();
+            }
+            ImGui::EndMenu();
+        }
+        if (recentToOpen.has_value()) {
+            OpenRecentProject(*recentToOpen);
+        }
         bool const hasImage = m_imagePathBuffer[0] != '\0';
         bool const hasPath  = m_pathBuffer[0] != '\0';
         if (ImGui::MenuItem("Save", nullptr, false, hasImage && hasPath)) {
@@ -162,34 +193,37 @@ void SpriteEditor::DrawMainMenuBar() {
         }
         if (ImGui::MenuItem("Save As...", nullptr, false, hasImage)) {
             nfdchar_t* outPath = nullptr;
-            std::string const currentPath = std::filesystem::current_path().string();
-            if (NFD_SaveDialog("json", currentPath.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
+            std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
+            if (NFD_SaveDialog("json", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
                 strncpy(m_pathBuffer, outPath, sizeof(m_pathBuffer) - 1);
                 m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
                 NFD_Free(outPath);
+                m_config.LastProjectDir = std::filesystem::path(m_pathBuffer).parent_path().string();
                 SaveSpriteSheet();
             }
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
             nfdchar_t* outPath = nullptr;
-            std::string const currentPath = std::filesystem::current_path().string();
-            if (NFD_OpenDialog("png,jpg,jpeg,bmp", currentPath.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
+            std::string const startDir = DialogFolder(m_config.LastImageDir, std::filesystem::current_path());
+            if (NFD_OpenDialog("png,jpg,jpeg,bmp", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
                 std::filesystem::path const imagePath = outPath;
                 NFD_Free(outPath);
+                m_config.LastImageDir = imagePath.parent_path().string();
                 ImportSheet(imagePath);
             }
         }
         if (ImGui::MenuItem("Export Sheet...", nullptr, false, hasImage)) {
-            // Filter on the sheet's own extension, and start in the sheet's folder.
+            // Filter on the sheet's own extension. Before any image dialog has been used, start in the sheet's folder.
             std::filesystem::path const sheetPath = m_imagePathBuffer;
             std::string const extension = sheetPath.extension().string();
             std::string const filter = extension.empty() ? std::string{} : extension.substr(1);
-            std::string const sheetDir = sheetPath.parent_path().string();
+            std::string const startDir = DialogFolder(m_config.LastImageDir, sheetPath.parent_path());
             nfdchar_t* outPath = nullptr;
-            if (NFD_SaveDialog(filter.empty() ? nullptr : filter.c_str(), sheetDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
+            if (NFD_SaveDialog(filter.empty() ? nullptr : filter.c_str(), startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
                 std::filesystem::path const exportPath = outPath;
                 NFD_Free(outPath);
+                m_config.LastImageDir = exportPath.parent_path().string();
                 ExportSheet(exportPath);
             }
         }
