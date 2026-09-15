@@ -41,7 +41,8 @@ private:
     // Mouse-wheel zoom centered on the cursor, for the current scrolling child window.
     static void ZoomWithMouseWheel(float& zoom);
     void DrawDataEditor();
-    void DrawFramesPane();
+    // The Cells window: the cell list, and a form for the selected cell below it.
+    void DrawCellListWindow();
     // The Selected Cell window: the selected cell with zoom, pivot drag and pivot presets.
     void DrawCellWindow();
     // Remove a frame as one undoable action, fixing up the selection and clip step indices.

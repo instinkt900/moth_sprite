@@ -12,6 +12,7 @@ namespace {
     char const* const kSpriteEditorWindow = "Sprite Editor";
     char const* const kSheetWindow = "Sheet";
     char const* const kCellWindow = "Selected Cell";
+    char const* const kCellListWindow = "Cells";
     char const* const kDockSpaceHostWindow = "##dock_space_host";
     char const* const kDockSpaceId = "##dock_space";
 
@@ -24,10 +25,14 @@ namespace {
         ImGuiID rightId = 0;
         ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, 0.6f, &sheetId, &rightId);
         ImGuiID cellId = 0;
+        ImGuiID rightLowerId = 0;
+        ImGui::DockBuilderSplitNode(rightId, ImGuiDir_Up, 0.4f, &cellId, &rightLowerId);
+        ImGuiID cellListId = 0;
         ImGuiID editorId = 0;
-        ImGui::DockBuilderSplitNode(rightId, ImGuiDir_Up, 0.4f, &cellId, &editorId);
+        ImGui::DockBuilderSplitNode(rightLowerId, ImGuiDir_Up, 0.5f, &cellListId, &editorId);
         ImGui::DockBuilderDockWindow(kSheetWindow, sheetId);
         ImGui::DockBuilderDockWindow(kCellWindow, cellId);
+        ImGui::DockBuilderDockWindow(kCellListWindow, cellListId);
         ImGui::DockBuilderDockWindow(kSpriteEditorWindow, editorId);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
@@ -78,14 +83,6 @@ void SpriteEditor::DrawDataEditor() {
     }
 
     ImGui::Separator();
-
-    float const totalH = ImGui::GetContentRegionAvail().y;
-    float const framesH = std::floor(totalH * 0.5f);
-
-    if (ImGui::BeginChild("##frames_pane", ImVec2(0, framesH), ImGuiChildFlags_None)) {
-        DrawFramesPane();
-    }
-    ImGui::EndChild();
 
     ImGui::BeginChild("##clips_pane", ImVec2(0, 0), ImGuiChildFlags_None);
     DrawClipsPane();
@@ -201,12 +198,14 @@ void SpriteEditor::DrawMainMenuBar() {
     if (ImGui::BeginMenu("Window")) {
         ImGui::MenuItem(kSheetWindow, nullptr, &m_config.ShowSheetWindow);
         ImGui::MenuItem(kCellWindow, nullptr, &m_config.ShowCellWindow);
+        ImGui::MenuItem(kCellListWindow, nullptr, &m_config.ShowCellListWindow);
         ImGui::MenuItem(kSpriteEditorWindow, nullptr, &m_config.ShowSpriteEditorWindow);
         ImGui::Separator();
         if (ImGui::MenuItem("Reset Layout")) {
             // The default layout shows every window, as on first run.
             m_config.ShowSheetWindow = true;
             m_config.ShowCellWindow = true;
+            m_config.ShowCellListWindow = true;
             m_config.ShowSpriteEditorWindow = true;
             m_resetLayout = true;
         }
@@ -262,6 +261,13 @@ void SpriteEditor::Draw() {
     if (m_config.ShowCellWindow) {
         if (ImGui::Begin(kCellWindow, &m_config.ShowCellWindow)) {
             DrawCellWindow();
+        }
+        ImGui::End();
+    }
+
+    if (m_config.ShowCellListWindow) {
+        if (ImGui::Begin(kCellListWindow, &m_config.ShowCellListWindow)) {
+            DrawCellListWindow();
         }
         ImGui::End();
     }

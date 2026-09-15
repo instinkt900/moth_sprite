@@ -38,112 +38,102 @@ void SpriteEditor::DeleteFrame(int frameToDelete) {
                         beforeSel, m_selectedFrame);
 }
 
-void SpriteEditor::DrawFramesPane() {
-    ImGui::Text("Frames: %d", static_cast<int>(m_frames.size()));
+void SpriteEditor::DrawCellListWindow() {
+    ImGui::Text("Cells: %d", static_cast<int>(m_frames.size()));
 
-    if (ImGui::CollapsingHeader("Frames", ImGuiTreeNodeFlags_DefaultOpen)) {
-        // ---- Frame list ----
-        int frameToDelete = -1;
-        if (ImGui::BeginTable("##frames_table", 6,
-                ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-                ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchSame,
-                ImVec2(0.0f, 150.0f))) {
-            ImGui::TableSetupScrollFreeze(0, 1);
-            ImGui::TableSetupColumn("#",      ImGuiTableColumnFlags_WidthFixed,   30.0f);
-            ImGui::TableSetupColumn("X",      ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Y",      ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("W",      ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("H",      ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("##fdel", ImGuiTableColumnFlags_WidthFixed,   20.0f);
-            ImGui::TableHeadersRow();
+    // The list takes the height that the form below it does not need: a title and three rows of fields.
+    ImGuiStyle const& style = ImGui::GetStyle();
+    float const formH = ImGui::GetTextLineHeightWithSpacing() + style.ItemSpacing.y +
+                        (ImGui::GetFrameHeightWithSpacing() * 3.0f);
+    float const listH = std::max(ImGui::GetContentRegionAvail().y - formH,
+                                 ImGui::GetFrameHeightWithSpacing() * 3.0f);
 
-            char idBuf[16];
-            for (int i = 0; i < static_cast<int>(m_frames.size()); ++i) {
-                auto const& fr = m_frames[i];
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::PushID(i);
+    // ---- Cell list ----
+    int frameToDelete = -1;
+    if (ImGui::BeginChild("##cell_list", ImVec2{ 0.0f, listH }, ImGuiChildFlags_Border)) {
+        float const deleteW = ImGui::CalcTextSize("x").x + (style.FramePadding.x * 2.0f);
+        for (int i = 0; i < static_cast<int>(m_frames.size()); ++i) {
+            auto const& fr = m_frames[i];
+            ImGui::PushID(i);
 
-                bool const isSelected = (m_selectedFrame == i);
-                snprintf(idBuf, sizeof(idBuf), "%d", i);
-                if (ImGui::Selectable(idBuf, isSelected,
-                        ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap,
-                        ImVec2(0, 0))) {
-                    m_selectedFrame = isSelected ? -1 : i;
-                }
-
-                ImGui::TableSetColumnIndex(1); ImGui::Text("%d", fr.rect.x());
-                ImGui::TableSetColumnIndex(2); ImGui::Text("%d", fr.rect.y());
-                ImGui::TableSetColumnIndex(3); ImGui::Text("%d", fr.rect.w());
-                ImGui::TableSetColumnIndex(4); ImGui::Text("%d", fr.rect.h());
-
-                ImGui::TableSetColumnIndex(5);
-                if (ImGui::SmallButton("x")) {
-                    frameToDelete = i;
-                }
-                ImGui::PopID();
+            bool const isSelected = (m_selectedFrame == i);
+            std::string const label = fmt::format("{:<4}({}, {}) {}x{}",
+                i, fr.rect.x(), fr.rect.y(), fr.rect.w(), fr.rect.h());
+            if (ImGui::Selectable(label.c_str(), isSelected, ImGuiSelectableFlags_AllowOverlap)) {
+                m_selectedFrame = isSelected ? -1 : i;
             }
-            ImGui::EndTable();
-        }
 
-        if (frameToDelete >= 0) {
-            DeleteFrame(frameToDelete);
-        }
-
-        // ---- Frame editor (InputInt fields) ----
-        if (m_selectedFrame >= 0 && m_selectedFrame < static_cast<int>(m_frames.size())) {
-            auto& fr = m_frames[m_selectedFrame];
-            int x = fr.rect.x();
-            int y = fr.rect.y();
-            int w = fr.rect.w();
-            int h = fr.rect.h();
-            int pivotX = fr.pivot.x;
-            int pivotY = fr.pivot.y;
-
-            ImGui::SeparatorText(fmt::format("Frame {}", m_selectedFrame).c_str());
-
-            // 4-column table: label | input | label | input
-            if (ImGui::BeginTable("##fedit_tbl", 4, ImGuiTableFlags_SizingFixedFit)) {
-                ImGui::TableSetupColumn("##fl1", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableSetupColumn("##fv1", ImGuiTableColumnFlags_WidthStretch);
-                ImGui::TableSetupColumn("##fl2", ImGuiTableColumnFlags_WidthFixed);
-                ImGui::TableSetupColumn("##fv2", ImGuiTableColumnFlags_WidthStretch);
-
-                bool anyActivated   = false;
-                bool anyDeactivated = false;
-                auto editRow = [&](char const* l1, char const* id1, int& v1,
-                                   char const* l2, char const* id2, int& v2) {
-                    ImGui::TableNextRow();
-                    ImGui::TableSetColumnIndex(0); ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted(l1);
-                    ImGui::TableSetColumnIndex(1); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::InputInt(id1, &v1);
-                    anyActivated   |= ImGui::IsItemActivated();
-                    anyDeactivated |= ImGui::IsItemDeactivatedAfterEdit();
-                    ImGui::TableSetColumnIndex(2); ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted(l2);
-                    ImGui::TableSetColumnIndex(3); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::InputInt(id2, &v2);
-                    anyActivated   |= ImGui::IsItemActivated();
-                    anyDeactivated |= ImGui::IsItemDeactivatedAfterEdit();
-                };
-
-                editRow("X",       "##fedit_x",  x,      "Y",       "##fedit_y",  y);
-                editRow("W",       "##fedit_w",  w,      "H",       "##fedit_h",  h);
-                editRow("Pivot X", "##fedit_px", pivotX, "Pivot Y", "##fedit_py", pivotY);
-
-                ImGui::EndTable();
-
-                w = std::max(w, 1);
-                h = std::max(h, 1);
-                fr.rect  = moth::gfx::MakeRect(x, y, w, h);
-                fr.pivot = { pivotX, pivotY };
-
-                if (anyActivated && !m_pendingFrameSnapshot.has_value()) {
-                    m_pendingFrameSnapshot = m_frames;
-                }
-                if (anyDeactivated && m_pendingFrameSnapshot.has_value()) {
-                    PushFrameAction(std::move(*m_pendingFrameSnapshot),
-                                    m_selectedFrame, m_selectedFrame);
-                    m_pendingFrameSnapshot.reset();
-                }
+            // Delete button at the right end of the row, over the selectable.
+            ImGui::SameLine(ImGui::GetContentRegionMax().x - deleteW);
+            if (ImGui::SmallButton("x")) {
+                frameToDelete = i;
             }
+            ImGui::PopID();
+        }
+    }
+    ImGui::EndChild();
+
+    if (frameToDelete >= 0) {
+        DeleteFrame(frameToDelete);
+    }
+
+    // ---- Cell form (InputInt fields) ----
+    if (m_selectedFrame < 0 || m_selectedFrame >= static_cast<int>(m_frames.size())) {
+        ImGui::SeparatorText("Cell");
+        ImGui::TextDisabled("Select a cell to edit it.");
+        return;
+    }
+
+    auto& fr = m_frames[m_selectedFrame];
+    int x = fr.rect.x();
+    int y = fr.rect.y();
+    int w = fr.rect.w();
+    int h = fr.rect.h();
+    int pivotX = fr.pivot.x;
+    int pivotY = fr.pivot.y;
+
+    ImGui::SeparatorText(fmt::format("Cell {}", m_selectedFrame).c_str());
+
+    // 4-column table: label | input | label | input
+    if (ImGui::BeginTable("##fedit_tbl", 4, ImGuiTableFlags_SizingFixedFit)) {
+        ImGui::TableSetupColumn("##fl1", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("##fv1", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("##fl2", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("##fv2", ImGuiTableColumnFlags_WidthStretch);
+
+        bool anyActivated   = false;
+        bool anyDeactivated = false;
+        auto editRow = [&](char const* l1, char const* id1, int& v1,
+                           char const* l2, char const* id2, int& v2) {
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0); ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted(l1);
+            ImGui::TableSetColumnIndex(1); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::InputInt(id1, &v1);
+            anyActivated   |= ImGui::IsItemActivated();
+            anyDeactivated |= ImGui::IsItemDeactivatedAfterEdit();
+            ImGui::TableSetColumnIndex(2); ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted(l2);
+            ImGui::TableSetColumnIndex(3); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::InputInt(id2, &v2);
+            anyActivated   |= ImGui::IsItemActivated();
+            anyDeactivated |= ImGui::IsItemDeactivatedAfterEdit();
+        };
+
+        editRow("X",       "##fedit_x",  x,      "Y",       "##fedit_y",  y);
+        editRow("W",       "##fedit_w",  w,      "H",       "##fedit_h",  h);
+        editRow("Pivot X", "##fedit_px", pivotX, "Pivot Y", "##fedit_py", pivotY);
+
+        ImGui::EndTable();
+
+        w = std::max(w, 1);
+        h = std::max(h, 1);
+        fr.rect  = moth::gfx::MakeRect(x, y, w, h);
+        fr.pivot = { pivotX, pivotY };
+
+        if (anyActivated && !m_pendingFrameSnapshot.has_value()) {
+            m_pendingFrameSnapshot = m_frames;
+        }
+        if (anyDeactivated && m_pendingFrameSnapshot.has_value()) {
+            PushFrameAction(std::move(*m_pendingFrameSnapshot),
+                            m_selectedFrame, m_selectedFrame);
+            m_pendingFrameSnapshot.reset();
         }
     }
 }
@@ -156,7 +146,7 @@ void SpriteEditor::DrawCellWindow() {
         return;
     }
     if (m_selectedFrame < 0 || m_selectedFrame >= static_cast<int>(m_frames.size())) {
-        ImGui::TextDisabled("Select a cell on the sheet or in the frame list.");
+        ImGui::TextDisabled("Select a cell on the sheet or in the Cells window.");
         return;
     }
 

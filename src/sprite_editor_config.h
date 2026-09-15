@@ -15,6 +15,7 @@ struct SpriteEditorConfig {
     bool ShowSpriteEditorWindow = true;
     bool ShowSheetWindow = true;
     bool ShowCellWindow = true;
+    bool ShowCellListWindow = true;
 };
 
 inline void to_json(nlohmann::json& j, SpriteEditorConfig const& config) {
@@ -24,6 +25,7 @@ inline void to_json(nlohmann::json& j, SpriteEditorConfig const& config) {
     j["ShowSpriteEditorWindow"] = config.ShowSpriteEditorWindow;
     j["ShowSheetWindow"] = config.ShowSheetWindow;
     j["ShowCellWindow"] = config.ShowCellWindow;
+    j["ShowCellListWindow"] = config.ShowCellListWindow;
 }
 
 inline void from_json(nlohmann::json const& j, SpriteEditorConfig& config) {
@@ -33,4 +35,5 @@ inline void from_json(nlohmann::json const& j, SpriteEditorConfig& config) {
     config.ShowSpriteEditorWindow = j.value("ShowSpriteEditorWindow", config.ShowSpriteEditorWindow);
     config.ShowSheetWindow = j.value("ShowSheetWindow", config.ShowSheetWindow);
     config.ShowCellWindow = j.value("ShowCellWindow", config.ShowCellWindow);
+    config.ShowCellListWindow = j.value("ShowCellListWindow", config.ShowCellListWindow);
 }
