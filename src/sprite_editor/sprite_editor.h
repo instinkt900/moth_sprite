@@ -28,6 +28,11 @@ public:
     void Draw() override;
 
 private:
+    // Ctrl+Z, Ctrl+Y, Delete and Esc, in every window.
+    void HandleShortcuts();
+    void DrawMainMenuBar();
+    // The dock space fills the application window below the main menu bar.
+    void DrawDockSpace();
     void NewSpriteSheet();
     void LoadSpriteSheet(std::filesystem::path const& path);
     void ImportSheet(std::filesystem::path const& imagePath);
@@ -63,6 +68,7 @@ private:
     moth::gfx::AssetContext& m_assetContext;
     moth::gfx::platform::ImGuiContext& m_imgui;
     SpriteEditorConfig& m_config;
+    bool m_resetLayout = false; // set by Window > Reset Layout; applied before the dock space is drawn
     char m_pathBuffer[1024] = {};
     char m_imagePathBuffer[1024] = {};
     std::shared_ptr<moth::gfx::SpriteSheet> m_spriteSheet;
