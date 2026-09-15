@@ -131,7 +131,12 @@ void SpriteEditor::HandleShortcuts() {
         }
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
-        DeleteFrames(m_selection);
+        if (m_clipWindowFocused) {
+            // In the Clips window, Delete removes the selected clip's current step and never removes cells.
+            DeleteClipStep(m_selectedClip, m_clipCurrentStep);
+        } else {
+            DeleteFrames(m_selection);
+        }
     }
     // Esc cancels one thing: picking a cell for a clip step, else New Cell drawing, else the selection.
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
@@ -481,6 +486,8 @@ void SpriteEditor::Draw() {
         ImGui::End();
     }
 
+    // Set again while the Clips window is drawn, so a closed or hidden window never counts as focused.
+    m_clipWindowFocused = false;
     if (m_config.ShowClipEditorWindow) {
         if (ImGui::Begin(kClipEditorWindow, &m_config.ShowClipEditorWindow)) {
             DrawClipEditorWindow();

@@ -259,7 +259,28 @@ void SpriteEditor::CommitClipEdit() {
     m_pendingClipEdit.reset();
 }
 
+void SpriteEditor::DeleteClipStep(int clipIndex, int stepIndex) {
+    if (clipIndex < 0 || clipIndex >= static_cast<int>(m_clips.size()) ||
+        stepIndex < 0 || stepIndex >= static_cast<int>(m_clips[clipIndex].desc.frames.size())) {
+        return;
+    }
+    auto before = m_clips;
+    auto& steps = m_clips[clipIndex].desc.frames;
+    steps.erase(steps.begin() + stepIndex);
+    // Playback moves to the step that took the removed one's place, or to the new last step.
+    if (clipIndex == m_selectedClip) {
+        if (m_clipCurrentStep > stepIndex) {
+            --m_clipCurrentStep;
+        }
+        m_clipCurrentStep = std::clamp(m_clipCurrentStep, 0, std::max(static_cast<int>(steps.size()) - 1, 0));
+    }
+    m_cellPick.reset();
+    PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
+}
+
 void SpriteEditor::DrawClipEditorWindow() {
+    m_clipWindowFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+
     // ---- Playback ----
     DrawClipPlaybackControls();
     if (m_cellPick.has_value()) {
@@ -508,11 +529,7 @@ void SpriteEditor::DrawClipEditorWindow() {
         m_cellPick.reset();
         PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
     } else if (stepToDelete.has_value()) {
-        auto before = m_clips;
-        auto& steps = m_clips[stepToDelete->clip].desc.frames;
-        steps.erase(steps.begin() + stepToDelete->step);
-        m_cellPick.reset();
-        PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
+        DeleteClipStep(stepToDelete->clip, stepToDelete->step);
     } else if (clipToAddStep >= 0) {
         // Add step — defaults to the prime cell (or 0)
         auto before = m_clips;

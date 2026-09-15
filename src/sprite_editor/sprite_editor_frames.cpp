@@ -108,10 +108,13 @@ void SpriteEditor::DrawCellListWindow() {
         ImGui::TextDisabled("(%d selected)", static_cast<int>(m_selection.size()));
     }
 
-    // The list takes the height that the form below it does not need: a title and three rows of fields.
+    // The list takes the height that the form below it does not need. The form measures its height each time it
+    // is drawn, so it fits without scrolling. Before the first measurement, estimate a title, three rows of fields
+    // and three rows of pivot presets.
     ImGuiStyle const& style = ImGui::GetStyle();
-    float const formH = ImGui::GetTextLineHeightWithSpacing() + style.ItemSpacing.y +
-                        (ImGui::GetFrameHeightWithSpacing() * 3.0f);
+    float const formH = (m_cellFormHeight > 0.0f)
+        ? m_cellFormHeight
+        : ImGui::GetTextLineHeightWithSpacing() + style.ItemSpacing.y + (ImGui::GetFrameHeightWithSpacing() * 6.0f);
     float const listH = std::max(ImGui::GetContentRegionAvail().y - formH,
                                  ImGui::GetFrameHeightWithSpacing() * 3.0f);
 
@@ -179,7 +182,8 @@ void SpriteEditor::DrawCellListWindow() {
         DeleteFrames({ frameToDelete });
     }
 
-    // ---- Cell form (InputInt fields), for the prime cell ----
+    // ---- Cell form (InputInt fields and pivot presets), for the prime cell ----
+    float const formStartY = ImGui::GetCursorPosY();
     int const formCell = PrimeCell();
     if (formCell < 0 || formCell >= static_cast<int>(m_frames.size())) {
         ImGui::SeparatorText("Cell");
@@ -239,6 +243,30 @@ void SpriteEditor::DrawCellListWindow() {
             m_pendingFrameSnapshot.reset();
         }
     }
+
+    // Pivot preset grid (3×3). Like Edit > Pivot, each button sets the pivot of every selected cell.
+    float const btnW = (ImGui::GetContentRegionAvail().x - (style.ItemSpacing.x * 2.0f)) / 3.0f;
+    ImVec2 const bs{ btnW, 0.0f };
+
+    auto pivotPreset = [&](char const* label, ImVec2 sz, PivotAnchor px, PivotAnchor py) {
+        if (ImGui::Button(label, sz)) {
+            SetSelectionPivot(px, py);
+        }
+    };
+
+    using Anchor = PivotAnchor;
+    pivotPreset("TL##pv", bs, Anchor::Start,  Anchor::Start);   ImGui::SameLine();
+    pivotPreset("T##pv",  bs, Anchor::Center, Anchor::Start);   ImGui::SameLine();
+    pivotPreset("TR##pv", bs, Anchor::End,    Anchor::Start);
+    pivotPreset("L##pv",  bs, Anchor::Start,  Anchor::Center);  ImGui::SameLine();
+    pivotPreset("C##pv",  bs, Anchor::Center, Anchor::Center);  ImGui::SameLine();
+    pivotPreset("R##pv",  bs, Anchor::End,    Anchor::Center);
+    pivotPreset("BL##pv", bs, Anchor::Start,  Anchor::End);     ImGui::SameLine();
+    pivotPreset("B##pv",  bs, Anchor::Center, Anchor::End);     ImGui::SameLine();
+    pivotPreset("BR##pv", bs, Anchor::End,    Anchor::End);
+
+    // The cursor is past the last row's item spacing, which balances the spacing above the form.
+    m_cellFormHeight = ImGui::GetCursorPosY() - formStartY;
 }
 
 void SpriteEditor::DrawCellWindow() {
@@ -269,9 +297,9 @@ void SpriteEditor::DrawCellWindow() {
     float const cellW = static_cast<float>(std::max(fr.rect.w(), 1));
     float const cellH = static_cast<float>(std::max(fr.rect.h(), 1));
 
-    // One toolbar row above the canvas and three rows of pivot presets below it.
+    // One toolbar row above the canvas.
     ImVec2 const totalAvail = ImGui::GetContentRegionAvail();
-    float const canvasH = totalAvail.y - (ImGui::GetFrameHeightWithSpacing() * 4.0f);
+    float const canvasH = totalAvail.y - ImGui::GetFrameHeightWithSpacing();
     auto const fitZoom = [&]() {
         if (totalAvail.x > 0.0f && canvasH > 0.0f) {
             m_cellZoom = std::min(totalAvail.x / cellW, canvasH / cellH);
@@ -345,26 +373,4 @@ void SpriteEditor::DrawCellWindow() {
     dl->AddLine({ px - kArm, py }, { px + kArm, py }, crossColor, 1.5f);
     dl->AddLine({ px, py - kArm }, { px, py + kArm }, crossColor, 1.5f);
     ImGui::EndChild();
-
-    // Pivot preset grid (3×3). Like Edit > Pivot, each button sets the pivot of every selected cell.
-    float const btnW = (ImGui::GetContentRegionAvail().x
-                        - (ImGui::GetStyle().ItemSpacing.x * 2.0f)) / 3.0f;
-    ImVec2 const bs{ btnW, 0.0f };
-
-    auto pivotPreset = [&](char const* label, ImVec2 sz, PivotAnchor px, PivotAnchor py) {
-        if (ImGui::Button(label, sz)) {
-            SetSelectionPivot(px, py);
-        }
-    };
-
-    using Anchor = PivotAnchor;
-    pivotPreset("TL##pv", bs, Anchor::Start,  Anchor::Start);   ImGui::SameLine();
-    pivotPreset("T##pv",  bs, Anchor::Center, Anchor::Start);   ImGui::SameLine();
-    pivotPreset("TR##pv", bs, Anchor::End,    Anchor::Start);
-    pivotPreset("L##pv",  bs, Anchor::Start,  Anchor::Center);  ImGui::SameLine();
-    pivotPreset("C##pv",  bs, Anchor::Center, Anchor::Center);  ImGui::SameLine();
-    pivotPreset("R##pv",  bs, Anchor::End,    Anchor::Center);
-    pivotPreset("BL##pv", bs, Anchor::Start,  Anchor::End);     ImGui::SameLine();
-    pivotPreset("B##pv",  bs, Anchor::Center, Anchor::End);     ImGui::SameLine();
-    pivotPreset("BR##pv", bs, Anchor::End,    Anchor::End);
 }

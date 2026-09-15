@@ -119,6 +119,8 @@ private:
     void DrawClipEditorWindow();
     // Selecting a different clip moves playback to its first step.
     void SelectClip(int clipIndex);
+    // Remove one step from a clip as one undoable action. Playback stays on a step that still exists.
+    void DeleteClipStep(int clipIndex, int stepIndex);
     // Select only this cell (-1 clears the selection) from the cell list or the sheet. While picking a cell for a
     // clip step, also assigns it to the step as one undoable action.
     void SelectCell(int frameIndex);
@@ -201,6 +203,8 @@ private:
     };
     std::optional<CellPick> m_cellPick;
     bool m_scrollToClipStep = false; // set by Step; the timeline scrolls to show the current step
+    bool m_clipWindowFocused = false; // the Clips window had focus when last drawn; Delete then removes a step
+    float m_cellFormHeight = 0.0f;    // the Cells form's height when last drawn, so the list leaves room for it
 
     // Pivot drag state (click-drag in the Selected Cell window)
     bool m_pivotDragging = false;
