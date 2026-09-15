@@ -150,7 +150,7 @@ A dockable window with the full tilesheet where the cells are shown, zoom option
 6. Click New Cell, then untick Window > Sheet. Tick it again: New Cell mode has ended.
 7. Untick Window > Sheet, quit and start again. The Sheet window is still closed. Tick it: it opens.
 
-### [todo] T-009 Selected cell window
+### [done] T-009 Selected cell window
 
 **Review:** reviewed 2026-09-15
 
@@ -161,13 +161,13 @@ A dockable window showing the selected cell. Same zoom options and pivot renderi
 cell preview and keeps the click to set pivot behaviour.
 
 **Requirements:**
-- [ ] A dockable window shows the selected cell.
-- [ ] The window has the same zoom options as the sheet window (Fit, 1:1, mouse-wheel zoom) and draws the pivot.
-- [ ] Clicking or dragging in the window sets the pivot, as the existing cell preview does.
-- [ ] The 3×3 pivot preset buttons (TL, T, TR, L, C, R, BL, B, BR) are in the window, below the cell image.
-- [ ] The window replaces the existing cell preview.
-- [ ] The window is part of the default layout from T-007.
-- [ ] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
+- [x] A dockable window shows the selected cell.
+- [x] The window has the same zoom options as the sheet window (Fit, 1:1, mouse-wheel zoom) and draws the pivot.
+- [x] Clicking or dragging in the window sets the pivot, as the existing cell preview does.
+- [x] The 3×3 pivot preset buttons (TL, T, TR, L, C, R, BL, B, BR) are in the window, below the cell image.
+- [x] The window replaces the existing cell preview.
+- [x] The window is part of the default layout from T-007.
+- [x] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
 
 **Out of scope:**
 
@@ -176,10 +176,36 @@ cell preview and keeps the click to set pivot behaviour.
   the same presets to Edit > Pivot for the whole selection.
 
 **Notes:**
+- The window is named "Selected Cell". Its open state is `ShowCellWindow` in `moth_sprite.json`.
+- The default layout splits the right side: Selected Cell on top (40%), Sprite Editor below.
+- The frames pane no longer has the mini-preview column or the pivot preset grid. The X, Y, W, H and Pivot
+  fields stay there until T-010.
+- The cell is drawn with one zoom for both axes. The old mini-preview stretched each axis on its own to fit
+  its column.
+- The mouse-wheel zoom moved from `DrawPreview` into `SpriteEditor::ZoomWithMouseWheel`, unchanged, so the
+  Sheet and Selected Cell windows share it. T-012 can use it too.
+- Assumption: the cell zoom fits the window on first draw, and again after File > New, Load and Import Sheet,
+  like the sheet zoom. Selecting another cell keeps the current zoom, so that the user can compare pivots at
+  one zoom. Fit refits it.
+- Assumption: with no image or no selected cell, the window shows a short hint.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- 182b68a feat(T-009): dockable Selected Cell window with zoom and pivot editing
 
 **Manual verification:**
+1. Start with no `imgui.ini`, or choose Window > Reset Layout. Sheet is on the left, Selected Cell is top right
+   and Sprite Editor is bottom right.
+2. With no sheet, Selected Cell shows the Import Sheet hint. Import a sheet: it shows "Select a cell ...".
+3. Add cells with Tools > Grid and select one. The cell fills the window (Fit) with a pivot cross. The frames
+   pane has no preview and no preset buttons.
+4. Click 1:1, then Fit, then use the mouse wheel over the cell. The zoom changes around the cursor, and
+   scrollbars appear when the cell is larger than the window.
+5. Click on the cell: the pivot moves there. Drag: the pivot follows the mouse. The Pivot X and Y fields in the
+   Sprite Editor window and the cross on the sheet match. Ctrl+Z undoes the whole drag in one step.
+6. Click each of the nine preset buttons below the cell. The pivot moves to that corner, edge or center. Each
+   click is one undo step.
+7. Untick Window > Selected Cell, quit and start again. It is still closed. Tick it: it opens.
 
 ### [todo] T-010 Cell list window
 
