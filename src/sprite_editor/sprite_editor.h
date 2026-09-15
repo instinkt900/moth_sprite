@@ -47,7 +47,22 @@ private:
     void DrawCellWindow();
     // Remove a frame as one undoable action, fixing up the selection and clip step indices.
     void DeleteFrame(int frameToDelete);
-    void DrawClipsPane();
+    // Clip playback advances once per frame, whichever windows are open.
+    void AdvanceClipPlayback();
+    // Play/Pause and Step buttons for the selected clip, with its current step.
+    void DrawClipPlaybackControls();
+    // The selected clip's current step, anchored on its cell's pivot.
+    void DrawClipPreview();
+    // The Clips window: every clip as a timeline of steps.
+    void DrawClipEditorWindow();
+    // Selecting a different clip moves playback to its first step.
+    void SelectClip(int clipIndex);
+    // Select a cell from the cell list or the sheet. While picking a cell for a clip step, also assigns it to the
+    // step as one undoable action.
+    void SelectCell(int frameIndex);
+    // Undo for a text or number input in the Clips window. Call right after the widget, with its return value.
+    void TrackClipEdit(bool changed);
+    void CommitClipEdit();
     void DrawGridTool();
     void DrawDetectFramesTool();
     // Append one frame per rect (pivot 0,0) as a single undoable action and select the first.
@@ -94,7 +109,22 @@ private:
 
     // Deferred InputInt/InputText snapshots (captured on activate, committed on deactivate)
     std::optional<FrameVec> m_pendingFrameSnapshot;
-    std::optional<ClipVec>  m_pendingClipSnapshot;
+    // A Clips window input being edited. id is the widget's ImGuiID, so that focus moving straight from one field
+    // to another commits the first edit before the second snapshot is taken.
+    struct PendingClipEdit {
+        unsigned int id = 0;
+        ClipVec snapshot;
+        bool edited = false;
+    };
+    std::optional<PendingClipEdit> m_pendingClipEdit;
+
+    // Double-clicking a clip step starts picking a cell for it. The next cell selected is assigned to the step.
+    struct CellPick {
+        int clip = 0;
+        int step = 0;
+    };
+    std::optional<CellPick> m_cellPick;
+    bool m_scrollToClipStep = false; // set by Step; the timeline scrolls to show the current step
 
     // Pivot drag state (click-drag in the Selected Cell window)
     bool m_pivotDragging = false;

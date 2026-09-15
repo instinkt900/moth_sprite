@@ -256,7 +256,7 @@ void SpriteEditor::DrawPreview() {
     // Show a drag/resize cursor whenever the mouse is over the selected frame border.
     bool const selectedInRange = (m_selectedFrame >= 0 &&
                                   m_selectedFrame < static_cast<int>(m_frames.size()));
-    if (selectedInRange && !m_newCellMode && ImGui::IsItemHovered()) {
+    if (selectedInRange && !m_newCellMode && !m_cellPick.has_value() && ImGui::IsItemHovered()) {
         FrameDragOp const hoverOp = HitTestFrame(mouse, imagePos, m_zoom,
                                                   m_frames[m_selectedFrame].rect);
         if (hoverOp != FrameDragOp::None) {
@@ -268,7 +268,9 @@ void SpriteEditor::DrawPreview() {
         // Priority 1: start a drag/resize on the already-selected frame if the mouse
         // is on its border or interior.
         FrameDragOp startOp = FrameDragOp::None;
-        if (selectedInRange) {
+        // While picking a cell for a clip step, a click only picks a cell and never starts a drag.
+        bool const picking = m_cellPick.has_value();
+        if (selectedInRange && !picking) {
             startOp = HitTestFrame(mouse, imagePos, m_zoom,
                                    m_frames[m_selectedFrame].rect);
         }
@@ -290,8 +292,10 @@ void SpriteEditor::DrawPreview() {
                     break;
                 }
             }
-            m_selectedFrame = hit;
-            if (hit >= 0) {
+            if (!picking || hit >= 0) {
+                SelectCell(hit);
+            }
+            if (hit >= 0 && !picking) {
                 m_frameDrag = { static_cast<int>(FrameDragOp::Move), m_frames };
             }
         }

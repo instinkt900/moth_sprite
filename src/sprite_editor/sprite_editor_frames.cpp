@@ -60,7 +60,8 @@ void SpriteEditor::DrawCellListWindow() {
             std::string const label = fmt::format("{:<4}({}, {}) {}x{}",
                 i, fr.rect.x(), fr.rect.y(), fr.rect.w(), fr.rect.h());
             if (ImGui::Selectable(label.c_str(), isSelected, ImGuiSelectableFlags_AllowOverlap)) {
-                m_selectedFrame = isSelected ? -1 : i;
+                // Clicking the selected cell clears the selection, except while picking a cell for a clip step.
+                SelectCell((isSelected && !m_cellPick.has_value()) ? -1 : i);
             }
 
             // Delete button at the right end of the row, over the selectable.

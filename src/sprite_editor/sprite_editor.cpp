@@ -13,6 +13,7 @@ namespace {
     char const* const kSheetWindow = "Sheet";
     char const* const kCellWindow = "Selected Cell";
     char const* const kCellListWindow = "Cells";
+    char const* const kClipEditorWindow = "Clips";
     char const* const kDockSpaceHostWindow = "##dock_space_host";
     char const* const kDockSpaceId = "##dock_space";
 
@@ -21,9 +22,12 @@ namespace {
         ImGui::DockBuilderRemoveNode(dockSpaceId);
         ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceId, size);
-        ImGuiID sheetId = 0;
+        ImGuiID leftId = 0;
         ImGuiID rightId = 0;
-        ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, 0.6f, &sheetId, &rightId);
+        ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, 0.6f, &leftId, &rightId);
+        ImGuiID clipsId = 0;
+        ImGuiID sheetId = 0;
+        ImGui::DockBuilderSplitNode(leftId, ImGuiDir_Down, 0.35f, &clipsId, &sheetId);
         ImGuiID cellId = 0;
         ImGuiID rightLowerId = 0;
         ImGui::DockBuilderSplitNode(rightId, ImGuiDir_Up, 0.4f, &cellId, &rightLowerId);
@@ -33,6 +37,7 @@ namespace {
         ImGui::DockBuilderDockWindow(kSheetWindow, sheetId);
         ImGui::DockBuilderDockWindow(kCellWindow, cellId);
         ImGui::DockBuilderDockWindow(kCellListWindow, cellListId);
+        ImGui::DockBuilderDockWindow(kClipEditorWindow, clipsId);
         ImGui::DockBuilderDockWindow(kSpriteEditorWindow, editorId);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
@@ -84,9 +89,7 @@ void SpriteEditor::DrawDataEditor() {
 
     ImGui::Separator();
 
-    ImGui::BeginChild("##clips_pane", ImVec2(0, 0), ImGuiChildFlags_None);
-    DrawClipsPane();
-    ImGui::EndChild();
+    DrawClipPreview();
 }
 
 void SpriteEditor::HandleShortcuts() {
@@ -104,6 +107,9 @@ void SpriteEditor::HandleShortcuts() {
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
         DeleteFrame(m_selectedFrame);
+    }
+    if (m_cellPick.has_value() && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        m_cellPick.reset();
     }
     if (m_newCellMode && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
         m_newCellMode = false;
@@ -199,6 +205,7 @@ void SpriteEditor::DrawMainMenuBar() {
         ImGui::MenuItem(kSheetWindow, nullptr, &m_config.ShowSheetWindow);
         ImGui::MenuItem(kCellWindow, nullptr, &m_config.ShowCellWindow);
         ImGui::MenuItem(kCellListWindow, nullptr, &m_config.ShowCellListWindow);
+        ImGui::MenuItem(kClipEditorWindow, nullptr, &m_config.ShowClipEditorWindow);
         ImGui::MenuItem(kSpriteEditorWindow, nullptr, &m_config.ShowSpriteEditorWindow);
         ImGui::Separator();
         if (ImGui::MenuItem("Reset Layout")) {
@@ -206,6 +213,7 @@ void SpriteEditor::DrawMainMenuBar() {
             m_config.ShowSheetWindow = true;
             m_config.ShowCellWindow = true;
             m_config.ShowCellListWindow = true;
+            m_config.ShowClipEditorWindow = true;
             m_config.ShowSpriteEditorWindow = true;
             m_resetLayout = true;
         }
@@ -242,6 +250,7 @@ void SpriteEditor::DrawDockSpace() {
 
 void SpriteEditor::Draw() {
     HandleShortcuts();
+    AdvanceClipPlayback();
     // New Cell mode draws on the sheet image in the Sheet window, so it can't outlive either.
     if (!(m_spriteSheet && m_spriteSheet->GetImage()) || !m_config.ShowSheetWindow) {
         m_newCellMode = false;
@@ -268,6 +277,13 @@ void SpriteEditor::Draw() {
     if (m_config.ShowCellListWindow) {
         if (ImGui::Begin(kCellListWindow, &m_config.ShowCellListWindow)) {
             DrawCellListWindow();
+        }
+        ImGui::End();
+    }
+
+    if (m_config.ShowClipEditorWindow) {
+        if (ImGui::Begin(kClipEditorWindow, &m_config.ShowClipEditorWindow)) {
+            DrawClipEditorWindow();
         }
         ImGui::End();
     }
