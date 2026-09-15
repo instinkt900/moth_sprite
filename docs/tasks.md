@@ -207,7 +207,7 @@ cell preview and keeps the click to set pivot behaviour.
    click is one undo step.
 7. Untick Window > Selected Cell, quit and start again. It is still closed. Tick it: it opens.
 
-### [todo] T-010 Cell list window
+### [done] T-010 Cell list window
 
 **Review:** reviewed 2026-09-15
 
@@ -219,12 +219,12 @@ and clicking one will select the cell, update the preview, highlight the cell on
 below the list showing an editable set of entries with x/y/w/h values etc. for the cell.
 
 **Requirements:**
-- [ ] A dockable window shows the defined cells as a scrollable list, not a table.
-- [ ] Each entry shows the cell index and rect (for example `3   (32, 0) 32×32`) and a delete button.
-- [ ] Clicking a cell selects it, updates the preview and highlights it on the sheet.
-- [ ] A form below the list has editable X, Y, W, H, Pivot X and Pivot Y values for the selected cell.
-- [ ] The window is part of the default layout from T-007.
-- [ ] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
+- [x] A dockable window shows the defined cells as a scrollable list, not a table.
+- [x] Each entry shows the cell index and rect (for example `3   (32, 0) 32×32`) and a delete button.
+- [x] Clicking a cell selects it, updates the preview and highlights it on the sheet.
+- [x] A form below the list has editable X, Y, W, H, Pivot X and Pivot Y values for the selected cell.
+- [x] The window is part of the default layout from T-007.
+- [x] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
 
 **Out of scope:**
 The New Cell button. It moves to the sheet window (T-008).
@@ -234,10 +234,35 @@ The New Cell button. It moves to the sheet window (T-008).
 - Q: Does each entry keep its delete button? A: Yes. The Delete key also works.
 
 **Notes:**
+- The window is named "Cells". Its open state is `ShowCellListWindow` in `moth_sprite.json`.
+- The default layout splits the right side into three: Selected Cell on top (40%), then Cells, then
+  Sprite Editor.
+- The frames table and the cell form moved out of the Sprite Editor window, which now holds only the path box
+  and the clips. The form title says "Cell N" instead of "Frame N".
+- Assumption: the rect uses a plain `x` (`3   (32, 0) 32x32`), not `×`. The requirement gives the text only as
+  an example, and the font the app loads may not have the `×` glyph.
+- Assumption: clicking the selected cell again clears the selection, as the old frames table did. T-002
+  changes click behaviour for multiple selection.
+- The list does not scroll to a cell selected on the sheet. The task does not ask for it.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- a4f9e2d feat(T-010): dockable Cells window with a cell list and form
 
 **Manual verification:**
+1. Start with no `imgui.ini`, or choose Window > Reset Layout. The right side has Selected Cell, Cells and
+   Sprite Editor, from top to bottom. The Sprite Editor window has no frames table.
+2. Import a sheet and add cells with Tools > Grid. The Cells window shows "Cells: N" and one row per cell, such
+   as `3   (32, 0) 32x32`. With many cells the list scrolls, and the form stays visible below it.
+3. Click a row. It is highlighted, the cell is highlighted on the sheet, Selected Cell shows it, and the form
+   shows "Cell N" with its values. Click the same row again: the selection clears and the form shows
+   "Select a cell to edit it."
+4. Select a cell on the sheet. The matching row is highlighted.
+5. Change X, Y, W, H, Pivot X and Pivot Y in the form. The sheet and Selected Cell follow. Ctrl+Z undoes each
+   field edit in one step.
+6. Click the `x` on a row. That cell is removed, and clip steps are fixed up as before. Ctrl+Z restores it.
+   Select a cell and press Delete: it is removed.
+7. Untick Window > Cells, quit and start again. It is still closed. Tick it: it opens.
 
 ### [todo] T-011 Clip editor window
 
