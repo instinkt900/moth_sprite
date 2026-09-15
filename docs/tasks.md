@@ -189,6 +189,8 @@ cell preview and keeps the click to set pivot behaviour.
   one zoom. Fit refits it.
 - Assumption: with no image or no selected cell, the window shows a short hint.
 - No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
+- Changed after the session, at the user's request (7d99a8d): the 3×3 pivot preset grid moved from this window
+  to below the form in the Cells window. The requirement that puts it here is kept as the record of this task.
 
 **Commits:**
 - 182b68a feat(T-009): dockable Selected Cell window with zoom and pivot editing
@@ -203,8 +205,9 @@ cell preview and keeps the click to set pivot behaviour.
    scrollbars appear when the cell is larger than the window.
 5. Click on the cell: the pivot moves there. Drag: the pivot follows the mouse. The Pivot X and Y fields in the
    Sprite Editor window and the cross on the sheet match. Ctrl+Z undoes the whole drag in one step.
-6. Click each of the nine preset buttons below the cell. The pivot moves to that corner, edge or center. Each
-   click is one undo step.
+6. Click each of the nine pivot preset buttons, which are below the form in the Cells window since 7d99a8d.
+   The pivot moves to that corner, edge or center. Each click is one undo step. Selected Cell has no preset
+   buttons.
 7. Untick Window > Selected Cell, quit and start again. It is still closed. Tick it: it opens.
 
 ### [done] T-010 Cell list window
@@ -245,6 +248,9 @@ The New Cell button. It moves to the sheet window (T-008).
   changes click behaviour for multiple selection.
 - The list does not scroll to a cell selected on the sheet. The task does not ask for it.
 - No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
+- Changed after the session, at the user's request (7d99a8d): the 3×3 pivot preset grid from Selected Cell is
+  now below the form. The form measures its height each time it is drawn, and the list leaves that much room, so
+  the form fits without a scrollbar.
 
 **Commits:**
 - a4f9e2d feat(T-010): dockable Cells window with a cell list and form
@@ -263,6 +269,8 @@ The New Cell button. It moves to the sheet window (T-008).
 6. Click the `x` on a row. That cell is removed, and clip steps are fixed up as before. Ctrl+Z restores it.
    Select a cell and press Delete: it is removed.
 7. Untick Window > Cells, quit and start again. It is still closed. Tick it: it opens.
+8. Select a cell. The TL to BR pivot preset buttons are below the form, and the whole form is visible with no
+   scrollbar. Resize the Cells window: the list gets shorter or taller, and the form still fits.
 
 ### [done] T-011 Clip editor window
 
@@ -621,6 +629,8 @@ and are grouped in the menu under their own "Pivot" entry.
 - Assumption: when a rule changes no pivot (every selected cell already has that pivot), no undo action is added.
   Before, a grid button always added one, even when nothing changed.
 - No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
+- Changed after the session, at the user's request (7d99a8d): the 3×3 grid is now below the form in the Cells
+  window instead of in Selected Cell. It still calls `SetSelectionPivot` for the whole selection.
 
 **Commits:**
 - e92f822 feat(T-003): Edit > Pivot rules for the whole selection
@@ -634,7 +644,7 @@ and are grouped in the menu under their own "Pivot" entry.
 4. Press Ctrl+Z once: every selected pivot returns. Ctrl+Y: they move again.
 5. Try each of the nine options and check the positions: left/top is 0, center is half the size rounded down,
    right/bottom is the full size. For an odd width such as 15, center is 7.
-6. In Selected Cell, click the TL and C buttons with several cells selected. Every selected cell changes, not only
+6. In the Cells window, below the form, click the TL and C buttons with several cells selected. Every selected cell changes, not only
    the prime cell. Each click is one undo step.
 
 ### [done] T-004 Export sheet option
