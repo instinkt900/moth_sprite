@@ -231,7 +231,7 @@ void SpriteEditor::DrawMainMenuBar() {
         bool const hasImage = m_imagePathBuffer[0] != '\0';
         bool const hasPath  = m_pathBuffer[0] != '\0';
         if (ImGui::MenuItem("Save", nullptr, false, hasImage && hasPath)) {
-            SaveSpriteSheet();
+            SaveSpriteSheet(m_pathBuffer);
         }
         if (ImGui::MenuItem("Save As...", nullptr, false, hasImage)) {
             SaveProjectAs();
@@ -360,11 +360,11 @@ void SpriteEditor::LoadWithDialog() {
     nfdchar_t* outPath = nullptr;
     std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
     if (NFD_OpenDialog("json", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
-        strncpy(m_pathBuffer, outPath, sizeof(m_pathBuffer) - 1);
-        m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
+        std::filesystem::path const path = outPath;
         NFD_Free(outPath);
-        m_config.LastProjectDir = std::filesystem::path(m_pathBuffer).parent_path().string();
-        LoadSpriteSheet(m_pathBuffer);
+        // The folder is remembered even when the load fails. The project path changes only when it succeeds.
+        m_config.LastProjectDir = path.parent_path().string();
+        LoadSpriteSheet(path);
     }
 }
 
@@ -374,15 +374,15 @@ bool SpriteEditor::SaveProjectAs() {
     if (NFD_SaveDialog("json", startDir.c_str(), &outPath) != NFD_OKAY || outPath == nullptr) {
         return false;
     }
-    strncpy(m_pathBuffer, outPath, sizeof(m_pathBuffer) - 1);
-    m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
+    std::filesystem::path const path = outPath;
     NFD_Free(outPath);
-    m_config.LastProjectDir = std::filesystem::path(m_pathBuffer).parent_path().string();
-    return SaveSpriteSheet();
+    // The folder is remembered even when the save fails. The project path changes only when the file is written.
+    m_config.LastProjectDir = path.parent_path().string();
+    return SaveSpriteSheet(path);
 }
 
 bool SpriteEditor::SaveProject() {
-    return (m_pathBuffer[0] != '\0') ? SaveSpriteSheet() : SaveProjectAs();
+    return (m_pathBuffer[0] != '\0') ? SaveSpriteSheet(m_pathBuffer) : SaveProjectAs();
 }
 
 bool SpriteEditor::HoldQuitForUnsavedChanges() {

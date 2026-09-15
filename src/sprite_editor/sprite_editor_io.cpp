@@ -24,6 +24,9 @@ void SpriteEditor::LoadSpriteSheet(std::filesystem::path const& path) {
 
     ClearSpriteActions();
     MarkSaved();
+    std::string const pathStr = path.string();
+    strncpy(m_pathBuffer, pathStr.c_str(), sizeof(m_pathBuffer) - 1);
+    m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
     m_selection.clear();
     m_selectedClip = -1;
     m_clipPlaying = false;
@@ -100,9 +103,8 @@ void SpriteEditor::OpenRecentProject(std::string path) {
         recent.erase(std::remove(recent.begin(), recent.end(), path), recent.end());
         return;
     }
-    strncpy(m_pathBuffer, path.c_str(), sizeof(m_pathBuffer) - 1);
-    m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
-    LoadSpriteSheet(m_pathBuffer);
+    // A file that exists but fails to load stays in the list, and the project path does not change.
+    LoadSpriteSheet(path);
 }
 
 void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
@@ -179,12 +181,10 @@ void SpriteEditor::ExportSheet(std::filesystem::path exportPath) {
     ));
 }
 
-bool SpriteEditor::SaveSpriteSheet() {
-    if (m_pathBuffer[0] == '\0' || !m_spriteSheet) {
+bool SpriteEditor::SaveSpriteSheet(std::filesystem::path const& path) {
+    if (path.empty() || !m_spriteSheet) {
         return false;
     }
-
-    std::filesystem::path const path = m_pathBuffer;
 
     // Read existing JSON to preserve unknown fields; start fresh if the file doesn't exist yet.
     nlohmann::json json = nlohmann::json::object();
@@ -276,6 +276,10 @@ bool SpriteEditor::SaveSpriteSheet() {
         moth::core::log::error("SpriteEditor: failed to write '{}': {}", path.string(), e.what());
         return false;
     }
+    // The file was written, so the project uses it from now on.
+    std::string const pathStr = path.string();
+    strncpy(m_pathBuffer, pathStr.c_str(), sizeof(m_pathBuffer) - 1);
+    m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
     AddRecentProject(path);
     MarkSaved();
 

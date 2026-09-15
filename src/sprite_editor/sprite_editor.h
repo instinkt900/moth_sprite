@@ -52,6 +52,8 @@ private:
     // The dock space fills the application window below the main menu bar.
     void DrawDockSpace();
     void NewSpriteSheet();
+    // Load a project file. On success it replaces the open project, and path becomes the project path (the window
+    // title, Save and Open Recent). A failed load changes nothing.
     void LoadSpriteSheet(std::filesystem::path const& path);
     // File > Open Recent: move a loaded or saved project to the front of the list, which keeps 10 projects.
     void AddRecentProject(std::filesystem::path const& path);
@@ -88,8 +90,9 @@ private:
     // Copy the sheet image file, unchanged, to exportPath (given the sheet's extension), then point the project at
     // the copy as one undoable action.
     void ExportSheet(std::filesystem::path exportPath);
-    // Write the project file. Returns true when it was written.
-    bool SaveSpriteSheet();
+    // Write the project file to path. Returns true when it was written. Only then path becomes the project path (the
+    // window title, Save and Open Recent).
+    bool SaveSpriteSheet(std::filesystem::path const& path);
     void DrawPreview();
     // Mouse-wheel zoom centered on the cursor, for the current scrolling child window.
     static void ZoomWithMouseWheel(float& zoom);
