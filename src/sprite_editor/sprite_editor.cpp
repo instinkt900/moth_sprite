@@ -16,6 +16,7 @@ namespace {
     char const* const kClipPreviewWindow = "Clip Preview";
     char const* const kDockSpaceHostWindow = "##dock_space_host";
     char const* const kDockSpaceId = "##dock_space";
+    char const* const kUnsavedPromptId = "Unsaved Changes##unsaved_prompt";
 
     // The folder a file dialog starts in: the remembered folder while it still exists, else the fallback.
     std::string DialogFolder(std::string const& remembered, std::filesystem::path const& fallback) {
@@ -64,6 +65,7 @@ SpriteEditor::SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::pla
 
 void SpriteEditor::NewSpriteSheet() {
     ClearSpriteActions();
+    MarkSaved();
     m_pathBuffer[0]      = '\0';
     m_imagePathBuffer[0] = '\0';
     m_frames.clear();
@@ -91,7 +93,9 @@ void SpriteEditor::DrawImage(moth::gfx::Image const& image, moth::gfx::IntVec2 c
 
 void SpriteEditor::UpdateWindowTitle() {
     std::string const fileName = std::filesystem::path(m_pathBuffer).filename().string();
-    std::string title = fmt::format("Moth Sprite - {}", fileName.empty() ? "Untitled" : fileName);
+    // " *" marks unsaved changes.
+    std::string title = fmt::format("Moth Sprite - {}{}", fileName.empty() ? "Untitled" : fileName,
+                                    HasUnsavedChanges() ? " *" : "");
     if (title == m_windowTitle || !m_setWindowTitle) {
         return;
     }
@@ -143,29 +147,18 @@ void SpriteEditor::HandleShortcuts() {
 }
 
 void SpriteEditor::DrawMainMenuBar() {
-    // Project dialogs (Load, Save As) and image dialogs (Import Sheet, Export Sheet) each start in the folder that
-    // their kind of dialog last used, and remember the folder of the file chosen.
-    auto const doLoad = [this]() {
-        nfdchar_t* outPath = nullptr;
-        std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
-        if (NFD_OpenDialog("json", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
-            strncpy(m_pathBuffer, outPath, sizeof(m_pathBuffer) - 1);
-            m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
-            NFD_Free(outPath);
-            m_config.LastProjectDir = std::filesystem::path(m_pathBuffer).parent_path().string();
-            LoadSpriteSheet(m_pathBuffer);
-        }
-    };
-
+    // Image dialogs (Import Sheet, Export Sheet) start in the folder that an image dialog last used, and remember
+    // the folder of the file chosen. The project dialogs do the same in LoadWithDialog and SaveProjectAs.
     if (!ImGui::BeginMainMenuBar()) {
         return;
     }
     if (ImGui::BeginMenu("File")) {
+        // New, Load and Open Recent replace the project, so with unsaved changes they ask first.
         if (ImGui::MenuItem("New")) {
-            NewSpriteSheet();
+            RequestProjectAction({ ProjectActionKind::New, {} });
         }
         if (ImGui::MenuItem("Load...")) {
-            doLoad();
+            RequestProjectAction({ ProjectActionKind::Load, {} });
         }
         // The entry is opened after the submenu is drawn, because opening a project changes the list.
         std::optional<std::string> recentToOpen;
@@ -184,7 +177,7 @@ void SpriteEditor::DrawMainMenuBar() {
             ImGui::EndMenu();
         }
         if (recentToOpen.has_value()) {
-            OpenRecentProject(*recentToOpen);
+            RequestProjectAction({ ProjectActionKind::OpenRecent, *recentToOpen });
         }
         bool const hasImage = m_imagePathBuffer[0] != '\0';
         bool const hasPath  = m_pathBuffer[0] != '\0';
@@ -192,15 +185,7 @@ void SpriteEditor::DrawMainMenuBar() {
             SaveSpriteSheet();
         }
         if (ImGui::MenuItem("Save As...", nullptr, false, hasImage)) {
-            nfdchar_t* outPath = nullptr;
-            std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
-            if (NFD_SaveDialog("json", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
-                strncpy(m_pathBuffer, outPath, sizeof(m_pathBuffer) - 1);
-                m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
-                NFD_Free(outPath);
-                m_config.LastProjectDir = std::filesystem::path(m_pathBuffer).parent_path().string();
-                SaveSpriteSheet();
-            }
+            SaveProjectAs();
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
@@ -316,6 +301,126 @@ void SpriteEditor::DrawMainMenuBar() {
     ImGui::EndMainMenuBar();
 }
 
+void SpriteEditor::LoadWithDialog() {
+    // Project dialogs (Load, Save As) start in the folder that a project dialog last used, and remember the folder
+    // of the file chosen.
+    nfdchar_t* outPath = nullptr;
+    std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
+    if (NFD_OpenDialog("json", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
+        strncpy(m_pathBuffer, outPath, sizeof(m_pathBuffer) - 1);
+        m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
+        NFD_Free(outPath);
+        m_config.LastProjectDir = std::filesystem::path(m_pathBuffer).parent_path().string();
+        LoadSpriteSheet(m_pathBuffer);
+    }
+}
+
+bool SpriteEditor::SaveProjectAs() {
+    nfdchar_t* outPath = nullptr;
+    std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
+    if (NFD_SaveDialog("json", startDir.c_str(), &outPath) != NFD_OKAY || outPath == nullptr) {
+        return false;
+    }
+    strncpy(m_pathBuffer, outPath, sizeof(m_pathBuffer) - 1);
+    m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
+    NFD_Free(outPath);
+    m_config.LastProjectDir = std::filesystem::path(m_pathBuffer).parent_path().string();
+    return SaveSpriteSheet();
+}
+
+bool SpriteEditor::SaveProject() {
+    return (m_pathBuffer[0] != '\0') ? SaveSpriteSheet() : SaveProjectAs();
+}
+
+bool SpriteEditor::HoldQuitForUnsavedChanges() {
+    if (m_quitApproved || !HasUnsavedChanges()) {
+        return false;
+    }
+    RequestProjectAction({ ProjectActionKind::Quit, {} });
+    return true;
+}
+
+void SpriteEditor::RequestProjectAction(ProjectAction action) {
+    if (!HasUnsavedChanges()) {
+        RunProjectAction(action);
+        return;
+    }
+    m_pendingProjectAction = std::move(action);
+    m_openUnsavedPrompt = true;
+}
+
+void SpriteEditor::RunProjectAction(ProjectAction const& action) {
+    switch (action.kind) {
+    case ProjectActionKind::New:
+        NewSpriteSheet();
+        break;
+    case ProjectActionKind::Load:
+        LoadWithDialog();
+        break;
+    case ProjectActionKind::OpenRecent:
+        OpenRecentProject(action.recentPath);
+        break;
+    case ProjectActionKind::Quit:
+        // Send the quit request again. SpriteApplication lets it through now.
+        m_quitApproved = true;
+        FireEvent(moth::gfx::EventRequestQuit{});
+        break;
+    }
+}
+
+void SpriteEditor::DrawUnsavedChangesPrompt() {
+    if (m_openUnsavedPrompt) {
+        m_openUnsavedPrompt = false;
+        ImGui::OpenPopup(kUnsavedPromptId);
+    }
+    ImGuiViewport const* const viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2{ 0.5f, 0.5f });
+    if (!ImGui::BeginPopupModal(kUnsavedPromptId, nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+        return;
+    }
+
+    std::string const fileName = std::filesystem::path(m_pathBuffer).filename().string();
+    ImGui::Text("\"%s\" has unsaved changes.", fileName.empty() ? "Untitled" : fileName.c_str());
+    ImGui::TextUnformatted("Save them first?");
+    // A project without a sheet image cannot be saved.
+    bool const canSave = m_imagePathBuffer[0] != '\0';
+    if (!canSave) {
+        ImGui::TextDisabled("The project has no sheet image, so it cannot be saved.");
+    }
+    ImGui::Spacing();
+
+    // Set when the user answers: true to go on with the action, false to return to the editor.
+    std::optional<bool> proceed;
+    constexpr float kButtonW = 110.0f;
+    ImGui::BeginDisabled(!canSave);
+    // Save runs Save, or Save As when the project has no path. If saving fails or is cancelled, the prompt stays.
+    if (ImGui::Button("Save", ImVec2{ kButtonW, 0.0f }) && SaveProject()) {
+        proceed = true;
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Don't Save", ImVec2{ kButtonW, 0.0f })) {
+        proceed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", ImVec2{ kButtonW, 0.0f }) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        proceed = false;
+    }
+
+    if (!proceed.has_value()) {
+        ImGui::EndPopup();
+        return;
+    }
+    ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+    std::optional<ProjectAction> const action = std::move(m_pendingProjectAction);
+    m_pendingProjectAction.reset();
+    if (*proceed && action.has_value()) {
+        RunProjectAction(*action);
+    }
+}
+
 void SpriteEditor::DrawDockSpace() {
     // A borderless host window covers the work area (the viewport minus the main menu bar).
     ImGuiViewport const* const viewport = ImGui::GetMainViewport();
@@ -393,4 +498,7 @@ void SpriteEditor::Draw() {
     // The tool popups are outside every window, so they work with every window closed.
     DrawGridTool();
     DrawDetectFramesTool();
+
+    // Asks about unsaved changes before New, Load, Open Recent and quitting.
+    DrawUnsavedChangesPrompt();
 }

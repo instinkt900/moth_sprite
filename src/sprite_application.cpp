@@ -7,6 +7,7 @@
 #include <moth/graphics/graphics/spritesheet_factory.h>
 #include <moth/graphics/graphics/surface_context.h>
 #include <moth/graphics/graphics/texture_factory.h>
+#include <moth/core/event_window.h>
 
 namespace {
     char const* const kConfigFile = "moth_sprite.json";
@@ -33,11 +34,26 @@ void SpriteApplication::PostCreateWindow() {
     auto* uiWindow = GetUiWindow();
     // The window owns the layer stack, so it outlives the editor that sets its title.
     auto setWindowTitle = [uiWindow](std::string_view title) { uiWindow->SetWindowTitle(title); };
-    uiWindow->PushLayer(std::make_unique<SpriteEditor>(uiWindow->GetSurfaceContext().GetAssetContext(),
-                                                       uiWindow->GetImGuiContext(), m_config, std::move(setWindowTitle)));
+    auto editor = std::make_unique<SpriteEditor>(uiWindow->GetSurfaceContext().GetAssetContext(),
+                                                 uiWindow->GetImGuiContext(), m_config, std::move(setWindowTitle));
+    m_editor = editor.get();
+    uiWindow->PushLayer(std::move(editor));
+}
+
+bool SpriteApplication::OnEvent(moth::core::Event const& event) {
+    // Closing the window and File > Exit both send EventRequestQuit. With unsaved changes the editor shows its
+    // prompt, and sends the request again once the user has chosen Save or Don't Save.
+    if (moth::core::event_cast<moth::core::EventRequestQuit>(event) != nullptr && m_editor != nullptr &&
+        m_editor->HoldQuitForUnsavedChanges()) {
+        return true;
+    }
+    return Application::OnEvent(event);
 }
 
 void SpriteApplication::Shutdown() {
+    // The editor layer is destroyed after this returns.
+    m_editor = nullptr;
+
     // The layers (and the textures they hold) are destroyed right after this returns,
     // but the final frame's command buffers may still reference them. Drain the device
     // first so freeing their descriptor sets is safe.

@@ -8,6 +8,7 @@
 #include <moth/graphics/platform/imgui_context.h>
 #include <moth/ui/layers/layer.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -39,6 +40,11 @@ public:
 
     void Draw() override;
 
+    // Called with a quit request (closing the window, or File > Exit). Returns true when the quit must wait
+    // because the project has unsaved changes; the editor then asks the user, and sends the request again after
+    // Save or Don't Save.
+    bool HoldQuitForUnsavedChanges();
+
 private:
     // Ctrl+Z, Ctrl+Y, Ctrl+A, Delete and Esc, in every window.
     void HandleShortcuts();
@@ -52,11 +58,38 @@ private:
     // Load a project chosen from Open Recent. A project file that no longer exists is removed from the list instead.
     // Takes a copy, because it changes the list the path comes from.
     void OpenRecentProject(std::string path);
+    // Unsaved changes. The project differs from its last save when the undo position is not the one it had then,
+    // or after a change that is not on the undo stack (Import Sheet).
+    bool HasUnsavedChanges() const;
+    void MarkSaved();
+    uint64_t CurrentUndoId() const;
+    // Actions that replace or close the project. With unsaved changes they wait for the unsaved changes prompt.
+    enum class ProjectActionKind {
+        New,
+        Load,
+        OpenRecent,
+        Quit,
+    };
+    struct ProjectAction {
+        ProjectActionKind kind = ProjectActionKind::New;
+        std::string recentPath; // the project to open, for OpenRecent
+    };
+    void RequestProjectAction(ProjectAction action);
+    void RunProjectAction(ProjectAction const& action);
+    // The unsaved changes prompt (Save, Don't Save, Cancel) for the pending project action.
+    void DrawUnsavedChangesPrompt();
+    // File > Load: choose a project file in a dialog, then load it.
+    void LoadWithDialog();
+    // Save to the project path, or choose a path first when there is none. Returns true when the file was written.
+    bool SaveProject();
+    // File > Save As: choose a path in a dialog, then save. Returns true when the file was written.
+    bool SaveProjectAs();
     void ImportSheet(std::filesystem::path const& imagePath);
     // Copy the sheet image file, unchanged, to exportPath (given the sheet's extension), then point the project at
     // the copy as one undoable action.
     void ExportSheet(std::filesystem::path exportPath);
-    void SaveSpriteSheet();
+    // Write the project file. Returns true when it was written.
+    bool SaveSpriteSheet();
     void DrawPreview();
     // Mouse-wheel zoom centered on the cursor, for the current scrolling child window.
     static void ZoomWithMouseWheel(float& zoom);
@@ -140,6 +173,15 @@ private:
     // Undo stack
     std::vector<std::unique_ptr<IEditorAction>> m_undoStack;
     int m_undoIndex = -1;
+    std::vector<uint64_t> m_undoIds;  // an id for each m_undoStack entry; ids are never reused
+    uint64_t m_nextUndoId = 1;
+    uint64_t m_savedUndoId = 0;        // CurrentUndoId() when the project was last saved, loaded or created
+    bool m_unsavedOutsideUndo = false; // a change that is not on the undo stack, such as Import Sheet
+
+    // Unsaved changes prompt
+    std::optional<ProjectAction> m_pendingProjectAction; // the action waiting for the user's answer
+    bool m_openUnsavedPrompt = false;                    // open the prompt on the next draw
+    bool m_quitApproved = false;                         // the user answered for a quit; let the next request through
 
     // Deferred InputInt/InputText snapshots (captured on activate, committed on deactivate)
     std::optional<FrameVec> m_pendingFrameSnapshot;

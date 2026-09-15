@@ -4,8 +4,10 @@
 void SpriteEditor::AddSpriteAction(std::unique_ptr<IEditorAction> action) {
     while (static_cast<int>(m_undoStack.size()) - 1 > m_undoIndex) {
         m_undoStack.pop_back();
+        m_undoIds.pop_back();
     }
     m_undoStack.push_back(std::move(action));
+    m_undoIds.push_back(m_nextUndoId++);
     ++m_undoIndex;
 }
 
@@ -28,6 +30,7 @@ void SpriteEditor::RedoSpriteAction() {
 
 void SpriteEditor::ClearSpriteActions() {
     m_undoStack.clear();
+    m_undoIds.clear();
     m_undoIndex = -1;
     m_pendingFrameSnapshot.reset();
     m_pendingClipEdit.reset();
@@ -36,6 +39,24 @@ void SpriteEditor::ClearSpriteActions() {
     m_pivotDragSnapshot.reset();
     m_frameDrag.reset();
     m_boxSelect.reset();
+}
+
+uint64_t SpriteEditor::CurrentUndoId() const {
+    if (m_undoIndex < 0 || m_undoIndex >= static_cast<int>(m_undoIds.size())) {
+        return 0;
+    }
+    return m_undoIds[m_undoIndex];
+}
+
+bool SpriteEditor::HasUnsavedChanges() const {
+    // Undoing or redoing back to the saved position counts as saved. A new action after undoing past it never
+    // matches again, because ids are never reused.
+    return m_unsavedOutsideUndo || CurrentUndoId() != m_savedUndoId;
+}
+
+void SpriteEditor::MarkSaved() {
+    m_savedUndoId = CurrentUndoId();
+    m_unsavedOutsideUndo = false;
 }
 
 void SpriteEditor::PushFrameAction(FrameVec before, Selection selBefore, Selection selAfter) {

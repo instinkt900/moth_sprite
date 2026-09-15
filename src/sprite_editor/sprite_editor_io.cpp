@@ -23,6 +23,7 @@ void SpriteEditor::LoadSpriteSheet(std::filesystem::path const& path) {
     }
 
     ClearSpriteActions();
+    MarkSaved();
     m_selection.clear();
     m_selectedClip = -1;
     m_clipPlaying = false;
@@ -114,6 +115,8 @@ void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
     moth::gfx::Image image{ texture };
 
     ClearSpriteActions();
+    // Import Sheet is not on the undo stack, so it marks the project as changed directly.
+    m_unsavedOutsideUndo = true;
 
     auto imageStr = imagePath.string();
     strncpy(m_imagePathBuffer, imageStr.c_str(), sizeof(m_imagePathBuffer) - 1);
@@ -176,9 +179,9 @@ void SpriteEditor::ExportSheet(std::filesystem::path exportPath) {
     ));
 }
 
-void SpriteEditor::SaveSpriteSheet() {
+bool SpriteEditor::SaveSpriteSheet() {
     if (m_pathBuffer[0] == '\0' || !m_spriteSheet) {
-        return;
+        return false;
     }
 
     std::filesystem::path const path = m_pathBuffer;
@@ -258,18 +261,26 @@ void SpriteEditor::SaveSpriteSheet() {
     std::ofstream ofile(path);
     if (!ofile.is_open()) {
         moth::core::log::error("SpriteEditor: failed to open '{}' for writing", path.string());
-        return;
+        return false;
     }
     try {
         ofile << json.dump(2);
+        // Callers go on (for example, quit) only after a successful save, so check that the write worked.
+        ofile.flush();
+        if (!ofile) {
+            moth::core::log::error("SpriteEditor: failed to write '{}'", path.string());
+            return false;
+        }
         moth::core::log::info("SpriteEditor: saved '{}'", path.string());
     } catch (std::exception const& e) {
         moth::core::log::error("SpriteEditor: failed to write '{}': {}", path.string(), e.what());
-        return;
+        return false;
     }
     AddRecentProject(path);
+    MarkSaved();
 
     // Flush the factory cache so a subsequent load picks up the new data
     auto& assetContext = m_assetContext;
     assetContext.GetSpriteSheetFactory().FlushCache();
+    return true;
 }
