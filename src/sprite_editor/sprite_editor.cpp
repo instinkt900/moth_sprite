@@ -17,6 +17,9 @@ namespace {
     char const* const kDockSpaceHostWindow = "##dock_space_host";
     char const* const kDockSpaceId = "##dock_space";
     char const* const kUnsavedPromptId = "Unsaved Changes##unsaved_prompt";
+    // The checkerboard that shows transparency behind preview images.
+    constexpr ImU32 kCheckerGray = IM_COL32(192, 192, 192, 255);
+    constexpr ImU32 kCheckerWhite = IM_COL32(255, 255, 255, 255);
 
     // The folder a file dialog starts in: the remembered folder while it still exists, else the fallback.
     std::string DialogFolder(std::string const& remembered, std::filesystem::path const& fallback) {
@@ -88,6 +91,47 @@ void SpriteEditor::DrawImage(moth::gfx::Image const& image, moth::gfx::IntVec2 c
                              moth::gfx::FloatVec2 const& uv0, moth::gfx::FloatVec2 const& uv1) {
     if (image) {
         m_imgui.Image(*image.GetTexture(), size, uv0, uv1);
+    }
+}
+
+void SpriteEditor::DrawImageBackground(moth::gfx::FloatVec2 const& pos, moth::gfx::FloatVec2 const& size,
+                                       float checkerSize) const {
+    // Draw only the part inside the clip rect. A zoomed-in sheet can be much larger than its window.
+    ImDrawList* const drawList = ImGui::GetWindowDrawList();
+    ImVec2 const clipMin = drawList->GetClipRectMin();
+    ImVec2 const clipMax = drawList->GetClipRectMax();
+    float const x0 = std::max(pos.x, clipMin.x);
+    float const y0 = std::max(pos.y, clipMin.y);
+    float const x1 = std::min(pos.x + size.x, clipMax.x);
+    float const y1 = std::min(pos.y + size.y, clipMax.y);
+    if (x0 >= x1 || y0 >= y1 || checkerSize <= 0.0f) {
+        return;
+    }
+
+    auto const& c = m_config.PreviewBackgroundColor;
+    ImU32 const color = ImGui::ColorConvertFloat4ToU32(ImVec4{ c.data[0], c.data[1], c.data[2], c.data[3] });
+    // Any alpha that is not 0 in the 8-bit color draws the color.
+    if (((color >> IM_COL32_A_SHIFT) & 0xFF) != 0) {
+        drawList->AddRectFilled({ x0, y0 }, { x1, y1 }, color);
+        return;
+    }
+
+    // Squares are counted from pos, so the pattern moves with the image. The top-left square is gray.
+    drawList->AddRectFilled({ x0, y0 }, { x1, y1 }, kCheckerWhite);
+    int const col0 = static_cast<int>(std::floor((x0 - pos.x) / checkerSize));
+    int const col1 = static_cast<int>(std::ceil((x1 - pos.x) / checkerSize));
+    int const row0 = static_cast<int>(std::floor((y0 - pos.y) / checkerSize));
+    int const row1 = static_cast<int>(std::ceil((y1 - pos.y) / checkerSize));
+    for (int row = row0; row < row1; ++row) {
+        for (int col = col0; col < col1; ++col) {
+            if ((row + col) % 2 != 0) {
+                continue;
+            }
+            float const sx = pos.x + (static_cast<float>(col) * checkerSize);
+            float const sy = pos.y + (static_cast<float>(row) * checkerSize);
+            drawList->AddRectFilled({ std::max(sx, x0), std::max(sy, y0) },
+                                    { std::min(sx + checkerSize, x1), std::min(sy + checkerSize, y1) }, kCheckerGray);
+        }
     }
 }
 
@@ -283,6 +327,10 @@ void SpriteEditor::DrawMainMenuBar() {
         ImGui::SetNextItemWidth(120.0f);
         ImGui::InputInt("Border thickness##pref", &cfg.SpriteEditorRectThickness);
         cfg.SpriteEditorRectThickness = std::max(1, cfg.SpriteEditorRectThickness);
+        ImGui::Separator();
+        // Shared by every preview window. Alpha 0 shows a checkerboard.
+        ImGui::ColorEdit4("Preview background##pref", cfg.PreviewBackgroundColor.data,
+                          ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Window")) {

@@ -194,6 +194,7 @@ void SpriteEditor::DrawGridTool() {
 
         float const dispImgW = static_cast<float>(imgW) * scale;
         float const dispImgH = static_cast<float>(imgH) * scale;
+        DrawImageBackground({ origin.x, origin.y }, { std::floor(dispImgW), std::floor(dispImgH) });
         DrawImage(*image, { static_cast<int>(dispImgW), static_cast<int>(dispImgH) });
 
         ImDrawList* const dl = ImGui::GetWindowDrawList();
@@ -424,6 +425,7 @@ void SpriteEditor::DrawDetectFramesTool() {
         PreviewFit const fit = FitPreview(static_cast<float>(imgW), static_cast<float>(imgH));
         float const dispImgW = static_cast<float>(imgW) * fit.scale;
         float const dispImgH = static_cast<float>(imgH) * fit.scale;
+        DrawImageBackground({ fit.origin.x, fit.origin.y }, { std::floor(dispImgW), std::floor(dispImgH) });
         DrawImage(*image, { static_cast<int>(dispImgW), static_cast<int>(dispImgH) });
 
         ImDrawList* const dl = ImGui::GetWindowDrawList();

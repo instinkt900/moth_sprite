@@ -225,6 +225,7 @@ void SpriteEditor::DrawPreview() {
     // Draw the atlas image, then overlay an InvisibleButton at the same position so
     // ImGui owns all left-button interactions (drag, cursor changes) on the canvas.
     ImVec2 const imagePos = ImGui::GetCursorScreenPos();
+    DrawImageBackground({ imagePos.x, imagePos.y }, { std::floor(displayW), std::floor(displayH) });
     DrawImage(image, { static_cast<int>(displayW), static_cast<int>(displayH) });
     ImGui::SetCursorScreenPos(imagePos);
     ImGui::InvisibleButton("##canvas_interact", ImVec2{ displayW, displayH });

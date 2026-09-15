@@ -134,6 +134,10 @@ private:
     void DrawImage(moth::gfx::Image const& image, moth::gfx::IntVec2 const& size,
                    moth::gfx::FloatVec2 const& uv0 = { 0.0f, 0.0f },
                    moth::gfx::FloatVec2 const& uv1 = { 1.0f, 1.0f });
+    // The preview background for the screen area at pos with size, drawn before the image: the Preferences color,
+    // or a gray and white checkerboard when its alpha is 0. Squares are checkerSize screen pixels, counted from pos.
+    void DrawImageBackground(moth::gfx::FloatVec2 const& pos, moth::gfx::FloatVec2 const& size,
+                             float checkerSize = 128.0f) const;
 
     using FrameVec = std::vector<moth::gfx::SpriteSheet::FrameEntry>;
     using ClipVec  = std::vector<moth::gfx::SpriteSheet::ClipEntry>;

@@ -330,6 +330,7 @@ void SpriteEditor::DrawCellWindow() {
     float const dispH = cellH * zoom;
 
     ImVec2 const imagePos = ImGui::GetCursorScreenPos();
+    DrawImageBackground({ imagePos.x, imagePos.y }, { std::floor(dispW), std::floor(dispH) });
     DrawImage(*image, { static_cast<int>(dispW), static_cast<int>(dispH) }, uv0, uv1);
 
     // InvisibleButton over the cell so ImGui owns the left-button press

@@ -5,6 +5,8 @@
 namespace {
     // Side of a step thumbnail on a clip timeline, in pixels.
     constexpr float kThumbSize = 72.0f;
+    // Checkerboard square size behind a step thumbnail, in pixels. Smaller than elsewhere, to fit the thumbnail.
+    constexpr float kThumbCheckerSize = 16.0f;
     // Drag-and-drop payload type for moving a step along its timeline.
     char const* const kStepPayloadType = "CLIP_STEP";
     struct StepPayload {
@@ -162,7 +164,7 @@ void SpriteEditor::DrawClipPreviewWindow() {
     ImGui::SameLine();
     ImGui::Text("%.0f%%", m_clipZoom * 100.0f);
 
-    // Scrollable canvas with only the animation: no pivot, guides or background.
+    // Scrollable canvas with only the animation and the preview background: no pivot or guides.
     ImGui::BeginChild("##clip_canvas", ImVec2{ 0.0f, std::max(canvasH, 1.0f) }, ImGuiChildFlags_None,
                       ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ZoomWithMouseWheel(m_clipZoom);
@@ -178,6 +180,8 @@ void SpriteEditor::DrawClipPreviewWindow() {
                              origin.y + std::max((canvasAvail.y - contentH) * 0.5f, 0.0f) };
     float const anchorX = contentMin.x + (static_cast<float>(-minOX) * zoom);
     float const anchorY = contentMin.y + (static_cast<float>(-minOY) * zoom);
+    // The background covers the whole clip's extent, so it does not change from step to step.
+    DrawImageBackground({ contentMin.x, contentMin.y }, { contentW, contentH });
 
     // Draw current frame with its pivot landing on the anchor point
     int const frameIdx = clip.desc.frames[m_clipCurrentStep].frameIndex;
@@ -396,7 +400,7 @@ void SpriteEditor::DrawClipEditorWindow() {
             ImVec2 const boxMin = ImGui::GetCursorScreenPos();
             ImVec2 const boxMax{ boxMin.x + kThumbSize, boxMin.y + kThumbSize };
             ImDrawList* const dl = ImGui::GetWindowDrawList();
-            dl->AddRectFilled(boxMin, boxMax, IM_COL32(30, 30, 30, 200));
+            DrawImageBackground({ boxMin.x, boxMin.y }, { kThumbSize, kThumbSize }, kThumbCheckerSize);
 
             // Thumbnail of the step's cell, fitted in the box.
             int const frameIdx = step.frameIndex;
