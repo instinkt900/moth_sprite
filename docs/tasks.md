@@ -12,7 +12,7 @@ Session reports are in [sessions/](sessions/). `/task-planning` moves finished t
 
 ## Tasks
 
-### [todo] T-014 Preview background color and checkerboard
+### [done] T-014 Preview background color and checkerboard
 
 **Review:** reviewed 2026-09-15
 
@@ -26,26 +26,26 @@ A preview window is any window that shows an image from the sprite sheet, includ
 be worth having a helper for common image drawing with a background.
 
 **Requirements:**
-- [ ] Every window that shows an image from the sprite sheet draws a background behind the image: Sheet, Selected
+- [x] Every window that shows an image from the sprite sheet draws a background behind the image: Sheet, Selected
   Cell, Clip Preview, the Clips timeline thumbnails, and the Tools > Grid and Tools > Detect Frames previews.
-- [ ] The background covers these areas:
+- [x] The background covers these areas:
   - Sheet, Selected Cell, Grid and Detect Frames: the rectangle where the image is drawn.
   - Clip Preview: the clip's whole bounding box (the area the `Dummy` reserves). It does not change size or
     position from step to step. This replaces "no background" from T-012.
   - Clips timeline: the whole 72 px thumbnail box. It replaces the dark fill that the box has now.
-- [ ] Overlays (cell borders, pivots, grid lines, the overflow tint, box select) are still drawn over the image
+- [x] Overlays (cell borders, pivots, grid lines, the overflow tint, box select) are still drawn over the image
   and the background.
-- [ ] The background color is set with a color picker, with alpha, in the Preferences menu.
-- [ ] All windows share one background setting.
-- [ ] The background setting is saved in `moth_sprite.json` and remembered across runs. A settings file without
+- [x] The background color is set with a color picker, with alpha, in the Preferences menu.
+- [x] All windows share one background setting.
+- [x] The background setting is saved in `moth_sprite.json` and remembered across runs. A settings file without
   it still loads, and gets the default.
-- [ ] The default color has alpha 0, so the checkerboard shows on first run.
-- [ ] When the chosen color has alpha 0, the background is a gray and white checkerboard, to show transparency.
+- [x] The default color has alpha 0, so the checkerboard shows on first run.
+- [x] When the chosen color has alpha 0, the background is a gray and white checkerboard, to show transparency.
   Any other alpha draws the color, not the checkerboard.
-- [ ] Each checkerboard square is 128 screen pixels, except in the Clips timeline thumbnails, where it is 16 screen
+- [x] Each checkerboard square is 128 screen pixels, except in the Clips timeline thumbnails, where it is 16 screen
   pixels. The size does not change with the zoom.
-- [ ] A square corner is at the top-left of the background area, and the pattern scrolls with the image.
-- [ ] The checker colors are always light gray (192, 192, 192) and white. They cannot be set.
+- [x] A square corner is at the top-left of the background area, and the pattern scrolls with the image.
+- [x] The checker colors are always light gray (192, 192, 192) and white. They cannot be set.
 
 **Out of scope:**
 - The background setting is an editor setting, not project data. It is not undoable, not saved to the project
@@ -80,10 +80,45 @@ be worth having a helper for common image drawing with a background.
   in the thumbnails (16 px). 128 px everywhere else.
 
 **Notes:**
+- One helper, `SpriteEditor::DrawImageBackground(pos, size, checkerSize = 128)`, draws the background in every
+  window. It draws only the part inside the draw list's clip rect, so a zoomed-in sheet does not add thousands of
+  squares.
+- The setting is `PreviewBackgroundColor` in `moth_sprite.json`. It is read with `j.value` like the border colors,
+  so a settings file without it gets the default `{ 0, 0, 0, 0 }`.
+- Assumption: alpha counts as 0 when the 8-bit color that ImGui draws has alpha 0 (float alpha below 0.5/255).
+  Such a color would draw nothing, so the checkerboard shows.
+- Assumption: the top-left checker square is gray.
+- Assumption: the picker is the last item in Preferences, after a separator. It uses `NoInputs`, like the border
+  colors, with `AlphaBar` and `AlphaPreviewHalf` so that the alpha is visible and easy to set.
+- Assumption: in Sheet, Selected Cell, Grid and Detect Frames the background uses the image's whole-pixel size, the
+  same size `DrawImage` uses, so no strip of background shows past the image's right or bottom edge.
+- The step number drawn at the top-left of each Clips thumbnail is white, and is hard to read on the white
+  checker squares. Changing it is outside this task (overlays), so it is recorded under `## Discovered`.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed. The script deletes its temporary folder on
+  success, so the written `moth_sprite.json` was not inspected.
 
 **Commits:**
+- bbe6932 feat(T-014): preview background color and transparency checkerboard
 
 **Manual verification:**
+1. Move `moth_sprite.json` aside (or run from a new folder) and start the app. Import a sheet image that has
+   transparent areas. The Sheet window shows a gray and white checkerboard behind the image, with 128 px squares
+   and a gray square at the image's top-left corner.
+2. Zoom the Sheet in and out with the mouse wheel. The squares stay 128 screen pixels. Scroll the Sheet. The
+   pattern moves with the image. Cell borders, pivots, box select and the New Cell rectangle draw over it.
+3. Select a cell. Selected Cell shows the checkerboard behind the cell only, and the pivot cross over it.
+4. Add a clip with steps of different sizes and pivots. Clip Preview shows the checkerboard over the whole clip
+   area, and the area does not move or change size while the clip plays.
+5. In Clips, each step's 72 px box shows a checkerboard with 16 px squares in place of the dark fill. The box
+   outline and the current step outline still draw over it.
+6. Open Tools > Grid and Tools > Detect Frames. Both previews show the checkerboard behind the image, with grid
+   lines, the overflow tint and detected rectangles over it.
+7. Open Preferences > Preview background. Pick an opaque color. Every window above now shows that color, not the
+   checkerboard. Set alpha to about half. The color draws with the window showing through. Set alpha back to 0.
+   The checkerboard returns.
+8. Pick an opaque color, quit, and start the app again. The color is kept. Check that `moth_sprite.json` has
+   `PreviewBackgroundColor`.
+9. Change the background color and check that the window title gets no ` *` and Edit > Undo is not enabled by it.
 
 ### [todo] T-015 Cell form undo per field
 
@@ -176,3 +211,7 @@ title and the file that later saves write to.
 ## Discovered
 
 Problems noticed during sessions that are outside the current tasks. Candidates for `/task-new`.
+
+- Found in T-014: the step number at the top-left of each Clips timeline thumbnail is drawn in white. On the white
+  checker squares, and on a light preview background color, it is hard to read. It could get a dark outline or a
+  small dark backing.
