@@ -225,7 +225,10 @@ void SpriteEditor::DrawCellListWindow() {
     int pivotX = fr.pivot.x;
     int pivotY = fr.pivot.y;
 
-    ImGui::SeparatorText(fmt::format("Cell {}", formCell).c_str());
+    // Playback changes the selected cell at every step, so the form cannot be used while a clip plays.
+    ImGui::SeparatorText((m_clipPlaying ? fmt::format("Cell {} (pause the clip to edit)", formCell)
+                                        : fmt::format("Cell {}", formCell)).c_str());
+    ImGui::BeginDisabled(m_clipPlaying);
 
     // 4-column table: label | input | label | input
     if (ImGui::BeginTable("##fedit_tbl", 4, ImGuiTableFlags_SizingFixedFit)) {
@@ -285,6 +288,7 @@ void SpriteEditor::DrawCellListWindow() {
     pivotPreset("BL##pv", bs, Anchor::Start,  Anchor::End);     ImGui::SameLine();
     pivotPreset("B##pv",  bs, Anchor::Center, Anchor::End);     ImGui::SameLine();
     pivotPreset("BR##pv", bs, Anchor::End,    Anchor::End);
+    ImGui::EndDisabled();
 
     // The cursor is past the last row's item spacing, which balances the spacing above the form.
     m_cellFormHeight = ImGui::GetCursorPosY() - formStartY;

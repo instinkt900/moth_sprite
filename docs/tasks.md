@@ -282,10 +282,6 @@ title and the file that later saves write to.
 
 Problems noticed during sessions that are outside the current tasks. Candidates for `/task-new`.
 
-- Found after the session (929fa55): playback selects each step's cell. If a Cells form field is being edited
-  while a clip plays, the form switches to each new step's cell, and the edit in progress is applied to whichever
-  cell is selected when the value changes. Playback could pause while a form field is active, or the form could
-  keep the cell it started editing.
 - Found in T-015: the Cells form and the Clips window commit a pending field edit when the field's widget reports
   the end of the edit. If the widget is not drawn in that frame (the edited cell or clip is deleted by a button in
   the same frame, or the window is closed), the edit stays pending until the next field is activated. Its undo step
