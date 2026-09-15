@@ -96,21 +96,32 @@ be worth having a helper for common image drawing with a background.
   checker squares. Changing it is outside this task (overlays), so it is recorded under `## Discovered`.
 - Build and clang-tidy: no findings, no NOLINT. Smoke launch passed. The script deletes its temporary folder on
   success, so the written `moth_sprite.json` was not inspected.
+- Changed after the session, at the user's request, in 929fa55. The Requirements and Open questions above are kept
+  as reviewed, so they still name Clip Preview and the old square sizes.
+  - The checker squares are 32 screen pixels, and 8 in the Clips thumbnails (were 128 and 16). The default
+    `checkerSize` of `DrawImageBackground` is 32.
+  - The step number on each Clips thumbnail is drawn twice: in black 1 px down and right, then in white. The
+    shadow makes it readable on the checkerboard, so the `## Discovered` note is removed.
+  - The Clip Preview window is removed, and Selected Cell previews the selected clip. With a clip selected, the
+    Selected Cell background covers the clip's bounding box, which does not change from step to step. With no
+    clip selected, it covers the cell.
 
 **Commits:**
 - bbe6932 feat(T-014): preview background color and transparency checkerboard
+- 929fa55 feat: Selected Cell previews clips, playback selects cells, Set all durations (after the session)
 
 **Manual verification:**
 1. Move `moth_sprite.json` aside (or run from a new folder) and start the app. Import a sheet image that has
-   transparent areas. The Sheet window shows a gray and white checkerboard behind the image, with 128 px squares
+   transparent areas. The Sheet window shows a gray and white checkerboard behind the image, with 32 px squares
    and a gray square at the image's top-left corner.
-2. Zoom the Sheet in and out with the mouse wheel. The squares stay 128 screen pixels. Scroll the Sheet. The
+2. Zoom the Sheet in and out with the mouse wheel. The squares stay 32 screen pixels. Scroll the Sheet. The
    pattern moves with the image. Cell borders, pivots, box select and the New Cell rectangle draw over it.
-3. Select a cell. Selected Cell shows the checkerboard behind the cell only, and the pivot cross over it.
-4. Add a clip with steps of different sizes and pivots. Clip Preview shows the checkerboard over the whole clip
-   area, and the area does not move or change size while the clip plays.
-5. In Clips, each step's 72 px box shows a checkerboard with 16 px squares in place of the dark fill. The box
-   outline and the current step outline still draw over it.
+3. With no clip selected, select a cell. Selected Cell shows the checkerboard behind the cell only, and the pivot
+   cross over it.
+4. Add a clip with steps of different sizes and pivots, and select it. Selected Cell shows the checkerboard over
+   the whole clip area, and the area does not move or change size while the clip plays.
+5. In Clips, each step's 72 px box shows a checkerboard with 8 px squares in place of the dark fill. The box
+   outline and the current step outline draw over it, and the step number has a black shadow.
 6. Open Tools > Grid and Tools > Detect Frames. Both previews show the checkerboard behind the image, with grid
    lines, the overflow tint and detected rectangles over it.
 7. Open Preferences > Preview background. Pick an opaque color. Every window above now shows that color, not the
@@ -271,9 +282,10 @@ title and the file that later saves write to.
 
 Problems noticed during sessions that are outside the current tasks. Candidates for `/task-new`.
 
-- Found in T-014: the step number at the top-left of each Clips timeline thumbnail is drawn in white. On the white
-  checker squares, and on a light preview background color, it is hard to read. It could get a dark outline or a
-  small dark backing.
+- Found after the session (929fa55): playback selects each step's cell. If a Cells form field is being edited
+  while a clip plays, the form switches to each new step's cell, and the edit in progress is applied to whichever
+  cell is selected when the value changes. Playback could pause while a form field is active, or the form could
+  keep the cell it started editing.
 - Found in T-015: the Cells form and the Clips window commit a pending field edit when the field's widget reports
   the end of the edit. If the widget is not drawn in that frame (the edited cell or clip is deleted by a button in
   the same frame, or the window is closed), the edit stays pending until the next field is activated. Its undo step
