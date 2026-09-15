@@ -2,7 +2,11 @@
 #include "sprite_application.h"
 #include "sprite_editor/sprite_editor.h"
 
+#include <moth/graphics/graphics/asset_context.h>
+#include <moth/graphics/graphics/igraphics.h>
+#include <moth/graphics/graphics/spritesheet_factory.h>
 #include <moth/graphics/graphics/surface_context.h>
+#include <moth/graphics/graphics/texture_factory.h>
 
 namespace {
     char const* const kConfigFile = "moth_sprite.json";
@@ -32,6 +36,19 @@ void SpriteApplication::PostCreateWindow() {
 }
 
 void SpriteApplication::Shutdown() {
+    // The layers (and the textures they hold) are destroyed right after this returns,
+    // but the final frame's command buffers may still reference them. Drain the device
+    // first so freeing their descriptor sets is safe.
+    GetUiWindow()->GetGraphics().WaitIdle();
+
+    // The asset factory caches live in the surface context, which is destroyed after the
+    // ImGui context. A cached texture that was drawn through ImGui frees its ImGui
+    // descriptor set on destruction, which crashes once the ImGui backend is gone
+    // (e.g. a sheet opened with File > Load). Release the caches while ImGui is alive.
+    auto& assetContext = GetUiWindow()->GetSurfaceContext().GetAssetContext();
+    assetContext.GetSpriteSheetFactory().FlushCache();
+    assetContext.GetTextureFactory().FlushCache();
+
     std::ofstream ofile(m_configPath);
     if (!ofile.is_open()) {
         moth::core::log::warn("SpriteApplication: could not write '{}'", m_configPath.string());
