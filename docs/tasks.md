@@ -483,7 +483,7 @@ Other windows, such as tools, stay as they are.
    cell list and form, pivot editing and presets, clip editing and playback, Tools > Grid and Detect Frames,
    Preferences, Undo and Redo, Save.
 
-### [todo] T-002 Multiple selection
+### [done] T-002 Multiple selection
 
 **Review:** reviewed 2026-09-15
 
@@ -496,21 +496,21 @@ be a "prime" selected concept. For actions that can only use one cell, the "prim
 e.g. assigning to a clip frame.
 
 **Requirements:**
-- [ ] Ctrl+click, on the sheet or in the cell list, adds or removes a cell from the selection. A plain click
+- [x] Ctrl+click, on the sheet or in the cell list, adds or removes a cell from the selection. A plain click
   selects only the clicked cell.
-- [ ] The selection has a "prime" cell: the cell most recently clicked or ctrl+clicked into the selection.
-- [ ] If the prime cell is removed from the selection, the most recently added cell still selected becomes prime.
-- [ ] The prime cell is drawn in a different colour from the other selected cells, on the sheet and in the list.
-- [ ] Actions that take a single cell use the prime cell: the selected cell window, the cell form, "+ Step" and
+- [x] The selection has a "prime" cell: the cell most recently clicked or ctrl+clicked into the selection.
+- [x] If the prime cell is removed from the selection, the most recently added cell still selected becomes prime.
+- [x] The prime cell is drawn in a different colour from the other selected cells, on the sheet and in the list.
+- [x] Actions that take a single cell use the prime cell: the selected cell window, the cell form, "+ Step" and
   picking a cell for a clip frame.
-- [ ] Delete removes every selected cell, as one undo action.
-- [ ] Dragging inside a selected cell on the sheet moves every selected cell together, as one undo action. Resize
+- [x] Delete removes every selected cell, as one undo action.
+- [x] Dragging inside a selected cell on the sheet moves every selected cell together, as one undo action. Resize
   handles appear only on the prime cell.
-- [ ] Shift+click in the cell list selects every cell between the prime cell and the clicked cell.
-- [ ] Ctrl+A selects every cell.
-- [ ] Esc clears the selection, when Esc is not already cancelling something (New Cell drawing, picking a cell).
-- [ ] Dragging on an empty part of the sheet draws a box, and selects every cell inside it.
-- [ ] Undo and redo restore the whole selection, as they restore the single selection today.
+- [x] Shift+click in the cell list selects every cell between the prime cell and the clicked cell.
+- [x] Ctrl+A selects every cell.
+- [x] Esc clears the selection, when Esc is not already cancelling something (New Cell drawing, picking a cell).
+- [x] Dragging on an empty part of the sheet draws a box, and selects every cell inside it.
+- [x] Undo and redo restore the whole selection, as they restore the single selection today.
 
 **Out of scope:**
 Pivot changes for the whole selection. They are in T-003.
@@ -523,10 +523,70 @@ Pivot changes for the whole selection. They are in T-003.
   box select on the sheet.
 
 **Notes:**
+- `m_selectedFrame` is replaced by `m_selection`, the selected cell indices in the order they were added. The
+  last one is the prime cell (`PrimeCell()`). Removing a cell from the vector leaves the most recently added
+  remaining cell last, so it becomes prime.
+- `PushFrameAction` and `PushFrameClipAction` now take the selection before and after, so undo and redo restore
+  the whole selection. `DeleteFrame` became `DeleteFrames`. It deletes from the highest index down and applies
+  the old per-cell fix-up of the selection and clip steps to each cell, in one `PushFrameClipAction`. The list's
+  delete button calls it with one cell.
+- Prime colour: a new editor setting `SpriteEditorPrimeColor` (default magenta), with Preferences > Prime border.
+  On the sheet the prime cell's rect and pivot use it. In the Cells list the prime row's highlight uses it at
+  reduced alpha, and the other selected rows use the normal highlight. The Cells header shows "(N selected)"
+  when more than one cell is selected.
+- Sheet mouse rules, in order:
+  - While picking a cell for a clip step, a click only picks a cell.
+  - Ctrl+click toggles the cell under the mouse. Ctrl+drag on empty space adds a box to the selection.
+  - A plain press on the prime cell's edge or corner resizes the prime cell only.
+  - A plain press inside any selected cell makes that cell prime and moves every selected cell. The move delta
+    is clamped once for the whole selection, so the cells keep their layout at the sheet's edges. If the press
+    does not drag, only that cell stays selected.
+  - A plain press on an unselected cell selects only that cell and moves it, as before.
+  - A plain press on empty space starts a box. On release, the selection is the cells fully inside the box, so a
+    click on empty space clears the selection, as before.
+- Cells list: a plain click selects only that cell. This replaces the T-010 behaviour where clicking the
+  selected cell cleared the selection. Ctrl+click toggles. Shift+click selects from the prime cell to the clicked
+  cell. While picking a cell for a clip step, every click is a plain click.
+- Esc now cancels one thing per press: picking, else New Cell drawing, else the selection. It does not clear
+  the selection during a drag or box select.
+- Assumption: Shift+click replaces the selection with the range and keeps the prime cell as prime (the range
+  anchor). With no prime cell, Shift+click selects only the clicked cell.
+- Assumption: box select selects cells that are fully inside the box, not cells it only touches. The box's
+  cells are added in index order, so the highest-index cell becomes prime.
+- Assumption: Ctrl+A keeps the prime cell prime. With no prime cell, the last cell becomes prime.
+- The pivot presets in Selected Cell still change only the prime cell. Applying them to the whole selection is
+  T-003.
+- `IsMouseDragPastThreshold` comes from `imgui_internal.h`, now included in `sprite_editor_preview.cpp`.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- 8209f95 feat(T-002): multiple cell selection with a prime cell
 
 **Manual verification:**
+1. Import a sheet and add a grid of cells (Tools > Grid). Click a cell on the sheet: only it is selected, in the
+   prime colour (magenta by default), and it is the highlighted row in Cells.
+2. Ctrl+click two more cells on the sheet. All three are selected. The last one clicked is magenta, the others
+   use the selected colour, and Cells shows "(3 selected)" with the last row in the prime colour. Selected Cell
+   and the form show the last cell.
+3. Ctrl+click the prime cell: it is removed, and the cell added before it becomes prime. Ctrl+click it again: it
+   is added back as prime.
+4. In Cells, click a row, then Shift+click a row further down. Every row between them is selected, and the first
+   row stays prime. Ctrl+click a row in the list: it is toggled.
+5. Press Ctrl+A: every cell is selected. Press Esc: the selection clears. Click New Cell, press Esc: New Cell
+   ends and the selection is kept. Double click a clip step, press Esc: picking ends and the selection is kept.
+6. Drag on an empty part of the sheet: a box is drawn, and on release the cells fully inside it are selected.
+   Hold Ctrl and drag another box: those cells are added. Click on empty space: the selection clears.
+7. Select several cells, then drag inside one of them. All selected cells move together and stop together at the
+   sheet's edge. Ctrl+Z undoes the whole move in one step, and the selection comes back as it was. Ctrl+Y redoes it.
+8. With several cells selected, the resize cursor appears only on the prime cell's edges. Drag an edge: only the
+   prime cell resizes.
+9. With several cells selected, click (without dragging) inside a selected cell that is not prime. Only that cell
+   stays selected.
+10. Select several cells and press Delete. All of them are removed, and clip steps are fixed up. One Ctrl+Z
+    restores all of them, with the same selection.
+11. With a clip selected, click "+ Step": it adds the prime cell. Double click a step and Ctrl+click a cell on the
+    sheet: it is assigned to the step, and only that cell is selected.
+12. Change Preferences > Prime border. The sheet and the Cells list use the new colour. Restart: it is kept.
 
 ### [todo] T-003 Pivot helpers
 
