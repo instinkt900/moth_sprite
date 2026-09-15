@@ -180,6 +180,19 @@ void SpriteEditor::DrawMainMenuBar() {
                 ImportSheet(imagePath);
             }
         }
+        if (ImGui::MenuItem("Export Sheet...", nullptr, false, hasImage)) {
+            // Filter on the sheet's own extension, and start in the sheet's folder.
+            std::filesystem::path const sheetPath = m_imagePathBuffer;
+            std::string const extension = sheetPath.extension().string();
+            std::string const filter = extension.empty() ? std::string{} : extension.substr(1);
+            std::string const sheetDir = sheetPath.parent_path().string();
+            nfdchar_t* outPath = nullptr;
+            if (NFD_SaveDialog(filter.empty() ? nullptr : filter.c_str(), sheetDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
+                std::filesystem::path const exportPath = outPath;
+                NFD_Free(outPath);
+                ExportSheet(exportPath);
+            }
+        }
         ImGui::Separator();
         if (ImGui::MenuItem("Exit")) {
             FireEvent(moth::gfx::EventRequestQuit{});

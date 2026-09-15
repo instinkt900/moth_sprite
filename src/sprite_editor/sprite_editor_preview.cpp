@@ -166,6 +166,13 @@ void SpriteEditor::DrawPreview() {
         return;
     }
 
+    // The sheet image file the project uses. Read-only; File > Export Sheet changes it.
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Image");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    ImGui::InputText("##sheet_image_path", m_imagePathBuffer, sizeof(m_imagePathBuffer), ImGuiInputTextFlags_ReadOnly);
+
     float const imgW = static_cast<float>(image.GetWidth());
     float const imgH = static_cast<float>(image.GetHeight());
 

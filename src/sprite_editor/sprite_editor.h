@@ -48,6 +48,9 @@ private:
     void NewSpriteSheet();
     void LoadSpriteSheet(std::filesystem::path const& path);
     void ImportSheet(std::filesystem::path const& imagePath);
+    // Copy the sheet image file, unchanged, to exportPath (given the sheet's extension), then point the project at
+    // the copy as one undoable action.
+    void ExportSheet(std::filesystem::path exportPath);
     void SaveSpriteSheet();
     void DrawPreview();
     // Mouse-wheel zoom centered on the cursor, for the current scrolling child window.

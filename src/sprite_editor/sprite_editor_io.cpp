@@ -96,6 +96,49 @@ void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
     m_clipElapsedMs   = 0.0f;
 }
 
+void SpriteEditor::ExportSheet(std::filesystem::path exportPath) {
+    if (m_imagePathBuffer[0] == '\0') {
+        return;
+    }
+    std::filesystem::path const sheetPath = m_imagePathBuffer;
+
+    // The copy keeps the sheet's format, so it always gets the sheet's extension.
+    if (exportPath.extension() != sheetPath.extension()) {
+        exportPath.replace_extension(sheetPath.extension());
+    }
+    std::string const exportStr = exportPath.string();
+    if (exportStr.size() >= sizeof(m_imagePathBuffer)) {
+        moth::core::log::error("SpriteEditor: export path is too long: '{}'", exportStr);
+        return;
+    }
+
+    // Exporting onto the sheet file itself copies nothing and keeps the project's path.
+    std::error_code ec;
+    if (std::filesystem::equivalent(sheetPath, exportPath, ec)) {
+        return;
+    }
+    ec.clear();
+    std::filesystem::copy_file(sheetPath, exportPath, std::filesystem::copy_options::overwrite_existing, ec);
+    if (ec) {
+        moth::core::log::error("SpriteEditor: failed to export sheet '{}' to '{}': {}",
+            sheetPath.string(), exportStr, ec.message());
+        return;
+    }
+    moth::core::log::info("SpriteEditor: exported sheet to '{}'", exportStr);
+
+    // Point the project at the exported file. Undo points it back at the old file; the copy stays on disk.
+    std::string const previousStr = m_imagePathBuffer;
+    auto const setImagePath = [this](std::string const& path) {
+        strncpy(m_imagePathBuffer, path.c_str(), sizeof(m_imagePathBuffer) - 1);
+        m_imagePathBuffer[sizeof(m_imagePathBuffer) - 1] = '\0';
+    };
+    setImagePath(exportStr);
+    AddSpriteAction(std::make_unique<BasicAction>(
+        [setImagePath, exportStr]()   { setImagePath(exportStr); },
+        [setImagePath, previousStr]() { setImagePath(previousStr); }
+    ));
+}
+
 void SpriteEditor::SaveSpriteSheet() {
     if (m_pathBuffer[0] == '\0' || !m_spriteSheet) {
         return;
