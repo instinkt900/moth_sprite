@@ -194,7 +194,7 @@ form could use the same pattern.
 7. Set W to 0 or a negative number. It becomes 1.
 8. Focus a field without changing it, then use a pivot preset button. Undo reverts only the preset.
 
-### [todo] T-016 Failed Load or Save As keeps the project path
+### [done] T-016 Failed Load or Save As keeps the project path
 
 **Review:** reviewed 2026-09-15
 
@@ -209,19 +209,19 @@ File > Save As has the same problem: it sets the path before it writes the file,
 title and the file that later saves write to.
 
 **Requirements:**
-- [ ] When File > Load fails, the previous project stays open with its path. The window title and File > Save
+- [x] When File > Load fails, the previous project stays open with its path. The window title and File > Save
   still use the previous project's file, or Untitled, where Save opens Save As.
-- [ ] The same is true when File > Open Recent fails for a file that exists.
-- [ ] When File > Save As fails to write the file, the project path does not change. The title and File > Save
+- [x] The same is true when File > Open Recent fails for a file that exists.
+- [x] When File > Save As fails to write the file, the project path does not change. The title and File > Save
   still use the previous file. The unsaved changes prompt still stays open when the save fails.
-- [ ] A successful Load, Open Recent or Save As works as now: it sets the path, updates the title and adds the
+- [x] A successful Load, Open Recent or Save As works as now: it sets the path, updates the title and adds the
   file to Open Recent.
-- [ ] A failed Load or Open Recent does not add the file to Open Recent.
-- [ ] An Open Recent entry whose file exists but fails to load stays in the list. An entry whose file no longer
+- [x] A failed Load or Open Recent does not add the file to Open Recent.
+- [x] An Open Recent entry whose file exists but fails to load stays in the list. An entry whose file no longer
   exists is still removed.
-- [ ] The Load and Save As dialogs still remember the chosen folder in `LastProjectDir`, even when the load or
+- [x] The Load and Save As dialogs still remember the chosen folder in `LastProjectDir`, even when the load or
   the save fails.
-- [ ] A failed load or save is still reported only by its existing log line.
+- [x] A failed load or save is still reported only by its existing log line.
 
 **Out of scope:**
 - Error popups or any other new UI.
@@ -234,10 +234,38 @@ title and the file that later saves write to.
 - Q: What happens to an Open Recent entry whose file exists but fails to load? A: It stays in the list.
 
 **Notes:**
+- `LoadSpriteSheet(path)` now sets `m_pathBuffer` itself, after the sheet has loaded. `LoadWithDialog` and
+  `OpenRecentProject` no longer copy the path into `m_pathBuffer` first.
+- `SaveSpriteSheet` now takes the path to write (`SaveSpriteSheet(path)`), and sets `m_pathBuffer` only after the
+  file is written, before `AddRecentProject` and `MarkSaved`. File > Save and `SaveProject` pass `m_pathBuffer`.
+  `SaveProjectAs` passes the chosen path.
+- `LastProjectDir` is still set from the chosen file before the load or the save, so it is kept on failure.
+- A failed load or Open Recent never reached `AddRecentProject`, and an Open Recent entry is still removed only when
+  its file does not exist. Those lines did not need a change.
+- No log lines were added or changed. How projects are loaded and saved, the file format, and Import and Export
+  Sheet did not change.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
+- 814f4e3 fix(T-016): failed Load, Open Recent or Save As keeps the project path
 
 **Manual verification:**
+1. Make a file `broken.json` that is not a valid project (for example, containing `{`). Load a valid project `a.json`.
+   The title shows `a.json`.
+2. File > Load and choose `broken.json`. The log shows the existing "Failed to load sprite sheet" error. The title
+   still shows `a.json`, `a.json`'s cells are still shown, and Open Recent does not list `broken.json`. Make a
+   change and use File > Save. `a.json` is written, and `broken.json` is unchanged.
+3. File > New, then File > Load `broken.json`. The title stays `Untitled`, and File > Save is disabled (Save As must
+   be used).
+4. Open Recent: make a valid project `b.json`, load it so it is in Open Recent, then load `a.json`. Replace the
+   contents of `b.json` with `{`. Choose `b.json` in Open Recent. The title still shows `a.json`, and `b.json` stays
+   in the Open Recent list. Delete `b.json` and choose it again. It is removed from the list, as before.
+5. Save As failure: with `a.json` open, make a read-only folder (`chmod a-w`). Use File > Save As and choose a file
+   in it. The log shows the existing "failed to open ... for writing" error. The title still shows `a.json`, and
+   File > Save writes `a.json`. The next Save As dialog opens in the read-only folder.
+6. With unsaved changes and an Untitled project, choose File > New, click Save in the prompt, and choose a file in
+   the read-only folder. The prompt stays open, and the title still shows `Untitled *`.
+7. A successful Load, Open Recent and Save As still set the title and add the file to the top of Open Recent.
 
 ## Discovered
 
