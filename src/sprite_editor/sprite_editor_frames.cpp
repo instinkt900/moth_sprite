@@ -134,12 +134,13 @@ void SpriteEditor::DrawCellListWindow() {
     }
 
     // The list takes the height that the form below it does not need. The form measures its height each time it
-    // is drawn, so it fits without scrolling. Before the first measurement, estimate a title, three rows of fields
+    // is drawn, so it fits without scrolling. Before the first measurement, estimate two titles, three rows of fields
     // and three rows of pivot presets.
     ImGuiStyle const& style = ImGui::GetStyle();
     float const formH = (m_cellFormHeight > 0.0f)
         ? m_cellFormHeight
-        : ImGui::GetTextLineHeightWithSpacing() + style.ItemSpacing.y + (ImGui::GetFrameHeightWithSpacing() * 6.0f);
+        : ((ImGui::GetTextLineHeightWithSpacing() + style.ItemSpacing.y) * 2.0f) +
+              (ImGui::GetFrameHeightWithSpacing() * 6.0f);
     float const listH = std::max(ImGui::GetContentRegionAvail().y - formH,
                                  ImGui::GetFrameHeightWithSpacing() * 3.0f);
 
@@ -264,6 +265,7 @@ void SpriteEditor::DrawCellListWindow() {
     }
 
     // Pivot preset grid (3×3). Like Edit > Pivot, each button sets the pivot of every selected cell.
+    ImGui::SeparatorText("Pivot presets");
     float const btnW = (ImGui::GetContentRegionAvail().x - (style.ItemSpacing.x * 2.0f)) / 3.0f;
     ImVec2 const bs{ btnW, 0.0f };
 
@@ -289,6 +291,10 @@ void SpriteEditor::DrawCellListWindow() {
 }
 
 void SpriteEditor::DrawCellWindow() {
+    // The same playback, and the same buttons, as the Clips window. Playback selects each step's cell, so this window
+    // also previews the selected clip.
+    DrawClipPlaybackControls();
+
     auto const* image = (m_spriteSheet && m_spriteSheet->GetImage())
                         ? &m_spriteSheet->GetImage() : nullptr;
     if (image == nullptr) {
@@ -313,15 +319,43 @@ void SpriteEditor::DrawCellWindow() {
     moth::gfx::FloatVec2 const uv1{
         std::clamp(static_cast<float>(fr.rect.right())  / imgW, 0.0f, 1.0f),
         std::clamp(static_cast<float>(fr.rect.bottom()) / imgH, 0.0f, 1.0f) };
-    float const cellW = static_cast<float>(std::max(fr.rect.w(), 1));
-    float const cellH = static_cast<float>(std::max(fr.rect.h(), 1));
+    int const maxFrameIdx = static_cast<int>(m_frames.size()) - 1;
+
+    // During a pivot drag the layout uses the pivots from before the drag, so the cell stays still under the mouse
+    // while its pivot moves.
+    auto const layoutFrame = [&](int index) -> moth::gfx::SpriteSheet::FrameEntry const& {
+        if (m_pivotDragging && m_pivotDragSnapshot.has_value() && index < static_cast<int>(m_pivotDragSnapshot->size())) {
+            return (*m_pivotDragSnapshot)[index];
+        }
+        return m_frames[index];
+    };
+    // The canvas extent, relative to the pivot. It covers the cell and, with a clip selected, every step's cell placed
+    // on the same pivot point, so the cell does not jump or resize while the clip plays.
+    auto const& primeLayout = layoutFrame(prime);
+    int const primePivotX = primeLayout.pivot.x;
+    int const primePivotY = primeLayout.pivot.y;
+    int minOX = -primePivotX;
+    int maxOX = std::max(primeLayout.rect.w(), 1) - primePivotX;
+    int minOY = -primePivotY;
+    int maxOY = std::max(primeLayout.rect.h(), 1) - primePivotY;
+    if (m_selectedClip >= 0 && m_selectedClip < static_cast<int>(m_clips.size())) {
+        for (auto const& step : m_clips[m_selectedClip].desc.frames) {
+            auto const& f = layoutFrame(std::clamp(step.frameIndex, 0, maxFrameIdx));
+            minOX = std::min(minOX, -f.pivot.x);
+            maxOX = std::max(maxOX, f.rect.w() - f.pivot.x);
+            minOY = std::min(minOY, -f.pivot.y);
+            maxOY = std::max(maxOY, f.rect.h() - f.pivot.y);
+        }
+    }
+    float const boundW = static_cast<float>(std::max(maxOX - minOX, 1));
+    float const boundH = static_cast<float>(std::max(maxOY - minOY, 1));
 
     // One toolbar row above the canvas.
     ImVec2 const totalAvail = ImGui::GetContentRegionAvail();
     float const canvasH = totalAvail.y - ImGui::GetFrameHeightWithSpacing();
     auto const fitZoom = [&]() {
         if (totalAvail.x > 0.0f && canvasH > 0.0f) {
-            m_cellZoom = std::min(totalAvail.x / cellW, canvasH / cellH);
+            m_cellZoom = std::min(totalAvail.x / boundW, canvasH / boundH);
         }
     };
     if (m_cellZoom < 0.0f) {
@@ -345,11 +379,23 @@ void SpriteEditor::DrawCellWindow() {
     ZoomWithMouseWheel(m_cellZoom);
     // Draw at 1:1 until the window has room to compute a fit.
     float const zoom = (m_cellZoom > 0.0f) ? m_cellZoom : 1.0f;
-    float const dispW = cellW * zoom;
-    float const dispH = cellH * zoom;
+    float const contentW = boundW * zoom;
+    float const contentH = boundH * zoom;
 
-    ImVec2 const imagePos = ImGui::GetCursorScreenPos();
-    DrawImageBackground({ imagePos.x, imagePos.y }, { std::floor(dispW), std::floor(dispH) });
+    // Centre the extent when it is smaller than the canvas.
+    ImVec2 const canvasAvail = ImGui::GetContentRegionAvail();
+    ImVec2 const origin = ImGui::GetCursorScreenPos();
+    ImVec2 const contentMin{ origin.x + std::max((canvasAvail.x - contentW) * 0.5f, 0.0f),
+                             origin.y + std::max((canvasAvail.y - contentH) * 0.5f, 0.0f) };
+    // The background covers the whole extent, so it does not change from step to step.
+    DrawImageBackground({ contentMin.x, contentMin.y }, { contentW, contentH });
+
+    // The cell's pivot lands on the extent's pivot point.
+    ImVec2 const imagePos{ contentMin.x + (static_cast<float>(-minOX - primePivotX) * zoom),
+                           contentMin.y + (static_cast<float>(-minOY - primePivotY) * zoom) };
+    float const dispW = static_cast<float>(std::max(fr.rect.w(), 1)) * zoom;
+    float const dispH = static_cast<float>(std::max(fr.rect.h(), 1)) * zoom;
+    ImGui::SetCursorScreenPos(imagePos);
     DrawImage(*image, { static_cast<int>(dispW), static_cast<int>(dispH) }, uv0, uv1);
 
     // InvisibleButton over the cell so ImGui owns the left-button press
@@ -392,5 +438,9 @@ void SpriteEditor::DrawCellWindow() {
     constexpr float kArm = 5.0f;
     dl->AddLine({ px - kArm, py }, { px + kArm, py }, crossColor, 1.5f);
     dl->AddLine({ px, py - kArm }, { px, py + kArm }, crossColor, 1.5f);
+
+    // Reserve the whole extent, so the scroll range does not change from step to step.
+    ImGui::SetCursorScreenPos(contentMin);
+    ImGui::Dummy(ImVec2{ contentW, contentH });
     ImGui::EndChild();
 }

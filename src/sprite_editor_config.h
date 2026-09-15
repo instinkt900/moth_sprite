@@ -21,7 +21,6 @@ struct SpriteEditorConfig {
     bool ShowCellWindow = true;
     bool ShowCellListWindow = true;
     bool ShowClipEditorWindow = true;
-    bool ShowClipPreviewWindow = true;
     // File > Open Recent: project file paths, newest first.
     std::vector<std::string> RecentProjects;
     // The folders that the project dialogs (Load, Save As) and the image dialogs (Import Sheet, Export Sheet)
@@ -40,7 +39,6 @@ inline void to_json(nlohmann::json& j, SpriteEditorConfig const& config) {
     j["ShowCellWindow"] = config.ShowCellWindow;
     j["ShowCellListWindow"] = config.ShowCellListWindow;
     j["ShowClipEditorWindow"] = config.ShowClipEditorWindow;
-    j["ShowClipPreviewWindow"] = config.ShowClipPreviewWindow;
     j["RecentProjects"] = config.RecentProjects;
     j["LastProjectDir"] = config.LastProjectDir;
     j["LastImageDir"] = config.LastImageDir;
@@ -56,7 +54,6 @@ inline void from_json(nlohmann::json const& j, SpriteEditorConfig& config) {
     config.ShowCellWindow = j.value("ShowCellWindow", config.ShowCellWindow);
     config.ShowCellListWindow = j.value("ShowCellListWindow", config.ShowCellListWindow);
     config.ShowClipEditorWindow = j.value("ShowClipEditorWindow", config.ShowClipEditorWindow);
-    config.ShowClipPreviewWindow = j.value("ShowClipPreviewWindow", config.ShowClipPreviewWindow);
     config.RecentProjects = j.value("RecentProjects", config.RecentProjects);
     config.LastProjectDir = j.value("LastProjectDir", config.LastProjectDir);
     config.LastImageDir = j.value("LastImageDir", config.LastImageDir);

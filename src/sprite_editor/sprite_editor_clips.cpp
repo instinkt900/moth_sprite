@@ -6,7 +6,7 @@ namespace {
     // Side of a step thumbnail on a clip timeline, in pixels.
     constexpr float kThumbSize = 72.0f;
     // Checkerboard square size behind a step thumbnail, in pixels. Smaller than elsewhere, to fit the thumbnail.
-    constexpr float kThumbCheckerSize = 16.0f;
+    constexpr float kThumbCheckerSize = 8.0f;
     // Drag-and-drop payload type for moving a step along its timeline.
     char const* const kStepPayloadType = "CLIP_STEP";
     struct StepPayload {
@@ -30,6 +30,7 @@ void SpriteEditor::AdvanceClipPlayback() {
     m_clipElapsedMs += ImGui::GetIO().DeltaTime * 1000.0f;
     m_clipCurrentStep = std::clamp(m_clipCurrentStep, 0,
         static_cast<int>(clip.desc.frames.size()) - 1);
+    int const startStep = m_clipCurrentStep;
     while (m_clipPlaying) {
         int const dur = std::max(clip.desc.frames[m_clipCurrentStep].durationMs, 1);
         if (m_clipElapsedMs < static_cast<float>(dur)) { break; }
@@ -56,6 +57,27 @@ void SpriteEditor::AdvanceClipPlayback() {
             }
         }
     }
+    // Only when the step changes, so a cell selected while the clip plays stays selected until the next step.
+    if (m_clipCurrentStep != startStep) {
+        SelectClipStepCell();
+    }
+}
+
+void SpriteEditor::SelectClipStepCell() {
+    // A drag on the sheet or on the pivot works on the selection, so it keeps the selection it started with.
+    if (m_frameDrag.has_value() || m_boxSelect.has_value() || m_pivotDragging) {
+        return;
+    }
+    if (m_selectedClip < 0 || m_selectedClip >= static_cast<int>(m_clips.size())) {
+        return;
+    }
+    auto const& steps = m_clips[m_selectedClip].desc.frames;
+    int const maxFrameIdx = static_cast<int>(m_frames.size()) - 1;
+    if (steps.empty() || maxFrameIdx < 0) {
+        return;
+    }
+    int const step = std::clamp(m_clipCurrentStep, 0, static_cast<int>(steps.size()) - 1);
+    m_selection = { std::clamp(steps[step].frameIndex, 0, maxFrameIdx) };
 }
 
 void SpriteEditor::DrawClipPlaybackControls() {
@@ -76,6 +98,7 @@ void SpriteEditor::DrawClipPlaybackControls() {
                 m_clipCurrentStep = 0;
             }
             m_clipPlaying = true;
+            SelectClipStepCell();
         }
     }
     ImGui::SameLine();
@@ -89,6 +112,15 @@ void SpriteEditor::DrawClipPlaybackControls() {
         } else {
             m_clipCurrentStep = (clip.desc.loop == LoopType::Stop) ? m_clipCurrentStep : 0;
         }
+        SelectClipStepCell();
+        m_scrollToClipStep = true;
+    }
+    ImGui::SameLine();
+    // Reset goes back to the first step. A playing clip keeps playing from there.
+    if (ImGui::Button("Reset") && totalSteps > 0) {
+        m_clipCurrentStep = 0;
+        m_clipElapsedMs = 0.0f;
+        SelectClipStepCell();
         m_scrollToClipStep = true;
     }
     ImGui::EndDisabled();
@@ -100,115 +132,6 @@ void SpriteEditor::DrawClipPlaybackControls() {
     } else {
         ImGui::TextDisabled("No clip selected");
     }
-}
-
-void SpriteEditor::DrawClipPreviewWindow() {
-    // The same playback, and the same buttons, as the Clips window.
-    DrawClipPlaybackControls();
-
-    if (m_selectedClip < 0 || m_selectedClip >= static_cast<int>(m_clips.size())) {
-        ImGui::TextDisabled("Select a clip in the Clips window to preview it.");
-        return;
-    }
-    auto const& clip = m_clips[m_selectedClip];
-    if (clip.desc.frames.empty()) {
-        ImGui::TextDisabled("(no steps)");
-        return;
-    }
-    auto const* image = (m_spriteSheet && m_spriteSheet->GetImage())
-                        ? &m_spriteSheet->GetImage() : nullptr;
-    int const maxFrameIdx = static_cast<int>(m_frames.size()) - 1;
-    if (image == nullptr || maxFrameIdx < 0) {
-        return;
-    }
-    m_clipCurrentStep = std::clamp(m_clipCurrentStep, 0,
-        static_cast<int>(clip.desc.frames.size()) - 1);
-
-    // Bounding box of every step in pivot-relative space, so the anchor stays fixed
-    // and the animation does not jump from step to step.
-    auto const& f0 = m_frames[std::clamp(clip.desc.frames[0].frameIndex, 0, maxFrameIdx)];
-    int minOX = -f0.pivot.x;
-    int maxOX = f0.rect.w() - f0.pivot.x;
-    int minOY = -f0.pivot.y;
-    int maxOY = f0.rect.h() - f0.pivot.y;
-    for (auto const& step : clip.desc.frames) {
-        auto const& f = m_frames[std::clamp(step.frameIndex, 0, maxFrameIdx)];
-        minOX = std::min(minOX, -f.pivot.x);
-        maxOX = std::max(maxOX, f.rect.w() - f.pivot.x);
-        minOY = std::min(minOY, -f.pivot.y);
-        maxOY = std::max(maxOY, f.rect.h() - f.pivot.y);
-    }
-    float const boundW = static_cast<float>(std::max(maxOX - minOX, 1));
-    float const boundH = static_cast<float>(std::max(maxOY - minOY, 1));
-
-    // One zoom toolbar row above the canvas.
-    ImVec2 const totalAvail = ImGui::GetContentRegionAvail();
-    float const canvasH = totalAvail.y - ImGui::GetFrameHeightWithSpacing();
-    auto const fitZoom = [&]() {
-        if (totalAvail.x > 0.0f && canvasH > 0.0f) {
-            m_clipZoom = std::min(totalAvail.x / boundW, canvasH / boundH);
-        }
-    };
-    if (m_clipZoom < 0.0f) {
-        fitZoom();
-    }
-
-    // Toolbar
-    if (ImGui::Button("Fit")) {
-        fitZoom();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("1:1")) {
-        m_clipZoom = 1.0f;
-    }
-    ImGui::SameLine();
-    ImGui::Text("%.0f%%", m_clipZoom * 100.0f);
-
-    // Scrollable canvas with only the animation and the preview background: no pivot or guides.
-    ImGui::BeginChild("##clip_canvas", ImVec2{ 0.0f, std::max(canvasH, 1.0f) }, ImGuiChildFlags_None,
-                      ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    ZoomWithMouseWheel(m_clipZoom);
-    // Draw at 1:1 until the window has room to compute a fit.
-    float const zoom = (m_clipZoom > 0.0f) ? m_clipZoom : 1.0f;
-    float const contentW = boundW * zoom;
-    float const contentH = boundH * zoom;
-
-    // Centre the animation when it is smaller than the canvas.
-    ImVec2 const canvasAvail = ImGui::GetContentRegionAvail();
-    ImVec2 const origin = ImGui::GetCursorScreenPos();
-    ImVec2 const contentMin{ origin.x + std::max((canvasAvail.x - contentW) * 0.5f, 0.0f),
-                             origin.y + std::max((canvasAvail.y - contentH) * 0.5f, 0.0f) };
-    float const anchorX = contentMin.x + (static_cast<float>(-minOX) * zoom);
-    float const anchorY = contentMin.y + (static_cast<float>(-minOY) * zoom);
-    // The background covers the whole clip's extent, so it does not change from step to step.
-    DrawImageBackground({ contentMin.x, contentMin.y }, { contentW, contentH });
-
-    // Draw current frame with its pivot landing on the anchor point
-    int const frameIdx = clip.desc.frames[m_clipCurrentStep].frameIndex;
-    if (frameIdx >= 0 && frameIdx <= maxFrameIdx) {
-        auto const& fr = m_frames[frameIdx];
-        float const imgW = static_cast<float>(image->GetWidth());
-        float const imgH = static_cast<float>(image->GetHeight());
-        moth::gfx::FloatVec2 const uv0{
-            static_cast<float>(fr.rect.x())     / imgW,
-            static_cast<float>(fr.rect.y())     / imgH };
-        moth::gfx::FloatVec2 const uv1{
-            static_cast<float>(fr.rect.right()) / imgW,
-            static_cast<float>(fr.rect.bottom())/ imgH };
-        float const fw = static_cast<float>(fr.rect.w()) * zoom;
-        float const fh = static_cast<float>(fr.rect.h()) * zoom;
-        if (fw > 0.0f && fh > 0.0f) {
-            ImGui::SetCursorScreenPos({
-                anchorX - (static_cast<float>(fr.pivot.x) * zoom),
-                anchorY - (static_cast<float>(fr.pivot.y) * zoom) });
-            DrawImage(*image, { static_cast<int>(fw), static_cast<int>(fh) }, uv0, uv1);
-        }
-    }
-
-    // Reserve the whole clip's extent, so the scroll range does not change from step to step.
-    ImGui::SetCursorScreenPos(contentMin);
-    ImGui::Dummy(ImVec2{ contentW, contentH });
-    ImGui::EndChild();
 }
 
 void SpriteEditor::SelectClip(int clipIndex) {
@@ -324,9 +247,10 @@ void SpriteEditor::DrawClipEditorWindow() {
     int const maxFrameIdx = static_cast<int>(m_frames.size()) - 1;
     auto const* image = (m_spriteSheet && m_spriteSheet->GetImage())
                         ? &m_spriteSheet->GetImage() : nullptr;
+    // The current step has the prime cell's colour, because playback makes the step's cell the prime cell.
     ImU32 const currentU32 = ImGui::ColorConvertFloat4ToU32(ImVec4{
-        m_config.SpriteEditorSelectedColor.data[0], m_config.SpriteEditorSelectedColor.data[1],
-        m_config.SpriteEditorSelectedColor.data[2], m_config.SpriteEditorSelectedColor.data[3] });
+        m_config.SpriteEditorPrimeColor.data[0], m_config.SpriteEditorPrimeColor.data[1],
+        m_config.SpriteEditorPrimeColor.data[2], m_config.SpriteEditorPrimeColor.data[3] });
 
     // Changes to the clip and step lists are applied after the loop, at most one per frame.
     struct StepMove {
@@ -378,6 +302,36 @@ void SpriteEditor::DrawClipEditorWindow() {
         ImGui::SameLine();
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("%d steps", static_cast<int>(clip.desc.frames.size()));
+
+        // A duration for every step. Typing only changes the field; Set all applies it, so a stray edit changes
+        // nothing. The typed value is view state, kept in the clip block's ImGui storage.
+        ImGui::SameLine();
+        ImGuiStorage* const storage = ImGui::GetStateStorage();
+        ImGuiID const allDurationId = ImGui::GetID("##all_ms_value");
+        int allDurationMs = storage->GetInt(allDurationId, 100);
+        ImGui::SetNextItemWidth(64.0f);
+        if (ImGui::InputInt("##all_ms", &allDurationMs, 0, 0)) {
+            storage->SetInt(allDurationId, std::max(allDurationMs, 0));
+        }
+        ImGui::SetItemTooltip("Duration (ms) for every step");
+        ImGui::SameLine();
+        ImGui::BeginDisabled(clip.desc.frames.empty());
+        if (ImGui::Button("Set all")) {
+            // A duration field still being edited gets its own undo step first.
+            CommitClipEdit();
+            int const durationMs = std::max(allDurationMs, 0);
+            auto before = m_clips;
+            bool changed = false;
+            for (auto& step : clip.desc.frames) {
+                changed |= (step.durationMs != durationMs);
+                step.durationMs = durationMs;
+            }
+            if (changed) {
+                PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
+            }
+        }
+        ImGui::EndDisabled();
+        ImGui::SetItemTooltip("Set every step's duration to this value");
 
         ImGui::SameLine(ImGui::GetContentRegionMax().x - removeW);
         if (ImGui::Button("X")) {
@@ -477,6 +431,8 @@ void SpriteEditor::DrawClipEditorWindow() {
                 dl->AddRect(boxMin, boxMax, IM_COL32(90, 90, 90, 255));
             }
             std::string const cellLabel = fmt::format("{}", frameIdx);
+            // A black copy 1 px down and right gives the white number a drop shadow, so it reads on light backgrounds.
+            dl->AddText({ boxMin.x + 4.0f, boxMin.y + 2.0f }, IM_COL32(0, 0, 0, 255), cellLabel.c_str());
             dl->AddText({ boxMin.x + 3.0f, boxMin.y + 1.0f }, IM_COL32(255, 255, 255, 220), cellLabel.c_str());
 
             // Duration (ms) and remove button below the thumbnail.

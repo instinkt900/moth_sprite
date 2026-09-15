@@ -13,7 +13,6 @@ namespace {
     char const* const kCellWindow = "Selected Cell";
     char const* const kCellListWindow = "Cells";
     char const* const kClipEditorWindow = "Clips";
-    char const* const kClipPreviewWindow = "Clip Preview";
     char const* const kDockSpaceHostWindow = "##dock_space_host";
     char const* const kDockSpaceId = "##dock_space";
     char const* const kUnsavedPromptId = "Unsaved Changes##unsaved_prompt";
@@ -41,17 +40,13 @@ namespace {
         ImGuiID clipsId = 0;
         ImGuiID sheetId = 0;
         ImGui::DockBuilderSplitNode(leftId, ImGuiDir_Down, 0.35f, &clipsId, &sheetId);
-        ImGuiID clipPreviewId = 0;
-        ImGuiID clipEditorId = 0;
-        ImGui::DockBuilderSplitNode(clipsId, ImGuiDir_Right, 0.3f, &clipPreviewId, &clipEditorId);
         ImGuiID cellId = 0;
         ImGuiID cellListId = 0;
         ImGui::DockBuilderSplitNode(rightId, ImGuiDir_Up, 0.4f, &cellId, &cellListId);
         ImGui::DockBuilderDockWindow(kSheetWindow, sheetId);
         ImGui::DockBuilderDockWindow(kCellWindow, cellId);
         ImGui::DockBuilderDockWindow(kCellListWindow, cellListId);
-        ImGui::DockBuilderDockWindow(kClipEditorWindow, clipEditorId);
-        ImGui::DockBuilderDockWindow(kClipPreviewWindow, clipPreviewId);
+        ImGui::DockBuilderDockWindow(kClipEditorWindow, clipsId);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
 } // namespace
@@ -80,7 +75,6 @@ void SpriteEditor::NewSpriteSheet() {
     m_clipElapsedMs   = 0.0f;
     m_zoom            = 1.0f;
     m_cellZoom        = -1.0f;
-    m_clipZoom        = -1.0f;
     m_spriteSheet     = std::make_shared<moth::gfx::SpriteSheet>(
         moth::gfx::Image{},
         std::vector<moth::gfx::SpriteSheet::FrameEntry>{},
@@ -338,7 +332,6 @@ void SpriteEditor::DrawMainMenuBar() {
         ImGui::MenuItem(kCellWindow, nullptr, &m_config.ShowCellWindow);
         ImGui::MenuItem(kCellListWindow, nullptr, &m_config.ShowCellListWindow);
         ImGui::MenuItem(kClipEditorWindow, nullptr, &m_config.ShowClipEditorWindow);
-        ImGui::MenuItem(kClipPreviewWindow, nullptr, &m_config.ShowClipPreviewWindow);
         ImGui::Separator();
         if (ImGui::MenuItem("Reset Layout")) {
             // The default layout shows every window, as on first run.
@@ -346,7 +339,6 @@ void SpriteEditor::DrawMainMenuBar() {
             m_config.ShowCellWindow = true;
             m_config.ShowCellListWindow = true;
             m_config.ShowClipEditorWindow = true;
-            m_config.ShowClipPreviewWindow = true;
             m_resetLayout = true;
         }
         ImGui::EndMenu();
@@ -539,13 +531,6 @@ void SpriteEditor::Draw() {
     if (m_config.ShowClipEditorWindow) {
         if (ImGui::Begin(kClipEditorWindow, &m_config.ShowClipEditorWindow)) {
             DrawClipEditorWindow();
-        }
-        ImGui::End();
-    }
-
-    if (m_config.ShowClipPreviewWindow) {
-        if (ImGui::Begin(kClipPreviewWindow, &m_config.ShowClipPreviewWindow)) {
-            DrawClipPreviewWindow();
         }
         ImGui::End();
     }

@@ -100,7 +100,8 @@ private:
     void UpdateWindowTitle();
     // The Cells window: the cell list, and a form for the selected cell below it.
     void DrawCellListWindow();
-    // The Selected Cell window: the selected cell with zoom, pivot drag and pivot presets.
+    // The Selected Cell window: the playback buttons, and the prime cell with zoom and pivot drag. With a clip
+    // selected, the cell is placed on its pivot inside the clip's bounding box, so the window previews the clip.
     void DrawCellWindow();
     // Remove cells as one undoable action, fixing up the selection and clip step indices.
     void DeleteFrames(std::vector<int> framesToDelete);
@@ -113,11 +114,11 @@ private:
     void SetSelectionPivot(PivotAnchor x, PivotAnchor y);
     // Clip playback advances once per frame, whichever windows are open.
     void AdvanceClipPlayback();
+    // Select the selected clip's current step's cell, as a click on the step does, so every window shows the same
+    // cell while the clip plays or steps. Does nothing during a drag on the sheet or on the pivot.
+    void SelectClipStepCell();
     // Play/Pause and Step buttons for the selected clip, with its current step.
     void DrawClipPlaybackControls();
-    // The Clip Preview window: the selected clip's animation, anchored on each cell's pivot, with zoom and the
-    // same playback controls as the Clips window.
-    void DrawClipPreviewWindow();
     // The Clips window: every clip as a timeline of steps.
     void DrawClipEditorWindow();
     // Selecting a different clip moves playback to its first step.
@@ -144,7 +145,7 @@ private:
     // The preview background for the screen area at pos with size, drawn before the image: the Preferences color,
     // or a gray and white checkerboard when its alpha is 0. Squares are checkerSize screen pixels, counted from pos.
     void DrawImageBackground(moth::gfx::FloatVec2 const& pos, moth::gfx::FloatVec2 const& size,
-                             float checkerSize = 128.0f) const;
+                             float checkerSize = 32.0f) const;
 
     using FrameVec = std::vector<moth::gfx::SpriteSheet::FrameEntry>;
     using ClipVec  = std::vector<moth::gfx::SpriteSheet::ClipEntry>;
@@ -176,7 +177,6 @@ private:
     Selection m_selection;
     float m_zoom = 1.0f; // -1 = auto-fit on next draw
     float m_cellZoom = -1.0f; // Selected Cell window zoom; -1 = auto-fit on next draw
-    float m_clipZoom = -1.0f; // Clip Preview window zoom; -1 = auto-fit on next draw
     char m_newClipNameBuffer[256] = {};
     int m_selectedClip = -1;
     bool m_clipPlaying = false;
