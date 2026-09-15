@@ -202,15 +202,44 @@ void SpriteEditor::DrawPreview() {
     DrawImage(image, { static_cast<int>(displayW), static_cast<int>(displayH) });
     ImGui::SetCursorScreenPos(imagePos);
     ImGui::InvisibleButton("##canvas_interact", ImVec2{ displayW, displayH });
+    bool const canvasHovered = ImGui::IsItemHovered();
 
     int const imgWi = static_cast<int>(imgW);
     int const imgHi = static_cast<int>(imgH);
     ImVec2 const mouse = ImGui::GetMousePos();
 
+    // New Cell mode: drag out a rect in image space; releasing adds it as a frame.
+    // Edges snap to the nearest pixel boundary and are clamped to the atlas.
+    auto const mouseToImage = [&]() {
+        return moth::gfx::IntVec2{
+            std::clamp(static_cast<int>(std::round((mouse.x - imagePos.x) / m_zoom)), 0, imgWi),
+            std::clamp(static_cast<int>(std::round((mouse.y - imagePos.y) / m_zoom)), 0, imgHi) };
+    };
+    auto const newCellRect = [&]() {
+        moth::gfx::IntVec2 const a = *m_newCellAnchor;
+        moth::gfx::IntVec2 const b = mouseToImage();
+        return moth::gfx::MakeRect(std::min(a.x, b.x), std::min(a.y, b.y),
+                                   std::abs(b.x - a.x), std::abs(b.y - a.y));
+    };
+    if (m_newCellMode) {
+        if (ImGui::IsItemActivated()) {
+            m_newCellAnchor = mouseToImage();
+        }
+        if (ImGui::IsItemDeactivated() && m_newCellAnchor.has_value()) {
+            moth::gfx::IntRect const rect = newCellRect();
+            m_newCellAnchor.reset();
+            // A plain click makes an empty rect; stay in the mode so the user can drag again.
+            if (rect.w() >= kMinFrameDim && rect.h() >= kMinFrameDim) {
+                AppendFrames({ rect });
+                m_newCellMode = false;
+            }
+        }
+    }
+
     // Show a drag/resize cursor whenever the mouse is over the selected frame border.
     bool const selectedInRange = (m_selectedFrame >= 0 &&
                                   m_selectedFrame < static_cast<int>(m_frames.size()));
-    if (selectedInRange && ImGui::IsItemHovered()) {
+    if (selectedInRange && !m_newCellMode && ImGui::IsItemHovered()) {
         FrameDragOp const hoverOp = HitTestFrame(mouse, imagePos, m_zoom,
                                                   m_frames[m_selectedFrame].rect);
         if (hoverOp != FrameDragOp::None) {
@@ -218,7 +247,7 @@ void SpriteEditor::DrawPreview() {
         }
     }
 
-    if (ImGui::IsItemActivated()) {
+    if (ImGui::IsItemActivated() && !m_newCellMode) {
         // Priority 1: start a drag/resize on the already-selected frame if the mouse
         // is on its border or interior.
         FrameDragOp startOp = FrameDragOp::None;
@@ -317,6 +346,33 @@ void SpriteEditor::DrawPreview() {
         constexpr float kArm = 5.0f;
         drawList->AddLine({ px - kArm, py }, { px + kArm, py }, color, 1.5f);
         drawList->AddLine({ px, py - kArm }, { px, py + kArm }, color, 1.5f);
+    }
+
+    // In-progress New Cell rect.
+    if (m_newCellMode && m_newCellAnchor.has_value()) {
+        moth::gfx::IntRect const r = newCellRect();
+        float const thickness = static_cast<float>(cfg.SpriteEditorRectThickness);
+        float const half = thickness * 0.5f;
+        drawList->AddRect({ imagePos.x + (static_cast<float>(r.left())   * m_zoom) - half,
+                            imagePos.y + (static_cast<float>(r.top())    * m_zoom) - half },
+                          { imagePos.x + (static_cast<float>(r.right())  * m_zoom) + half,
+                            imagePos.y + (static_cast<float>(r.bottom()) * m_zoom) + half },
+                          selectedU32, 0.0f, 0, thickness);
+    }
+
+    // ImGui has no crosshair cursor shape, so hide the OS cursor and draw one.
+    // The foreground list keeps it visible when a drag leaves the viewport.
+    if (m_newCellMode && (canvasHovered || m_newCellAnchor.has_value())) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+        ImDrawList* const fg = ImGui::GetForegroundDrawList();
+        constexpr float kCrossArm = 10.0f;
+        ImVec2 const p{ std::floor(mouse.x) + 0.5f, std::floor(mouse.y) + 0.5f };
+        // Dark outline under a light line so the cross reads on any sheet colors.
+        for (auto const& [col, width] : { std::pair{ IM_COL32(0, 0, 0, 255), 3.0f },
+                                          std::pair{ IM_COL32(255, 255, 255, 255), 1.0f } }) {
+            fg->AddLine({ p.x - kCrossArm, p.y }, { p.x + kCrossArm + 1.0f, p.y }, col, width);
+            fg->AddLine({ p.x, p.y - kCrossArm }, { p.x, p.y + kCrossArm + 1.0f }, col, width);
+        }
     }
 
     ImGui::EndChild();

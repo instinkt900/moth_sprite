@@ -93,6 +93,19 @@ void SpriteEditor::Draw() {
             if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
                 RedoSpriteAction();
             }
+            // Skip while a text field is active so Delete still edits the text.
+            if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
+                DeleteFrame(m_selectedFrame);
+            }
+            if (m_newCellMode && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+                m_newCellMode = false;
+                m_newCellAnchor.reset();
+            }
+        }
+        // New Cell mode draws on the sheet image, so it can't outlive the image.
+        if (!(m_spriteSheet && m_spriteSheet->GetImage())) {
+            m_newCellMode = false;
+            m_newCellAnchor.reset();
         }
 
         if (ImGui::BeginMenuBar()) {

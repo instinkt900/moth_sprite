@@ -35,6 +35,8 @@ private:
     void DrawPreview();
     void DrawDataEditor();
     void DrawFramesPane();
+    // Remove a frame as one undoable action, fixing up the selection and clip step indices.
+    void DeleteFrame(int frameToDelete);
     void DrawClipsPane();
     void DrawGridTool();
     void DrawDetectFramesTool();
@@ -94,6 +96,10 @@ private:
         FrameVec snapshot;
     };
     std::optional<FrameDragState> m_frameDrag;
+
+    // "New Cell" mode: the next click-drag on the preview canvas draws a new frame rect.
+    bool m_newCellMode = false;
+    std::optional<moth::gfx::IntVec2> m_newCellAnchor; // image-space drag start, set while dragging
 
     // Tools > Grid popup state. Values persist between openings.
     struct GridToolState {

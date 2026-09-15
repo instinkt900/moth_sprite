@@ -2,6 +2,42 @@
 #include "sprite_editor.h"
 #include "sprite_editor_config.h"
 
+void SpriteEditor::DeleteFrame(int frameToDelete) {
+    if (frameToDelete < 0 || frameToDelete >= static_cast<int>(m_frames.size())) {
+        return;
+    }
+    auto beforeFrames = m_frames;
+    auto beforeClips  = m_clips;
+    int const beforeSel = m_selectedFrame;
+    m_frames.erase(m_frames.begin() + frameToDelete);
+    // Fix up selection
+    if (m_selectedFrame == frameToDelete) {
+        m_selectedFrame = -1;
+    } else if (m_selectedFrame > frameToDelete) {
+        --m_selectedFrame;
+    }
+    // Fix up clip steps: decrement indices that point past the deleted frame.
+    // Steps pointing AT frameToDelete and not the last frame are left unchanged
+    // — they now point at the frame that shifted into that slot.
+    // Then clamp all indices to the new valid range so steps that pointed at the
+    // deleted last frame don't go out of bounds.
+    for (auto& clip : m_clips) {
+        for (auto& step : clip.desc.frames) {
+            if (step.frameIndex > frameToDelete) {
+                --step.frameIndex;
+            }
+            if (!m_frames.empty()) {
+                step.frameIndex = std::min(step.frameIndex,
+                    static_cast<int>(m_frames.size()) - 1);
+            } else {
+                step.frameIndex = -1;
+            }
+        }
+    }
+    PushFrameClipAction(std::move(beforeFrames), std::move(beforeClips),
+                        beforeSel, m_selectedFrame);
+}
+
 void SpriteEditor::DrawFramesPane() {
     ImGui::Text("Frames: %d", static_cast<int>(m_frames.size()));
 
@@ -57,48 +93,20 @@ void SpriteEditor::DrawFramesPane() {
                 ImGui::EndTable();
             }
 
-            if (ImGui::Button("+ Frame")) {
-                moth::gfx::SpriteSheet::FrameEntry newFrame;
-                newFrame.rect  = moth::gfx::MakeRect(0, 0, 32, 32);
-                newFrame.pivot = { 0, 0 };
-                auto before = m_frames;
-                int const beforeSel = m_selectedFrame;
-                m_frames.push_back(newFrame);
-                m_selectedFrame = static_cast<int>(m_frames.size()) - 1;
-                PushFrameAction(std::move(before), beforeSel, m_selectedFrame);
+            bool const hasSheetImage = m_spriteSheet && m_spriteSheet->GetImage();
+            ImGui::BeginDisabled(!hasSheetImage || m_newCellMode);
+            if (ImGui::Button("New Cell")) {
+                m_newCellMode = true;
+                m_newCellAnchor.reset();
+            }
+            ImGui::EndDisabled();
+            if (m_newCellMode) {
+                ImGui::SameLine();
+                ImGui::TextDisabled("Drag on the sheet to create a cell (Esc to cancel)");
             }
 
             if (frameToDelete >= 0) {
-                auto beforeFrames = m_frames;
-                auto beforeClips  = m_clips;
-                int const beforeSel = m_selectedFrame;
-                m_frames.erase(m_frames.begin() + frameToDelete);
-                // Fix up selection
-                if (m_selectedFrame == frameToDelete) {
-                    m_selectedFrame = -1;
-                } else if (m_selectedFrame > frameToDelete) {
-                    --m_selectedFrame;
-                }
-                // Fix up clip steps: decrement indices that point past the deleted frame.
-                // Steps pointing AT frameToDelete and not the last frame are left unchanged
-                // — they now point at the frame that shifted into that slot.
-                // Then clamp all indices to the new valid range so steps that pointed at the
-                // deleted last frame don't go out of bounds.
-                for (auto& clip : m_clips) {
-                    for (auto& step : clip.desc.frames) {
-                        if (step.frameIndex > frameToDelete) {
-                            --step.frameIndex;
-                        }
-                        if (!m_frames.empty()) {
-                            step.frameIndex = std::min(step.frameIndex,
-                                static_cast<int>(m_frames.size()) - 1);
-                        } else {
-                            step.frameIndex = -1;
-                        }
-                    }
-                }
-                PushFrameClipAction(std::move(beforeFrames), std::move(beforeClips),
-                                    beforeSel, m_selectedFrame);
+                DeleteFrame(frameToDelete);
             }
 
             // ---- Selected frame mini-preview (with pivot drag) ----
