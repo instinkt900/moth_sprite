@@ -32,7 +32,7 @@ void SpriteEditor::ClearSpriteActions() {
     m_undoStack.clear();
     m_undoIds.clear();
     m_undoIndex = -1;
-    m_pendingFrameSnapshot.reset();
+    m_pendingFrameEdit.reset();
     m_pendingClipEdit.reset();
     m_cellPick.reset();
     m_pivotDragging = false;

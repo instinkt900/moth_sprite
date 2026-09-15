@@ -127,6 +127,10 @@ private:
     // Undo for a text or number input in the Clips window. Call right after the widget, with its return value.
     void TrackClipEdit(bool changed);
     void CommitClipEdit();
+    // Undo for a number input in the Cells form. Call right after the widget, with its return value, before the value
+    // is applied to the cell. Returns true when the edit ended: apply the value, then call CommitFrameEdit.
+    bool TrackFrameEdit(bool changed);
+    void CommitFrameEdit();
     void DrawGridTool();
     void DrawDetectFramesTool();
     // Append one frame per rect (pivot 0,0) as a single undoable action and select the first.
@@ -189,8 +193,14 @@ private:
     bool m_openUnsavedPrompt = false;                    // open the prompt on the next draw
     bool m_quitApproved = false;                         // the user answered for a quit; let the next request through
 
-    // Deferred InputInt/InputText snapshots (captured on activate, committed on deactivate)
-    std::optional<FrameVec> m_pendingFrameSnapshot;
+    // A Cells form input being edited. id is the widget's ImGuiID, so that focus moving straight from one field to
+    // another commits the first edit before the second snapshot is taken.
+    struct PendingFrameEdit {
+        unsigned int id = 0;
+        FrameVec snapshot;
+        bool edited = false;
+    };
+    std::optional<PendingFrameEdit> m_pendingFrameEdit;
     // A Clips window input being edited. id is the widget's ImGuiID, so that focus moving straight from one field
     // to another commits the first edit before the second snapshot is taken.
     struct PendingClipEdit {

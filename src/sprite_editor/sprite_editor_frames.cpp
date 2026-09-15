@@ -101,6 +101,31 @@ void SpriteEditor::DeleteFrames(std::vector<int> framesToDelete) {
                         beforeSel, m_selection);
 }
 
+bool SpriteEditor::TrackFrameEdit(bool changed) {
+    ImGuiID const id = ImGui::GetItemID();
+    // Check for the end before the start. An InputInt is a group, so when focus moves from its text field to its own
+    // - or + button, the group reports both in one frame, with the button's id. The start below commits the text
+    // field's edit, and the button's new edit must not end at once.
+    bool const ended = ImGui::IsItemDeactivated() && m_pendingFrameEdit.has_value() && m_pendingFrameEdit->id == id;
+    if (ImGui::IsItemActivated()) {
+        // When focus moves straight from another field, that field's edit may not be committed yet. This frame's
+        // change is not applied to the cell yet, so the snapshot is the state before it.
+        CommitFrameEdit();
+        m_pendingFrameEdit = PendingFrameEdit{ id, m_frames, false };
+    }
+    if (changed && m_pendingFrameEdit.has_value() && m_pendingFrameEdit->id == id) {
+        m_pendingFrameEdit->edited = true;
+    }
+    return ended;
+}
+
+void SpriteEditor::CommitFrameEdit() {
+    if (m_pendingFrameEdit.has_value() && m_pendingFrameEdit->edited) {
+        PushFrameAction(std::move(m_pendingFrameEdit->snapshot), m_selection, m_selection);
+    }
+    m_pendingFrameEdit.reset();
+}
+
 void SpriteEditor::DrawCellListWindow() {
     ImGui::Text("Cells: %d", static_cast<int>(m_frames.size()));
     if (m_selection.size() > 1) {
@@ -208,19 +233,27 @@ void SpriteEditor::DrawCellListWindow() {
         ImGui::TableSetupColumn("##fl2", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("##fv2", ImGuiTableColumnFlags_WidthStretch);
 
-        bool anyActivated   = false;
-        bool anyDeactivated = false;
+        // Each field applies its value to the cell right after it is drawn, and only then commits an edit that
+        // ended. An edit can end in the same frame as its last change, such as a click on - or +.
+        auto editField = [&](char const* id, int& value) {
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            bool const changed = ImGui::InputInt(id, &value);
+            bool const ended = TrackFrameEdit(changed);
+            w = std::max(w, 1);
+            h = std::max(h, 1);
+            fr.rect  = moth::gfx::MakeRect(x, y, w, h);
+            fr.pivot = { pivotX, pivotY };
+            if (ended) {
+                CommitFrameEdit();
+            }
+        };
         auto editRow = [&](char const* l1, char const* id1, int& v1,
                            char const* l2, char const* id2, int& v2) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0); ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted(l1);
-            ImGui::TableSetColumnIndex(1); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::InputInt(id1, &v1);
-            anyActivated   |= ImGui::IsItemActivated();
-            anyDeactivated |= ImGui::IsItemDeactivatedAfterEdit();
+            ImGui::TableSetColumnIndex(1); editField(id1, v1);
             ImGui::TableSetColumnIndex(2); ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted(l2);
-            ImGui::TableSetColumnIndex(3); ImGui::SetNextItemWidth(-FLT_MIN); ImGui::InputInt(id2, &v2);
-            anyActivated   |= ImGui::IsItemActivated();
-            anyDeactivated |= ImGui::IsItemDeactivatedAfterEdit();
+            ImGui::TableSetColumnIndex(3); editField(id2, v2);
         };
 
         editRow("X",       "##fedit_x",  x,      "Y",       "##fedit_y",  y);
@@ -228,20 +261,6 @@ void SpriteEditor::DrawCellListWindow() {
         editRow("Pivot X", "##fedit_px", pivotX, "Pivot Y", "##fedit_py", pivotY);
 
         ImGui::EndTable();
-
-        w = std::max(w, 1);
-        h = std::max(h, 1);
-        fr.rect  = moth::gfx::MakeRect(x, y, w, h);
-        fr.pivot = { pivotX, pivotY };
-
-        if (anyActivated && !m_pendingFrameSnapshot.has_value()) {
-            m_pendingFrameSnapshot = m_frames;
-        }
-        if (anyDeactivated && m_pendingFrameSnapshot.has_value()) {
-            PushFrameAction(std::move(*m_pendingFrameSnapshot),
-                            m_selection, m_selection);
-            m_pendingFrameSnapshot.reset();
-        }
     }
 
     // Pivot preset grid (3×3). Like Edit > Pivot, each button sets the pivot of every selected cell.
