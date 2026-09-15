@@ -28,6 +28,7 @@ public:
     void Draw() override;
 
 private:
+    void NewSpriteSheet();
     void LoadSpriteSheet(std::filesystem::path const& path);
     void ImportSheet(std::filesystem::path const& imagePath);
     void SaveSpriteSheet();

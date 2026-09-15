@@ -10,6 +10,26 @@ SpriteEditor::SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::pla
     : m_assetContext(assetContext)
     , m_imgui(imgui)
     , m_config(config) {
+    // Start with a blank project so the user can import a sheet straight away.
+    NewSpriteSheet();
+}
+
+void SpriteEditor::NewSpriteSheet() {
+    ClearSpriteActions();
+    m_pathBuffer[0]      = '\0';
+    m_imagePathBuffer[0] = '\0';
+    m_frames.clear();
+    m_clips.clear();
+    m_selectedFrame   = -1;
+    m_selectedClip    = -1;
+    m_clipPlaying     = false;
+    m_clipCurrentStep = 0;
+    m_clipElapsedMs   = 0.0f;
+    m_zoom            = 1.0f;
+    m_spriteSheet     = std::make_shared<moth::gfx::SpriteSheet>(
+        moth::gfx::Image{},
+        std::vector<moth::gfx::SpriteSheet::FrameEntry>{},
+        std::vector<moth::gfx::SpriteSheet::ClipEntry>{});
 }
 
 void SpriteEditor::DrawImage(moth::gfx::Image const& image, moth::gfx::IntVec2 const& size,
@@ -78,21 +98,7 @@ void SpriteEditor::Draw() {
         if (ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("File")) {
                 if (ImGui::MenuItem("New")) {
-                    ClearSpriteActions();
-                    m_pathBuffer[0]      = '\0';
-                    m_imagePathBuffer[0] = '\0';
-                    m_frames.clear();
-                    m_clips.clear();
-                    m_selectedFrame   = -1;
-                    m_selectedClip    = -1;
-                    m_clipPlaying     = false;
-                    m_clipCurrentStep = 0;
-                    m_clipElapsedMs   = 0.0f;
-                    m_zoom            = 1.0f;
-                    m_spriteSheet     = std::make_shared<moth::gfx::SpriteSheet>(
-                        moth::gfx::Image{},
-                        std::vector<moth::gfx::SpriteSheet::FrameEntry>{},
-                        std::vector<moth::gfx::SpriteSheet::ClipEntry>{});
+                    NewSpriteSheet();
                 }
                 if (ImGui::MenuItem("Load...")) {
                     doLoad();
