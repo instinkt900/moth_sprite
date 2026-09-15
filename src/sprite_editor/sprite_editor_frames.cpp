@@ -20,6 +20,38 @@ void SpriteEditor::ToggleCellSelection(int frameIndex) {
     }
 }
 
+void SpriteEditor::SetSelectionPivot(PivotAnchor x, PivotAnchor y) {
+    auto const offset = [](PivotAnchor anchor, int size) {
+        switch (anchor) {
+        case PivotAnchor::Start:
+            return 0;
+        case PivotAnchor::Center:
+            return size / 2;
+        case PivotAnchor::End:
+            return size;
+        }
+        return 0;
+    };
+
+    auto before = m_frames;
+    bool changed = false;
+    for (int const sel : m_selection) {
+        if (sel >= 0 && sel < static_cast<int>(m_frames.size())) {
+            auto& fr = m_frames[sel];
+            int const pivotX = offset(x, fr.rect.w());
+            int const pivotY = offset(y, fr.rect.h());
+            if (fr.pivot.x != pivotX || fr.pivot.y != pivotY) {
+                fr.pivot = { pivotX, pivotY };
+                changed = true;
+            }
+        }
+    }
+    // One undo action for the whole selection, and none when no pivot changed.
+    if (changed) {
+        PushFrameAction(std::move(before), m_selection, m_selection);
+    }
+}
+
 void SpriteEditor::DeleteFrames(std::vector<int> framesToDelete) {
     int const frameCount = static_cast<int>(m_frames.size());
     framesToDelete.erase(std::remove_if(framesToDelete.begin(), framesToDelete.end(),
@@ -314,30 +346,25 @@ void SpriteEditor::DrawCellWindow() {
     dl->AddLine({ px, py - kArm }, { px, py + kArm }, crossColor, 1.5f);
     ImGui::EndChild();
 
-    // Pivot preset grid (3×3)
-    int const hw = fr.rect.w() / 2;
-    int const hh = fr.rect.h() / 2;
-    int const fw = fr.rect.w();
-    int const fh = fr.rect.h();
+    // Pivot preset grid (3×3). Like Edit > Pivot, each button sets the pivot of every selected cell.
     float const btnW = (ImGui::GetContentRegionAvail().x
                         - (ImGui::GetStyle().ItemSpacing.x * 2.0f)) / 3.0f;
     ImVec2 const bs{ btnW, 0.0f };
 
-    auto pivotPreset = [&](char const* label, ImVec2 sz, int px, int py) {
+    auto pivotPreset = [&](char const* label, ImVec2 sz, PivotAnchor px, PivotAnchor py) {
         if (ImGui::Button(label, sz)) {
-            auto before = m_frames;
-            fr.pivot.x = px; fr.pivot.y = py;
-            PushFrameAction(std::move(before), m_selection, m_selection);
+            SetSelectionPivot(px, py);
         }
     };
 
-    pivotPreset("TL##pv", bs, 0,  0);   ImGui::SameLine();
-    pivotPreset("T##pv",  bs, hw, 0);   ImGui::SameLine();
-    pivotPreset("TR##pv", bs, fw, 0);
-    pivotPreset("L##pv",  bs, 0,  hh);  ImGui::SameLine();
-    pivotPreset("C##pv",  bs, hw, hh);  ImGui::SameLine();
-    pivotPreset("R##pv",  bs, fw, hh);
-    pivotPreset("BL##pv", bs, 0,  fh);  ImGui::SameLine();
-    pivotPreset("B##pv",  bs, hw, fh);  ImGui::SameLine();
-    pivotPreset("BR##pv", bs, fw, fh);
+    using Anchor = PivotAnchor;
+    pivotPreset("TL##pv", bs, Anchor::Start,  Anchor::Start);   ImGui::SameLine();
+    pivotPreset("T##pv",  bs, Anchor::Center, Anchor::Start);   ImGui::SameLine();
+    pivotPreset("TR##pv", bs, Anchor::End,    Anchor::Start);
+    pivotPreset("L##pv",  bs, Anchor::Start,  Anchor::Center);  ImGui::SameLine();
+    pivotPreset("C##pv",  bs, Anchor::Center, Anchor::Center);  ImGui::SameLine();
+    pivotPreset("R##pv",  bs, Anchor::End,    Anchor::Center);
+    pivotPreset("BL##pv", bs, Anchor::Start,  Anchor::End);     ImGui::SameLine();
+    pivotPreset("B##pv",  bs, Anchor::Center, Anchor::End);     ImGui::SameLine();
+    pivotPreset("BR##pv", bs, Anchor::End,    Anchor::End);
 }

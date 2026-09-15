@@ -18,6 +18,13 @@
 
 struct SpriteEditorConfig;
 
+// Where a pivot rule puts a cell's pivot on one axis: at 0, at half the cell's size (rounded down), or at its full size.
+enum class PivotAnchor {
+    Start,
+    Center,
+    End,
+};
+
 class SpriteEditor : public moth::ui::Layer {
 public:
     // setWindowTitle sets the application window's title.
@@ -58,6 +65,8 @@ private:
     bool IsCellSelected(int frameIndex) const;
     // Ctrl+click: add the cell to the selection as the prime cell, or remove it.
     void ToggleCellSelection(int frameIndex);
+    // Set the pivot of every selected cell by a rule, relative to each cell's own size, as one undoable action.
+    void SetSelectionPivot(PivotAnchor x, PivotAnchor y);
     // Clip playback advances once per frame, whichever windows are open.
     void AdvanceClipPlayback();
     // Play/Pause and Step buttons for the selected clip, with its current step.

@@ -195,6 +195,36 @@ void SpriteEditor::DrawMainMenuBar() {
         if (ImGui::MenuItem("Redo", "Ctrl+Y", false, canRedo)) {
             RedoSpriteAction();
         }
+        ImGui::Separator();
+        // Pivot rules apply to every selected cell, relative to each cell's own size.
+        if (ImGui::BeginMenu("Pivot", !m_selection.empty())) {
+            struct PivotRule {
+                char const* label;
+                PivotAnchor x;
+                PivotAnchor y;
+            };
+            static constexpr std::array<PivotRule, 9> kPivotRules{ {
+                { "Top Left",      PivotAnchor::Start,  PivotAnchor::Start },
+                { "Top Center",    PivotAnchor::Center, PivotAnchor::Start },
+                { "Top Right",     PivotAnchor::End,    PivotAnchor::Start },
+                { "Center Left",   PivotAnchor::Start,  PivotAnchor::Center },
+                { "Center",        PivotAnchor::Center, PivotAnchor::Center },
+                { "Center Right",  PivotAnchor::End,    PivotAnchor::Center },
+                { "Bottom Left",   PivotAnchor::Start,  PivotAnchor::End },
+                { "Bottom Center", PivotAnchor::Center, PivotAnchor::End },
+                { "Bottom Right",  PivotAnchor::End,    PivotAnchor::End },
+            } };
+            for (size_t i = 0; i < kPivotRules.size(); ++i) {
+                // A separator between the top, center and bottom rows.
+                if (i > 0 && i % 3 == 0) {
+                    ImGui::Separator();
+                }
+                if (ImGui::MenuItem(kPivotRules[i].label)) {
+                    SetSelectionPivot(kPivotRules[i].x, kPivotRules[i].y);
+                }
+            }
+            ImGui::EndMenu();
+        }
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Tools")) {
