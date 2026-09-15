@@ -9,15 +9,20 @@
 #include <moth/ui/layers/layer.h>
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
 struct SpriteEditorConfig;
 
 class SpriteEditor : public moth::ui::Layer {
 public:
-    SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::platform::ImGuiContext& imgui, SpriteEditorConfig& config);
+    // setWindowTitle sets the application window's title.
+    SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::platform::ImGuiContext& imgui, SpriteEditorConfig& config,
+                 std::function<void(std::string_view)> setWindowTitle);
     ~SpriteEditor() override = default;
 
     SpriteEditor(SpriteEditor const&) = delete;
@@ -40,7 +45,8 @@ private:
     void DrawPreview();
     // Mouse-wheel zoom centered on the cursor, for the current scrolling child window.
     static void ZoomWithMouseWheel(float& zoom);
-    void DrawDataEditor();
+    // Sets the window title to "Moth Sprite - <project file name>", or "Moth Sprite - Untitled", when it changes.
+    void UpdateWindowTitle();
     // The Cells window: the cell list, and a form for the selected cell below it.
     void DrawCellListWindow();
     // The Selected Cell window: the selected cell with zoom, pivot drag and pivot presets.
@@ -89,6 +95,8 @@ private:
     moth::gfx::AssetContext& m_assetContext;
     moth::gfx::platform::ImGuiContext& m_imgui;
     SpriteEditorConfig& m_config;
+    std::function<void(std::string_view)> m_setWindowTitle;
+    std::string m_windowTitle; // the title last set, so that it is only set again when it changes
     bool m_resetLayout = false; // set by Window > Reset Layout; applied before the dock space is drawn
     char m_pathBuffer[1024] = {};
     char m_imagePathBuffer[1024] = {};

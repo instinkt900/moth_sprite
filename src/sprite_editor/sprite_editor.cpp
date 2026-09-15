@@ -9,7 +9,6 @@
 
 namespace {
     // Window names are also the IDs that imgui.ini uses to remember the layout. Do not rename them.
-    char const* const kSpriteEditorWindow = "Sprite Editor";
     char const* const kSheetWindow = "Sheet";
     char const* const kCellWindow = "Selected Cell";
     char const* const kCellListWindow = "Cells";
@@ -33,25 +32,23 @@ namespace {
         ImGuiID clipEditorId = 0;
         ImGui::DockBuilderSplitNode(clipsId, ImGuiDir_Right, 0.3f, &clipPreviewId, &clipEditorId);
         ImGuiID cellId = 0;
-        ImGuiID rightLowerId = 0;
-        ImGui::DockBuilderSplitNode(rightId, ImGuiDir_Up, 0.4f, &cellId, &rightLowerId);
         ImGuiID cellListId = 0;
-        ImGuiID editorId = 0;
-        ImGui::DockBuilderSplitNode(rightLowerId, ImGuiDir_Up, 0.5f, &cellListId, &editorId);
+        ImGui::DockBuilderSplitNode(rightId, ImGuiDir_Up, 0.4f, &cellId, &cellListId);
         ImGui::DockBuilderDockWindow(kSheetWindow, sheetId);
         ImGui::DockBuilderDockWindow(kCellWindow, cellId);
         ImGui::DockBuilderDockWindow(kCellListWindow, cellListId);
         ImGui::DockBuilderDockWindow(kClipEditorWindow, clipEditorId);
         ImGui::DockBuilderDockWindow(kClipPreviewWindow, clipPreviewId);
-        ImGui::DockBuilderDockWindow(kSpriteEditorWindow, editorId);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
 } // namespace
 
-SpriteEditor::SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::platform::ImGuiContext& imgui, SpriteEditorConfig& config)
+SpriteEditor::SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::platform::ImGuiContext& imgui, SpriteEditorConfig& config,
+                           std::function<void(std::string_view)> setWindowTitle)
     : m_assetContext(assetContext)
     , m_imgui(imgui)
-    , m_config(config) {
+    , m_config(config)
+    , m_setWindowTitle(std::move(setWindowTitle)) {
     // Start with a blank project so the user can import a sheet straight away.
     NewSpriteSheet();
 }
@@ -83,10 +80,14 @@ void SpriteEditor::DrawImage(moth::gfx::Image const& image, moth::gfx::IntVec2 c
     }
 }
 
-void SpriteEditor::DrawDataEditor() {
-    // Read-only path display
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-    ImGui::InputText("##sprite_path", m_pathBuffer, sizeof(m_pathBuffer) - 1, ImGuiInputTextFlags_ReadOnly);
+void SpriteEditor::UpdateWindowTitle() {
+    std::string const fileName = std::filesystem::path(m_pathBuffer).filename().string();
+    std::string title = fmt::format("Moth Sprite - {}", fileName.empty() ? "Untitled" : fileName);
+    if (title == m_windowTitle || !m_setWindowTitle) {
+        return;
+    }
+    m_windowTitle = std::move(title);
+    m_setWindowTitle(m_windowTitle);
 }
 
 void SpriteEditor::HandleShortcuts() {
@@ -204,7 +205,6 @@ void SpriteEditor::DrawMainMenuBar() {
         ImGui::MenuItem(kCellListWindow, nullptr, &m_config.ShowCellListWindow);
         ImGui::MenuItem(kClipEditorWindow, nullptr, &m_config.ShowClipEditorWindow);
         ImGui::MenuItem(kClipPreviewWindow, nullptr, &m_config.ShowClipPreviewWindow);
-        ImGui::MenuItem(kSpriteEditorWindow, nullptr, &m_config.ShowSpriteEditorWindow);
         ImGui::Separator();
         if (ImGui::MenuItem("Reset Layout")) {
             // The default layout shows every window, as on first run.
@@ -213,7 +213,6 @@ void SpriteEditor::DrawMainMenuBar() {
             m_config.ShowCellListWindow = true;
             m_config.ShowClipEditorWindow = true;
             m_config.ShowClipPreviewWindow = true;
-            m_config.ShowSpriteEditorWindow = true;
             m_resetLayout = true;
         }
         ImGui::EndMenu();
@@ -250,6 +249,7 @@ void SpriteEditor::DrawDockSpace() {
 void SpriteEditor::Draw() {
     HandleShortcuts();
     AdvanceClipPlayback();
+    UpdateWindowTitle();
     // New Cell mode draws on the sheet image in the Sheet window, so it can't outlive either.
     if (!(m_spriteSheet && m_spriteSheet->GetImage()) || !m_config.ShowSheetWindow) {
         m_newCellMode = false;
@@ -290,14 +290,6 @@ void SpriteEditor::Draw() {
     if (m_config.ShowClipPreviewWindow) {
         if (ImGui::Begin(kClipPreviewWindow, &m_config.ShowClipPreviewWindow)) {
             DrawClipPreviewWindow();
-        }
-        ImGui::End();
-    }
-
-    // The rest of the editor UI, until it moves to its own windows.
-    if (m_config.ShowSpriteEditorWindow) {
-        if (ImGui::Begin(kSpriteEditorWindow, &m_config.ShowSpriteEditorWindow)) {
-            DrawDataEditor();
         }
         ImGui::End();
     }

@@ -31,8 +31,10 @@ void SpriteApplication::Startup() {
 
 void SpriteApplication::PostCreateWindow() {
     auto* uiWindow = GetUiWindow();
+    // The window owns the layer stack, so it outlives the editor that sets its title.
+    auto setWindowTitle = [uiWindow](std::string_view title) { uiWindow->SetWindowTitle(title); };
     uiWindow->PushLayer(std::make_unique<SpriteEditor>(uiWindow->GetSurfaceContext().GetAssetContext(),
-                                                       uiWindow->GetImGuiContext(), m_config));
+                                                       uiWindow->GetImGuiContext(), m_config, std::move(setWindowTitle)));
 }
 
 void SpriteApplication::Shutdown() {
