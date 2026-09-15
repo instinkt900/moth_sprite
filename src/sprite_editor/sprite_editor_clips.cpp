@@ -100,96 +100,111 @@ void SpriteEditor::DrawClipPlaybackControls() {
     }
 }
 
-void SpriteEditor::DrawClipPreview() {
+void SpriteEditor::DrawClipPreviewWindow() {
+    // The same playback, and the same buttons, as the Clips window.
+    DrawClipPlaybackControls();
+
     if (m_selectedClip < 0 || m_selectedClip >= static_cast<int>(m_clips.size())) {
         ImGui::TextDisabled("Select a clip in the Clips window to preview it.");
         return;
     }
     auto const& clip = m_clips[m_selectedClip];
-
-    // Draw the current frame, pivot-anchored
-    auto const* image = (m_spriteSheet && m_spriteSheet->GetImage())
-                        ? &m_spriteSheet->GetImage() : nullptr;
     if (clip.desc.frames.empty()) {
         ImGui::TextDisabled("(no steps)");
-    } else if (image != nullptr) {
-        m_clipCurrentStep = std::clamp(m_clipCurrentStep, 0,
-            static_cast<int>(clip.desc.frames.size()) - 1);
-        int const maxFrameIdx = static_cast<int>(m_frames.size()) - 1;
-
-        // Compute bounding box in pivot-relative space so the anchor stays fixed
-        // across all frames in the clip.
-        int minOX = 0;
-        int maxOX = 1;
-        int minOY = 0;
-        int maxOY = 1;
-        if (maxFrameIdx >= 0) {
-            auto const expand = [&](moth::gfx::SpriteSheet::FrameEntry const& f) {
-                minOX = std::min(minOX, -f.pivot.x);
-                maxOX = std::max(maxOX, f.rect.w() - f.pivot.x);
-                minOY = std::min(minOY, -f.pivot.y);
-                maxOY = std::max(maxOY, f.rect.h() - f.pivot.y);
-            };
-            // Initialise from first step then expand over the rest
-            {
-                auto const& f0 = m_frames[std::clamp(clip.desc.frames[0].frameIndex, 0, maxFrameIdx)];
-                minOX = -f0.pivot.x;  maxOX = f0.rect.w() - f0.pivot.x;
-                minOY = -f0.pivot.y;  maxOY = f0.rect.h() - f0.pivot.y;
-            }
-            for (int si = 1; si < static_cast<int>(clip.desc.frames.size()); ++si) {
-                expand(m_frames[std::clamp(clip.desc.frames[si].frameIndex, 0, maxFrameIdx)]);
-            }
-        }
-        int const boundW = std::max(maxOX - minOX, 1);
-        int const boundH = std::max(maxOY - minOY, 1);
-
-        constexpr float kPreviewH = 120.0f;
-        float const availW = ImGui::GetContentRegionAvail().x;
-        float const zoom = std::min(availW / static_cast<float>(boundW),
-                                    kPreviewH / static_cast<float>(boundH));
-
-        if (ImGui::BeginChild("##clip_canvas", ImVec2{ availW, kPreviewH }, ImGuiChildFlags_None,
-                ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
-            ImVec2 const canvasMin = ImGui::GetWindowPos();
-            ImVec2 const canvasMax{ canvasMin.x + availW, canvasMin.y + kPreviewH };
-
-            float const contentW = static_cast<float>(boundW) * zoom;
-            float const contentH = static_cast<float>(boundH) * zoom;
-            float const anchorX  = canvasMin.x + ((availW    - contentW) * 0.5f) + (static_cast<float>(-minOX) * zoom);
-            float const anchorY  = canvasMin.y + ((kPreviewH - contentH) * 0.5f) + (static_cast<float>(-minOY) * zoom);
-
-            ImDrawList* const dl = ImGui::GetWindowDrawList();
-            dl->AddRectFilled(canvasMin, canvasMax, IM_COL32(30, 30, 30, 200));
-
-            // Draw current frame with its pivot landing on the anchor point
-            int const frameIdx = clip.desc.frames[m_clipCurrentStep].frameIndex;
-            if (frameIdx >= 0 && frameIdx <= maxFrameIdx) {
-                auto const& fr = m_frames[frameIdx];
-                float const imgW = static_cast<float>(image->GetWidth());
-                float const imgH = static_cast<float>(image->GetHeight());
-                moth::gfx::FloatVec2 const uv0{
-                    static_cast<float>(fr.rect.x())     / imgW,
-                    static_cast<float>(fr.rect.y())     / imgH };
-                moth::gfx::FloatVec2 const uv1{
-                    static_cast<float>(fr.rect.right()) / imgW,
-                    static_cast<float>(fr.rect.bottom())/ imgH };
-                float const fw = static_cast<float>(fr.rect.w()) * zoom;
-                float const fh = static_cast<float>(fr.rect.h()) * zoom;
-                if (fw > 0.0f && fh > 0.0f) {
-                    ImGui::SetCursorScreenPos({
-                        anchorX - (static_cast<float>(fr.pivot.x) * zoom),
-                        anchorY - (static_cast<float>(fr.pivot.y) * zoom) });
-                    DrawImage(*image, { static_cast<int>(fw), static_cast<int>(fh) }, uv0, uv1);
-                }
-            }
-
-            // Pivot crosshair
-            constexpr float kArm = 5.0f;
-            dl->AddLine({ anchorX - kArm, anchorY }, { anchorX + kArm, anchorY }, IM_COL32(255, 80, 80, 220), 1.5f);
-            dl->AddLine({ anchorX, anchorY - kArm }, { anchorX, anchorY + kArm }, IM_COL32(255, 80, 80, 220), 1.5f);
-        }
-        ImGui::EndChild();
+        return;
     }
+    auto const* image = (m_spriteSheet && m_spriteSheet->GetImage())
+                        ? &m_spriteSheet->GetImage() : nullptr;
+    int const maxFrameIdx = static_cast<int>(m_frames.size()) - 1;
+    if (image == nullptr || maxFrameIdx < 0) {
+        return;
+    }
+    m_clipCurrentStep = std::clamp(m_clipCurrentStep, 0,
+        static_cast<int>(clip.desc.frames.size()) - 1);
+
+    // Bounding box of every step in pivot-relative space, so the anchor stays fixed
+    // and the animation does not jump from step to step.
+    auto const& f0 = m_frames[std::clamp(clip.desc.frames[0].frameIndex, 0, maxFrameIdx)];
+    int minOX = -f0.pivot.x;
+    int maxOX = f0.rect.w() - f0.pivot.x;
+    int minOY = -f0.pivot.y;
+    int maxOY = f0.rect.h() - f0.pivot.y;
+    for (auto const& step : clip.desc.frames) {
+        auto const& f = m_frames[std::clamp(step.frameIndex, 0, maxFrameIdx)];
+        minOX = std::min(minOX, -f.pivot.x);
+        maxOX = std::max(maxOX, f.rect.w() - f.pivot.x);
+        minOY = std::min(minOY, -f.pivot.y);
+        maxOY = std::max(maxOY, f.rect.h() - f.pivot.y);
+    }
+    float const boundW = static_cast<float>(std::max(maxOX - minOX, 1));
+    float const boundH = static_cast<float>(std::max(maxOY - minOY, 1));
+
+    // One zoom toolbar row above the canvas.
+    ImVec2 const totalAvail = ImGui::GetContentRegionAvail();
+    float const canvasH = totalAvail.y - ImGui::GetFrameHeightWithSpacing();
+    auto const fitZoom = [&]() {
+        if (totalAvail.x > 0.0f && canvasH > 0.0f) {
+            m_clipZoom = std::min(totalAvail.x / boundW, canvasH / boundH);
+        }
+    };
+    if (m_clipZoom < 0.0f) {
+        fitZoom();
+    }
+
+    // Toolbar
+    if (ImGui::Button("Fit")) {
+        fitZoom();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("1:1")) {
+        m_clipZoom = 1.0f;
+    }
+    ImGui::SameLine();
+    ImGui::Text("%.0f%%", m_clipZoom * 100.0f);
+
+    // Scrollable canvas with only the animation: no pivot, guides or background.
+    ImGui::BeginChild("##clip_canvas", ImVec2{ 0.0f, std::max(canvasH, 1.0f) }, ImGuiChildFlags_None,
+                      ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ZoomWithMouseWheel(m_clipZoom);
+    // Draw at 1:1 until the window has room to compute a fit.
+    float const zoom = (m_clipZoom > 0.0f) ? m_clipZoom : 1.0f;
+    float const contentW = boundW * zoom;
+    float const contentH = boundH * zoom;
+
+    // Centre the animation when it is smaller than the canvas.
+    ImVec2 const canvasAvail = ImGui::GetContentRegionAvail();
+    ImVec2 const origin = ImGui::GetCursorScreenPos();
+    ImVec2 const contentMin{ origin.x + std::max((canvasAvail.x - contentW) * 0.5f, 0.0f),
+                             origin.y + std::max((canvasAvail.y - contentH) * 0.5f, 0.0f) };
+    float const anchorX = contentMin.x + (static_cast<float>(-minOX) * zoom);
+    float const anchorY = contentMin.y + (static_cast<float>(-minOY) * zoom);
+
+    // Draw current frame with its pivot landing on the anchor point
+    int const frameIdx = clip.desc.frames[m_clipCurrentStep].frameIndex;
+    if (frameIdx >= 0 && frameIdx <= maxFrameIdx) {
+        auto const& fr = m_frames[frameIdx];
+        float const imgW = static_cast<float>(image->GetWidth());
+        float const imgH = static_cast<float>(image->GetHeight());
+        moth::gfx::FloatVec2 const uv0{
+            static_cast<float>(fr.rect.x())     / imgW,
+            static_cast<float>(fr.rect.y())     / imgH };
+        moth::gfx::FloatVec2 const uv1{
+            static_cast<float>(fr.rect.right()) / imgW,
+            static_cast<float>(fr.rect.bottom())/ imgH };
+        float const fw = static_cast<float>(fr.rect.w()) * zoom;
+        float const fh = static_cast<float>(fr.rect.h()) * zoom;
+        if (fw > 0.0f && fh > 0.0f) {
+            ImGui::SetCursorScreenPos({
+                anchorX - (static_cast<float>(fr.pivot.x) * zoom),
+                anchorY - (static_cast<float>(fr.pivot.y) * zoom) });
+            DrawImage(*image, { static_cast<int>(fw), static_cast<int>(fh) }, uv0, uv1);
+        }
+    }
+
+    // Reserve the whole clip's extent, so the scroll range does not change from step to step.
+    ImGui::SetCursorScreenPos(contentMin);
+    ImGui::Dummy(ImVec2{ contentW, contentH });
+    ImGui::EndChild();
 }
 
 void SpriteEditor::SelectClip(int clipIndex) {

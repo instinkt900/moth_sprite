@@ -51,8 +51,9 @@ private:
     void AdvanceClipPlayback();
     // Play/Pause and Step buttons for the selected clip, with its current step.
     void DrawClipPlaybackControls();
-    // The selected clip's current step, anchored on its cell's pivot.
-    void DrawClipPreview();
+    // The Clip Preview window: the selected clip's animation, anchored on each cell's pivot, with zoom and the
+    // same playback controls as the Clips window.
+    void DrawClipPreviewWindow();
     // The Clips window: every clip as a timeline of steps.
     void DrawClipEditorWindow();
     // Selecting a different clip moves playback to its first step.
@@ -97,6 +98,7 @@ private:
     int m_selectedFrame = -1;
     float m_zoom = 1.0f; // -1 = auto-fit on next draw
     float m_cellZoom = -1.0f; // Selected Cell window zoom; -1 = auto-fit on next draw
+    float m_clipZoom = -1.0f; // Clip Preview window zoom; -1 = auto-fit on next draw
     char m_newClipNameBuffer[256] = {};
     int m_selectedClip = -1;
     bool m_clipPlaying = false;

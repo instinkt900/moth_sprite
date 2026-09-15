@@ -24,6 +24,7 @@ void SpriteEditor::LoadSpriteSheet(std::filesystem::path const& path) {
     m_clipElapsedMs = 0.0f;
     m_zoom = -1.0f; // trigger auto-fit on next draw
     m_cellZoom = -1.0f;
+    m_clipZoom = -1.0f;
     m_frames.clear();
     m_imagePathBuffer[0] = '\0';
     m_spriteSheet = std::move(newSheet);
@@ -87,6 +88,7 @@ void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
         m_clips);
     m_zoom = -1.0f;    // re-fit to new image dimensions
     m_cellZoom = -1.0f;
+    m_clipZoom = -1.0f;
     m_selectedFrame = -1;
     m_selectedClip  = -1;
     m_clipPlaying   = false;
