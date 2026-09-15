@@ -238,8 +238,10 @@ void SpriteEditor::DrawClipEditorWindow() {
 
     // ---- Clip timelines, stacked ----
     ImGuiStyle const& style = ImGui::GetStyle();
-    // A timeline row: the thumbnails, the duration fields below them, and a horizontal scrollbar.
-    float const timelineH = kThumbSize + style.ItemSpacing.y + ImGui::GetFrameHeight() +
+    // Each step's cell number is drawn on a line above its thumbnail.
+    float const stepLabelH = ImGui::GetTextLineHeight() + 2.0f;
+    // A timeline row: the cell numbers, the thumbnails, the duration fields below them, and a horizontal scrollbar.
+    float const timelineH = stepLabelH + kThumbSize + style.ItemSpacing.y + ImGui::GetFrameHeight() +
                             style.ScrollbarSize + style.ItemSpacing.y;
     // A clip block: a header row above its timeline, inside a bordered child.
     float const blockH = ImGui::GetFrameHeightWithSpacing() + timelineH + (style.WindowPadding.y * 2.0f);
@@ -351,7 +353,9 @@ void SpriteEditor::DrawClipEditorWindow() {
             }
             ImGui::BeginGroup();
 
-            ImVec2 const boxMin = ImGui::GetCursorScreenPos();
+            // The cell number goes above the thumbnail box.
+            ImVec2 const labelMin = ImGui::GetCursorScreenPos();
+            ImVec2 const boxMin{ labelMin.x, labelMin.y + stepLabelH };
             ImVec2 const boxMax{ boxMin.x + kThumbSize, boxMin.y + kThumbSize };
             ImDrawList* const dl = ImGui::GetWindowDrawList();
             DrawImageBackground({ boxMin.x, boxMin.y }, { kThumbSize, kThumbSize }, kThumbCheckerSize);
@@ -430,10 +434,9 @@ void SpriteEditor::DrawClipEditorWindow() {
             } else {
                 dl->AddRect(boxMin, boxMax, IM_COL32(90, 90, 90, 255));
             }
+            // The cell number sits above the box, on the window background, so the thumbnail does not hide it.
             std::string const cellLabel = fmt::format("{}", frameIdx);
-            // A black copy 1 px down and right gives the white number a drop shadow, so it reads on light backgrounds.
-            dl->AddText({ boxMin.x + 4.0f, boxMin.y + 2.0f }, IM_COL32(0, 0, 0, 255), cellLabel.c_str());
-            dl->AddText({ boxMin.x + 3.0f, boxMin.y + 1.0f }, IM_COL32(255, 255, 255, 220), cellLabel.c_str());
+            dl->AddText(labelMin, IM_COL32(255, 255, 255, 255), cellLabel.c_str());
 
             // Duration (ms) and remove button below the thumbnail.
             ImGui::SetCursorScreenPos({ boxMin.x, boxMax.y + style.ItemSpacing.y });
@@ -458,6 +461,8 @@ void SpriteEditor::DrawClipEditorWindow() {
         if (stepCount > 0) {
             ImGui::SameLine();
         }
+        // Line the button up with the thumbnails, below the cell numbers.
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + stepLabelH);
         if (ImGui::Button("+ Step", ImVec2{ 0.0f, kThumbSize })) {
             clipToAddStep = c;
         }
