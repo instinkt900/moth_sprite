@@ -2,6 +2,8 @@
 #include "sprite_editor.h"
 #include "sprite_editor_config.h"
 
+#include <imgui_internal.h>
+
 namespace {
     // Screen-space pixel radius used for corner and edge hit detection.
     constexpr float kHandleRadius = 6.0f;
@@ -253,82 +255,178 @@ void SpriteEditor::DrawPreview() {
         }
     }
 
-    // Show a drag/resize cursor whenever the mouse is over the selected frame border.
-    bool const selectedInRange = (m_selectedFrame >= 0 &&
-                                  m_selectedFrame < static_cast<int>(m_frames.size()));
-    if (selectedInRange && !m_newCellMode && !m_cellPick.has_value() && ImGui::IsItemHovered()) {
-        FrameDragOp const hoverOp = HitTestFrame(mouse, imagePos, m_zoom,
-                                                  m_frames[m_selectedFrame].rect);
+    // Selection and dragging. Resize handles are only on the prime cell. Dragging inside any
+    // selected cell moves every selected cell.
+    auto const& io = ImGui::GetIO();
+    bool const picking = m_cellPick.has_value();
+    int const cellCount = static_cast<int>(m_frames.size());
+    int const prime = PrimeCell();
+    bool const primeInRange = (prime >= 0 && prime < cellCount);
+    float const relX = (mouse.x - imagePos.x) / m_zoom;
+    float const relY = (mouse.y - imagePos.y) / m_zoom;
+    auto const containsMouse = [relX, relY](moth::gfx::IntRect const& r) {
+        return relX >= static_cast<float>(r.left()) && relX < static_cast<float>(r.right()) &&
+               relY >= static_cast<float>(r.top())  && relY < static_cast<float>(r.bottom());
+    };
+    // The first cell under the mouse, or -1.
+    auto const hitAnyCell = [&]() {
+        for (int i = 0; i < cellCount; ++i) {
+            if (containsMouse(m_frames[i].rect)) {
+                return i;
+            }
+        }
+        return -1;
+    };
+    // The selected cell under the mouse, preferring the prime cell, or -1.
+    auto const hitSelectedCell = [&]() {
+        if (primeInRange && containsMouse(m_frames[prime].rect)) {
+            return prime;
+        }
+        for (int const sel : m_selection) {
+            if (sel >= 0 && sel < cellCount && containsMouse(m_frames[sel].rect)) {
+                return sel;
+            }
+        }
+        return -1;
+    };
+    // What a plain press starts on the selection: a resize from the prime cell's edges,
+    // or a move from inside any selected cell.
+    auto const selectionDragOp = [&]() {
+        if (primeInRange) {
+            FrameDragOp const op = HitTestFrame(mouse, imagePos, m_zoom, m_frames[prime].rect);
+            if (op != FrameDragOp::None) {
+                return op;
+            }
+        }
+        return (hitSelectedCell() >= 0) ? FrameDragOp::Move : FrameDragOp::None;
+    };
+
+    // Show a drag/resize cursor over what a press would drag.
+    if (!m_newCellMode && !picking && !io.KeyCtrl && !m_boxSelect.has_value() && ImGui::IsItemHovered()) {
+        FrameDragOp const hoverOp = selectionDragOp();
         if (hoverOp != FrameDragOp::None) {
             ImGui::SetMouseCursor(CursorForOp(hoverOp));
         }
     }
 
     if (ImGui::IsItemActivated() && !m_newCellMode) {
-        // Priority 1: start a drag/resize on the already-selected frame if the mouse
-        // is on its border or interior.
-        FrameDragOp startOp = FrameDragOp::None;
-        // While picking a cell for a clip step, a click only picks a cell and never starts a drag.
-        bool const picking = m_cellPick.has_value();
-        if (selectedInRange && !picking) {
-            startOp = HitTestFrame(mouse, imagePos, m_zoom,
-                                   m_frames[m_selectedFrame].rect);
-        }
-
-        if (startOp != FrameDragOp::None) {
-            m_frameDrag = { static_cast<int>(startOp), m_frames };
-        } else {
-            // Priority 2: click on any other frame to select it and begin a move.
-            int hit = -1;
-            float const relX = (mouse.x - imagePos.x) / m_zoom;
-            float const relY = (mouse.y - imagePos.y) / m_zoom;
-            for (int i = 0; i < static_cast<int>(m_frames.size()); ++i) {
-                auto const& fr = m_frames[i];
-                if (relX >= static_cast<float>(fr.rect.left())   &&
-                    relX <  static_cast<float>(fr.rect.right())   &&
-                    relY >= static_cast<float>(fr.rect.top())     &&
-                    relY <  static_cast<float>(fr.rect.bottom())) {
-                    hit = i;
-                    break;
-                }
-            }
-            if (!picking || hit >= 0) {
+        if (picking) {
+            // While picking a cell for a clip step, a click only picks a cell and never starts a drag.
+            int const hit = hitAnyCell();
+            if (hit >= 0) {
                 SelectCell(hit);
             }
-            if (hit >= 0 && !picking) {
-                m_frameDrag = { static_cast<int>(FrameDragOp::Move), m_frames };
+        } else if (io.KeyCtrl) {
+            // Ctrl+click adds or removes a cell. Ctrl+drag on empty space adds the cells in a box.
+            int const hit = hitAnyCell();
+            if (hit >= 0) {
+                ToggleCellSelection(hit);
+            } else {
+                m_boxSelect = BoxSelectState{ relX, relY, true };
+            }
+        } else {
+            FrameDragOp const op = selectionDragOp();
+            if (op == FrameDragOp::Move) {
+                // Move every selected cell. The pressed cell becomes prime.
+                int const hit = hitSelectedCell();
+                auto const it = std::find(m_selection.begin(), m_selection.end(), hit);
+                if (it != m_selection.end()) {
+                    m_selection.erase(it);
+                    m_selection.push_back(hit);
+                }
+                m_frameDrag = FrameDragState{ static_cast<int>(op), m_frames, hit };
+            } else if (op != FrameDragOp::None) {
+                // Resize the prime cell.
+                m_frameDrag = FrameDragState{ static_cast<int>(op), m_frames };
+            } else if (int const hit = hitAnyCell(); hit >= 0) {
+                // Select only the pressed cell, and move it.
+                SelectCell(hit);
+                m_frameDrag = FrameDragState{ static_cast<int>(FrameDragOp::Move), m_frames };
+            } else {
+                // Drag on empty space selects the cells in a box. A click there clears the selection.
+                m_boxSelect = BoxSelectState{ relX, relY, false };
             }
         }
     }
 
     if (ImGui::IsItemActive() && m_frameDrag.has_value()) {
         // Apply the total drag delta from the button's activation point to the
-        // snapshot rect every frame — avoids accumulating rounding error.
+        // snapshot rects every frame — avoids accumulating rounding error.
         ImVec2 const totalDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
-        int const dx = static_cast<int>(std::round(totalDelta.x / m_zoom));
-        int const dy = static_cast<int>(std::round(totalDelta.y / m_zoom));
-        if (m_selectedFrame >= 0 &&
-            m_selectedFrame < static_cast<int>(m_frameDrag->snapshot.size())) {
-            moth::gfx::IntRect r = m_frameDrag->snapshot[m_selectedFrame].rect;
-            ApplyFrameDelta(r, static_cast<FrameDragOp>(m_frameDrag->op), dx, dy, imgWi, imgHi);
-            m_frames[m_selectedFrame].rect = r;
+        int dx = static_cast<int>(std::round(totalDelta.x / m_zoom));
+        int dy = static_cast<int>(std::round(totalDelta.y / m_zoom));
+        auto const op = static_cast<FrameDragOp>(m_frameDrag->op);
+        auto const& snapshot = m_frameDrag->snapshot;
+        int const snapshotCount = std::min(static_cast<int>(snapshot.size()), cellCount);
+        if (op == FrameDragOp::Move) {
+            // Clamp the delta once for the whole selection, so the cells keep their layout at the sheet's edges.
+            int dxMin = -imgWi;
+            int dxMax = imgWi;
+            int dyMin = -imgHi;
+            int dyMax = imgHi;
+            for (int const sel : m_selection) {
+                if (sel >= 0 && sel < snapshotCount) {
+                    auto const& r = snapshot[sel].rect;
+                    dxMin = std::max(dxMin, -r.left());
+                    dxMax = std::min(dxMax, imgWi - r.right());
+                    dyMin = std::max(dyMin, -r.top());
+                    dyMax = std::min(dyMax, imgHi - r.bottom());
+                }
+            }
+            if (dxMin <= dxMax) {
+                dx = std::clamp(dx, dxMin, dxMax);
+            }
+            if (dyMin <= dyMax) {
+                dy = std::clamp(dy, dyMin, dyMax);
+            }
+            for (int const sel : m_selection) {
+                if (sel >= 0 && sel < snapshotCount) {
+                    moth::gfx::IntRect r = snapshot[sel].rect;
+                    ApplyFrameDelta(r, op, dx, dy, imgWi, imgHi);
+                    m_frames[sel].rect = r;
+                }
+            }
+        } else if (primeInRange && prime < snapshotCount) {
+            moth::gfx::IntRect r = snapshot[prime].rect;
+            ApplyFrameDelta(r, op, dx, dy, imgWi, imgHi);
+            m_frames[prime].rect = r;
         }
     }
 
     if (ImGui::IsItemDeactivated() && m_frameDrag.has_value()) {
-        // Push an undo action only if the rect actually moved.
-        bool changed = false;
-        if (m_selectedFrame >= 0 &&
-            m_selectedFrame < static_cast<int>(m_frames.size()) &&
-            m_selectedFrame < static_cast<int>(m_frameDrag->snapshot.size())) {
-            changed = (m_frames[m_selectedFrame].rect !=
-                       m_frameDrag->snapshot[m_selectedFrame].rect);
+        // Push one undo action for the whole drag, only if a rect actually changed.
+        auto const& snapshot = m_frameDrag->snapshot;
+        bool changed = snapshot.size() != m_frames.size();
+        for (size_t i = 0; !changed && i < m_frames.size(); ++i) {
+            changed = (m_frames[i].rect != snapshot[i].rect);
         }
         if (changed) {
-            PushFrameAction(std::move(m_frameDrag->snapshot),
-                            m_selectedFrame, m_selectedFrame);
+            PushFrameAction(std::move(m_frameDrag->snapshot), m_selection, m_selection);
+        } else if (m_frameDrag->clickedCell >= 0 && !ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left)) {
+            // A click on a selected cell that did not drag selects only that cell.
+            SelectCell(m_frameDrag->clickedCell);
         }
         m_frameDrag.reset();
+    }
+
+    if (ImGui::IsItemDeactivated() && m_boxSelect.has_value()) {
+        // Select the cells that are fully inside the box.
+        float const x0 = std::min(m_boxSelect->startX, relX);
+        float const x1 = std::max(m_boxSelect->startX, relX);
+        float const y0 = std::min(m_boxSelect->startY, relY);
+        float const y1 = std::max(m_boxSelect->startY, relY);
+        if (!m_boxSelect->additive) {
+            m_selection.clear();
+        }
+        for (int i = 0; i < cellCount; ++i) {
+            auto const& r = m_frames[i].rect;
+            bool const inside = static_cast<float>(r.left()) >= x0 && static_cast<float>(r.right()) <= x1 &&
+                                static_cast<float>(r.top()) >= y0 && static_cast<float>(r.bottom()) <= y1;
+            if (inside && !IsCellSelected(i)) {
+                m_selection.push_back(i);
+            }
+        }
+        m_boxSelect.reset();
     }
 
     // -----------------------------------------------------------------------
@@ -343,11 +441,25 @@ void SpriteEditor::DrawPreview() {
     };
     ImU32 const normalU32   = toU32(cfg.SpriteEditorNormalColor);
     ImU32 const selectedU32 = toU32(cfg.SpriteEditorSelectedColor);
+    ImU32 const primeU32    = toU32(cfg.SpriteEditorPrimeColor);
+
+    // The prime cell has its own colour. The other selected cells use the selected colour.
+    int const primeCell = PrimeCell();
+    std::vector<bool> cellSelected(m_frames.size(), false);
+    for (int const sel : m_selection) {
+        if (sel >= 0 && sel < static_cast<int>(m_frames.size())) {
+            cellSelected[static_cast<size_t>(sel)] = true;
+        }
+    }
 
     for (int i = 0; i < static_cast<int>(m_frames.size()); ++i) {
         auto const& fr = m_frames[i];
-        bool const selected = (i == m_selectedFrame);
-        ImU32 const color     = selected ? selectedU32 : normalU32;
+        ImU32 color = normalU32;
+        if (i == primeCell) {
+            color = primeU32;
+        } else if (cellSelected[static_cast<size_t>(i)]) {
+            color = selectedU32;
+        }
         float const thickness = static_cast<float>(cfg.SpriteEditorRectThickness);
 
         float const rx0 = imagePos.x + (static_cast<float>(fr.rect.left())   * m_zoom);
@@ -367,6 +479,15 @@ void SpriteEditor::DrawPreview() {
         constexpr float kArm = 5.0f;
         drawList->AddLine({ px - kArm, py }, { px + kArm, py }, color, 1.5f);
         drawList->AddLine({ px, py - kArm }, { px, py + kArm }, color, 1.5f);
+    }
+
+    // In-progress box selection.
+    if (m_boxSelect.has_value()) {
+        ImVec2 const start{ imagePos.x + (m_boxSelect->startX * m_zoom), imagePos.y + (m_boxSelect->startY * m_zoom) };
+        ImVec2 const boxMin{ std::min(start.x, mouse.x), std::min(start.y, mouse.y) };
+        ImVec2 const boxMax{ std::max(start.x, mouse.x), std::max(start.y, mouse.y) };
+        drawList->AddRectFilled(boxMin, boxMax, IM_COL32(255, 255, 255, 40));
+        drawList->AddRect(boxMin, boxMax, selectedU32);
     }
 
     // In-progress New Cell rect.

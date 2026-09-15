@@ -35,12 +35,13 @@ void SpriteEditor::ClearSpriteActions() {
     m_pivotDragging = false;
     m_pivotDragSnapshot.reset();
     m_frameDrag.reset();
+    m_boxSelect.reset();
 }
 
-void SpriteEditor::PushFrameAction(FrameVec before, int selBefore, int selAfter) {
+void SpriteEditor::PushFrameAction(FrameVec before, Selection selBefore, Selection selAfter) {
     AddSpriteAction(std::make_unique<BasicAction>(
-        [this, after = m_frames, selAfter]()           { m_frames = after;  m_selectedFrame = selAfter; },
-        [this, b = std::move(before), selBefore]()     { m_frames = b;      m_selectedFrame = selBefore; }
+        [this, after = m_frames, sa = std::move(selAfter)]()        { m_frames = after;  m_selection = sa; },
+        [this, b = std::move(before), sb = std::move(selBefore)]()  { m_frames = b;      m_selection = sb; }
     ));
 }
 
@@ -51,13 +52,13 @@ void SpriteEditor::PushClipAction(ClipVec before, int selBefore, int selAfter) {
     ));
 }
 
-void SpriteEditor::PushFrameClipAction(FrameVec beforeF, ClipVec beforeC, int selBefore, int selAfter) {
+void SpriteEditor::PushFrameClipAction(FrameVec beforeF, ClipVec beforeC, Selection selBefore, Selection selAfter) {
     AddSpriteAction(std::make_unique<BasicAction>(
-        [this, af = m_frames, ac = m_clips, selAfter]() {
-            m_frames = af; m_clips = ac; m_selectedFrame = selAfter;
+        [this, af = m_frames, ac = m_clips, sa = std::move(selAfter)]() {
+            m_frames = af; m_clips = ac; m_selection = sa;
         },
-        [this, bf = std::move(beforeF), bc = std::move(beforeC), selBefore]() {
-            m_frames = bf; m_clips = bc; m_selectedFrame = selBefore;
+        [this, bf = std::move(beforeF), bc = std::move(beforeC), sb = std::move(selBefore)]() {
+            m_frames = bf; m_clips = bc; m_selection = sb;
         }
     ));
 }

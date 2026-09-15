@@ -2,44 +2,79 @@
 #include "sprite_editor.h"
 #include "sprite_editor_config.h"
 
-void SpriteEditor::DeleteFrame(int frameToDelete) {
-    if (frameToDelete < 0 || frameToDelete >= static_cast<int>(m_frames.size())) {
+int SpriteEditor::PrimeCell() const {
+    return m_selection.empty() ? -1 : m_selection.back();
+}
+
+bool SpriteEditor::IsCellSelected(int frameIndex) const {
+    return std::find(m_selection.begin(), m_selection.end(), frameIndex) != m_selection.end();
+}
+
+void SpriteEditor::ToggleCellSelection(int frameIndex) {
+    auto const it = std::find(m_selection.begin(), m_selection.end(), frameIndex);
+    if (it != m_selection.end()) {
+        // The most recently added cell that is still selected becomes prime.
+        m_selection.erase(it);
+    } else if (frameIndex >= 0 && frameIndex < static_cast<int>(m_frames.size())) {
+        m_selection.push_back(frameIndex);
+    }
+}
+
+void SpriteEditor::DeleteFrames(std::vector<int> framesToDelete) {
+    int const frameCount = static_cast<int>(m_frames.size());
+    framesToDelete.erase(std::remove_if(framesToDelete.begin(), framesToDelete.end(),
+                                        [frameCount](int i) { return i < 0 || i >= frameCount; }),
+                         framesToDelete.end());
+    // Delete from the highest index down, so that the indices still to delete stay valid.
+    std::sort(framesToDelete.begin(), framesToDelete.end(), std::greater<>());
+    framesToDelete.erase(std::unique(framesToDelete.begin(), framesToDelete.end()), framesToDelete.end());
+    if (framesToDelete.empty()) {
         return;
     }
+
     auto beforeFrames = m_frames;
     auto beforeClips  = m_clips;
-    int const beforeSel = m_selectedFrame;
-    m_frames.erase(m_frames.begin() + frameToDelete);
-    // Fix up selection
-    if (m_selectedFrame == frameToDelete) {
-        m_selectedFrame = -1;
-    } else if (m_selectedFrame > frameToDelete) {
-        --m_selectedFrame;
-    }
-    // Fix up clip steps: decrement indices that point past the deleted frame.
-    // Steps pointing AT frameToDelete and not the last frame are left unchanged
-    // — they now point at the frame that shifted into that slot.
-    // Then clamp all indices to the new valid range so steps that pointed at the
-    // deleted last frame don't go out of bounds.
-    for (auto& clip : m_clips) {
-        for (auto& step : clip.desc.frames) {
-            if (step.frameIndex > frameToDelete) {
-                --step.frameIndex;
+    Selection const beforeSel = m_selection;
+    for (int const frameToDelete : framesToDelete) {
+        m_frames.erase(m_frames.begin() + frameToDelete);
+        // Fix up selection: drop the deleted cell and shift the cells after it down by one.
+        Selection kept;
+        kept.reserve(m_selection.size());
+        for (int const sel : m_selection) {
+            if (sel != frameToDelete) {
+                kept.push_back((sel > frameToDelete) ? sel - 1 : sel);
             }
-            if (!m_frames.empty()) {
-                step.frameIndex = std::min(step.frameIndex,
-                    static_cast<int>(m_frames.size()) - 1);
-            } else {
-                step.frameIndex = -1;
+        }
+        m_selection = std::move(kept);
+        // Fix up clip steps: decrement indices that point past the deleted frame.
+        // Steps pointing AT frameToDelete and not the last frame are left unchanged
+        // — they now point at the frame that shifted into that slot.
+        // Then clamp all indices to the new valid range so steps that pointed at the
+        // deleted last frame don't go out of bounds.
+        for (auto& clip : m_clips) {
+            for (auto& step : clip.desc.frames) {
+                if (step.frameIndex > frameToDelete) {
+                    --step.frameIndex;
+                }
+                if (!m_frames.empty()) {
+                    step.frameIndex = std::min(step.frameIndex,
+                        static_cast<int>(m_frames.size()) - 1);
+                } else {
+                    step.frameIndex = -1;
+                }
             }
         }
     }
     PushFrameClipAction(std::move(beforeFrames), std::move(beforeClips),
-                        beforeSel, m_selectedFrame);
+                        beforeSel, m_selection);
 }
 
 void SpriteEditor::DrawCellListWindow() {
     ImGui::Text("Cells: %d", static_cast<int>(m_frames.size()));
+    if (m_selection.size() > 1) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(%d selected)", static_cast<int>(m_selection.size()));
+    }
 
     // The list takes the height that the form below it does not need: a title and three rows of fields.
     ImGuiStyle const& style = ImGui::GetStyle();
@@ -49,6 +84,19 @@ void SpriteEditor::DrawCellListWindow() {
                                  ImGui::GetFrameHeightWithSpacing() * 3.0f);
 
     // ---- Cell list ----
+    auto const& io = ImGui::GetIO();
+    int const prime = PrimeCell();
+    std::vector<bool> cellSelected(m_frames.size(), false);
+    for (int const sel : m_selection) {
+        if (sel >= 0 && sel < static_cast<int>(m_frames.size())) {
+            cellSelected[static_cast<size_t>(sel)] = true;
+        }
+    }
+    // The prime cell's row is highlighted in the prime colour.
+    auto const& primeColor = m_config.SpriteEditorPrimeColor.data;
+    ImVec4 const primeHeader{ primeColor[0], primeColor[1], primeColor[2], primeColor[3] * 0.45f };
+    ImVec4 const primeHeaderHovered{ primeColor[0], primeColor[1], primeColor[2], primeColor[3] * 0.65f };
+
     int frameToDelete = -1;
     if (ImGui::BeginChild("##cell_list", ImVec2{ 0.0f, listH }, ImGuiChildFlags_Border)) {
         float const deleteW = ImGui::CalcTextSize("x").x + (style.FramePadding.x * 2.0f);
@@ -56,12 +104,33 @@ void SpriteEditor::DrawCellListWindow() {
             auto const& fr = m_frames[i];
             ImGui::PushID(i);
 
-            bool const isSelected = (m_selectedFrame == i);
+            bool const isPrime = (i == prime);
+            if (isPrime) {
+                ImGui::PushStyleColor(ImGuiCol_Header, primeHeader);
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered, primeHeaderHovered);
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive, primeHeaderHovered);
+            }
             std::string const label = fmt::format("{:<4}({}, {}) {}x{}",
                 i, fr.rect.x(), fr.rect.y(), fr.rect.w(), fr.rect.h());
-            if (ImGui::Selectable(label.c_str(), isSelected, ImGuiSelectableFlags_AllowOverlap)) {
-                // Clicking the selected cell clears the selection, except while picking a cell for a clip step.
-                SelectCell((isSelected && !m_cellPick.has_value()) ? -1 : i);
+            if (ImGui::Selectable(label.c_str(), cellSelected[static_cast<size_t>(i)], ImGuiSelectableFlags_AllowOverlap)) {
+                // While picking a cell for a clip step, every click is a plain click and picks the cell.
+                bool const plainClick = m_cellPick.has_value() || (!io.KeyCtrl && !io.KeyShift);
+                if (plainClick || (io.KeyShift && prime < 0)) {
+                    SelectCell(i);
+                } else if (io.KeyShift) {
+                    // Shift+click selects every cell from the prime cell to this one. The prime cell stays prime.
+                    m_selection.clear();
+                    int const towardsPrime = (i > prime) ? -1 : 1;
+                    for (int c = i; c != prime; c += towardsPrime) {
+                        m_selection.push_back(c);
+                    }
+                    m_selection.push_back(prime);
+                } else {
+                    ToggleCellSelection(i);
+                }
+            }
+            if (isPrime) {
+                ImGui::PopStyleColor(3);
             }
 
             // Delete button at the right end of the row, over the selectable.
@@ -75,17 +144,18 @@ void SpriteEditor::DrawCellListWindow() {
     ImGui::EndChild();
 
     if (frameToDelete >= 0) {
-        DeleteFrame(frameToDelete);
+        DeleteFrames({ frameToDelete });
     }
 
-    // ---- Cell form (InputInt fields) ----
-    if (m_selectedFrame < 0 || m_selectedFrame >= static_cast<int>(m_frames.size())) {
+    // ---- Cell form (InputInt fields), for the prime cell ----
+    int const formCell = PrimeCell();
+    if (formCell < 0 || formCell >= static_cast<int>(m_frames.size())) {
         ImGui::SeparatorText("Cell");
         ImGui::TextDisabled("Select a cell to edit it.");
         return;
     }
 
-    auto& fr = m_frames[m_selectedFrame];
+    auto& fr = m_frames[formCell];
     int x = fr.rect.x();
     int y = fr.rect.y();
     int w = fr.rect.w();
@@ -93,7 +163,7 @@ void SpriteEditor::DrawCellListWindow() {
     int pivotX = fr.pivot.x;
     int pivotY = fr.pivot.y;
 
-    ImGui::SeparatorText(fmt::format("Cell {}", m_selectedFrame).c_str());
+    ImGui::SeparatorText(fmt::format("Cell {}", formCell).c_str());
 
     // 4-column table: label | input | label | input
     if (ImGui::BeginTable("##fedit_tbl", 4, ImGuiTableFlags_SizingFixedFit)) {
@@ -133,7 +203,7 @@ void SpriteEditor::DrawCellListWindow() {
         }
         if (anyDeactivated && m_pendingFrameSnapshot.has_value()) {
             PushFrameAction(std::move(*m_pendingFrameSnapshot),
-                            m_selectedFrame, m_selectedFrame);
+                            m_selection, m_selection);
             m_pendingFrameSnapshot.reset();
         }
     }
@@ -146,12 +216,14 @@ void SpriteEditor::DrawCellWindow() {
         ImGui::TextDisabled("Use File > Import Sheet to add a sheet image.");
         return;
     }
-    if (m_selectedFrame < 0 || m_selectedFrame >= static_cast<int>(m_frames.size())) {
+    // The window shows the prime cell.
+    int const prime = PrimeCell();
+    if (prime < 0 || prime >= static_cast<int>(m_frames.size())) {
         ImGui::TextDisabled("Select a cell on the sheet or in the Cells window.");
         return;
     }
 
-    auto& fr = m_frames[m_selectedFrame];
+    auto& fr = m_frames[prime];
     float const imgW = static_cast<float>(image->GetWidth());
     float const imgH = static_cast<float>(image->GetHeight());
     // Clamp UVs so the preview shows a valid region even when the frame rect
@@ -217,15 +289,13 @@ void SpriteEditor::DrawCellWindow() {
     if (ImGui::IsItemDeactivated() && m_pivotDragging) {
         if (m_pivotDragSnapshot.has_value()) {
             bool changed = false;
-            if (m_selectedFrame >= 0 &&
-                m_selectedFrame < static_cast<int>(m_frames.size()) &&
-                m_selectedFrame < static_cast<int>(m_pivotDragSnapshot->size())) {
-                auto const& oldFr = (*m_pivotDragSnapshot)[m_selectedFrame];
+            if (prime < static_cast<int>(m_pivotDragSnapshot->size())) {
+                auto const& oldFr = (*m_pivotDragSnapshot)[prime];
                 changed = (oldFr.pivot.x != fr.pivot.x || oldFr.pivot.y != fr.pivot.y);
             }
             if (changed) {
                 PushFrameAction(std::move(*m_pivotDragSnapshot),
-                                m_selectedFrame, m_selectedFrame);
+                                m_selection, m_selection);
             }
             m_pivotDragSnapshot.reset();
         }
@@ -257,7 +327,7 @@ void SpriteEditor::DrawCellWindow() {
         if (ImGui::Button(label, sz)) {
             auto before = m_frames;
             fr.pivot.x = px; fr.pivot.y = py;
-            PushFrameAction(std::move(before), m_selectedFrame, m_selectedFrame);
+            PushFrameAction(std::move(before), m_selection, m_selection);
         }
     };
 

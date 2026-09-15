@@ -33,7 +33,7 @@ public:
     void Draw() override;
 
 private:
-    // Ctrl+Z, Ctrl+Y, Delete and Esc, in every window.
+    // Ctrl+Z, Ctrl+Y, Ctrl+A, Delete and Esc, in every window.
     void HandleShortcuts();
     void DrawMainMenuBar();
     // The dock space fills the application window below the main menu bar.
@@ -51,8 +51,13 @@ private:
     void DrawCellListWindow();
     // The Selected Cell window: the selected cell with zoom, pivot drag and pivot presets.
     void DrawCellWindow();
-    // Remove a frame as one undoable action, fixing up the selection and clip step indices.
-    void DeleteFrame(int frameToDelete);
+    // Remove cells as one undoable action, fixing up the selection and clip step indices.
+    void DeleteFrames(std::vector<int> framesToDelete);
+    // The prime cell: the most recently added cell that is still selected, or -1.
+    int PrimeCell() const;
+    bool IsCellSelected(int frameIndex) const;
+    // Ctrl+click: add the cell to the selection as the prime cell, or remove it.
+    void ToggleCellSelection(int frameIndex);
     // Clip playback advances once per frame, whichever windows are open.
     void AdvanceClipPlayback();
     // Play/Pause and Step buttons for the selected clip, with its current step.
@@ -64,8 +69,8 @@ private:
     void DrawClipEditorWindow();
     // Selecting a different clip moves playback to its first step.
     void SelectClip(int clipIndex);
-    // Select a cell from the cell list or the sheet. While picking a cell for a clip step, also assigns it to the
-    // step as one undoable action.
+    // Select only this cell (-1 clears the selection) from the cell list or the sheet. While picking a cell for a
+    // clip step, also assigns it to the step as one undoable action.
     void SelectCell(int frameIndex);
     // Undo for a text or number input in the Clips window. Call right after the widget, with its return value.
     void TrackClipEdit(bool changed);
@@ -80,6 +85,8 @@ private:
 
     using FrameVec = std::vector<moth::gfx::SpriteSheet::FrameEntry>;
     using ClipVec  = std::vector<moth::gfx::SpriteSheet::ClipEntry>;
+    // Selected cell indices in the order they were added. The last one is the prime cell.
+    using Selection = std::vector<int>;
 
     // Undo/redo stack
     void AddSpriteAction(std::unique_ptr<IEditorAction> action);
@@ -88,9 +95,9 @@ private:
     void ClearSpriteActions();
 
     // Snapshot helpers — capture current state as "after" and push a reversible action
-    void PushFrameAction(FrameVec before, int selBefore, int selAfter);
+    void PushFrameAction(FrameVec before, Selection selBefore, Selection selAfter);
     void PushClipAction(ClipVec before, int selBefore, int selAfter);
-    void PushFrameClipAction(FrameVec beforeF, ClipVec beforeC, int selBefore, int selAfter);
+    void PushFrameClipAction(FrameVec beforeF, ClipVec beforeC, Selection selBefore, Selection selAfter);
 
     moth::gfx::AssetContext& m_assetContext;
     moth::gfx::platform::ImGuiContext& m_imgui;
@@ -103,7 +110,7 @@ private:
     std::shared_ptr<moth::gfx::SpriteSheet> m_spriteSheet;
     std::vector<moth::gfx::SpriteSheet::FrameEntry> m_frames;
     std::vector<moth::gfx::SpriteSheet::ClipEntry> m_clips;
-    int m_selectedFrame = -1;
+    Selection m_selection;
     float m_zoom = 1.0f; // -1 = auto-fit on next draw
     float m_cellZoom = -1.0f; // Selected Cell window zoom; -1 = auto-fit on next draw
     float m_clipZoom = -1.0f; // Clip Preview window zoom; -1 = auto-fit on next draw
@@ -146,8 +153,18 @@ private:
     struct FrameDragState {
         int op;
         FrameVec snapshot;
+        // The selected cell pressed to start a move. If the press moves nothing, only that cell stays selected.
+        int clickedCell = -1;
     };
     std::optional<FrameDragState> m_frameDrag;
+
+    // Box selection on the sheet: the image-space start point, and whether the box adds to the selection (Ctrl).
+    struct BoxSelectState {
+        float startX = 0.0f;
+        float startY = 0.0f;
+        bool additive = false;
+    };
+    std::optional<BoxSelectState> m_boxSelect;
 
     // "New Cell" mode: the next click-drag on the preview canvas draws a new frame rect.
     bool m_newCellMode = false;

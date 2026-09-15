@@ -17,7 +17,7 @@ void SpriteEditor::LoadSpriteSheet(std::filesystem::path const& path) {
     }
 
     ClearSpriteActions();
-    m_selectedFrame = -1;
+    m_selection.clear();
     m_selectedClip = -1;
     m_clipPlaying = false;
     m_clipCurrentStep = 0;
@@ -89,7 +89,7 @@ void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
     m_zoom = -1.0f;    // re-fit to new image dimensions
     m_cellZoom = -1.0f;
     m_clipZoom = -1.0f;
-    m_selectedFrame = -1;
+    m_selection.clear();
     m_selectedClip  = -1;
     m_clipPlaying   = false;
     m_clipCurrentStep = 0;

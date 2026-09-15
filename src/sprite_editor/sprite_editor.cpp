@@ -59,7 +59,7 @@ void SpriteEditor::NewSpriteSheet() {
     m_imagePathBuffer[0] = '\0';
     m_frames.clear();
     m_clips.clear();
-    m_selectedFrame   = -1;
+    m_selection.clear();
     m_selectedClip    = -1;
     m_clipPlaying     = false;
     m_clipCurrentStep = 0;
@@ -103,15 +103,33 @@ void SpriteEditor::HandleShortcuts() {
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
         RedoSpriteAction();
     }
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_A, false)) {
+        // Select every cell. The prime cell stays prime.
+        int const cellCount = static_cast<int>(m_frames.size());
+        int const prime = PrimeCell();
+        m_selection.clear();
+        for (int i = 0; i < cellCount; ++i) {
+            if (i != prime) {
+                m_selection.push_back(i);
+            }
+        }
+        if (prime >= 0 && prime < cellCount) {
+            m_selection.push_back(prime);
+        }
+    }
     if (ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
-        DeleteFrame(m_selectedFrame);
+        DeleteFrames(m_selection);
     }
-    if (m_cellPick.has_value() && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
-        m_cellPick.reset();
-    }
-    if (m_newCellMode && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
-        m_newCellMode = false;
-        m_newCellAnchor.reset();
+    // Esc cancels one thing: picking a cell for a clip step, else New Cell drawing, else the selection.
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        if (m_cellPick.has_value()) {
+            m_cellPick.reset();
+        } else if (m_newCellMode) {
+            m_newCellMode = false;
+            m_newCellAnchor.reset();
+        } else if (!m_frameDrag.has_value() && !m_boxSelect.has_value()) {
+            m_selection.clear();
+        }
     }
 }
 
@@ -194,6 +212,7 @@ void SpriteEditor::DrawMainMenuBar() {
         auto& cfg = m_config;
         ImGui::ColorEdit4("Normal border##pref",   cfg.SpriteEditorNormalColor.data,   ImGuiColorEditFlags_NoInputs);
         ImGui::ColorEdit4("Selected border##pref", cfg.SpriteEditorSelectedColor.data, ImGuiColorEditFlags_NoInputs);
+        ImGui::ColorEdit4("Prime border##pref",    cfg.SpriteEditorPrimeColor.data,    ImGuiColorEditFlags_NoInputs);
         ImGui::SetNextItemWidth(120.0f);
         ImGui::InputInt("Border thickness##pref", &cfg.SpriteEditorRectThickness);
         cfg.SpriteEditorRectThickness = std::max(1, cfg.SpriteEditorRectThickness);

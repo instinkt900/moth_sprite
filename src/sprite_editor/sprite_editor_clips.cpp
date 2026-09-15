@@ -218,7 +218,10 @@ void SpriteEditor::SelectClip(int clipIndex) {
 }
 
 void SpriteEditor::SelectCell(int frameIndex) {
-    m_selectedFrame = frameIndex;
+    m_selection.clear();
+    if (frameIndex >= 0) {
+        m_selection.push_back(frameIndex);
+    }
     if (!m_cellPick.has_value() || frameIndex < 0 || frameIndex >= static_cast<int>(m_frames.size())) {
         return;
     }
@@ -405,7 +408,7 @@ void SpriteEditor::DrawClipEditorWindow() {
                 m_clipElapsedMs = 0.0f;
                 m_clipPlaying = false;
                 if (maxFrameIdx >= 0) {
-                    m_selectedFrame = std::clamp(frameIdx, 0, maxFrameIdx);
+                    m_selection = { std::clamp(frameIdx, 0, maxFrameIdx) };
                 }
             }
             if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
@@ -511,12 +514,13 @@ void SpriteEditor::DrawClipEditorWindow() {
         m_cellPick.reset();
         PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
     } else if (clipToAddStep >= 0) {
-        // Add step — defaults to the currently selected frame (or 0)
+        // Add step — defaults to the prime cell (or 0)
         auto before = m_clips;
         auto& steps = m_clips[clipToAddStep].desc.frames;
         moth::gfx::SpriteSheet::ClipFrame newStep;
-        newStep.frameIndex = (m_selectedFrame >= 0 && maxFrameIdx >= 0)
-            ? std::clamp(m_selectedFrame, 0, maxFrameIdx) : 0;
+        int const prime = PrimeCell();
+        newStep.frameIndex = (prime >= 0 && maxFrameIdx >= 0)
+            ? std::clamp(prime, 0, maxFrameIdx) : 0;
         newStep.durationMs = steps.empty() ? 100 : steps.back().durationMs;
         steps.push_back(newStep);
         PushClipAction(std::move(before), m_selectedClip, m_selectedClip);

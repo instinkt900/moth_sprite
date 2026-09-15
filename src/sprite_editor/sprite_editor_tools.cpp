@@ -93,7 +93,7 @@ void SpriteEditor::AppendFrames(std::vector<moth::gfx::IntRect> const& rects) {
         return;
     }
     auto before = m_frames;
-    int const beforeSel = m_selectedFrame;
+    Selection const beforeSel = m_selection;
     int const firstNew = static_cast<int>(m_frames.size());
     m_frames.reserve(m_frames.size() + rects.size());
     for (auto const& rect : rects) {
@@ -102,8 +102,8 @@ void SpriteEditor::AppendFrames(std::vector<moth::gfx::IntRect> const& rects) {
         frame.pivot = { 0, 0 };
         m_frames.push_back(frame);
     }
-    m_selectedFrame = firstNew;
-    PushFrameAction(std::move(before), beforeSel, m_selectedFrame);
+    m_selection = { firstNew };
+    PushFrameAction(std::move(before), beforeSel, m_selection);
 }
 
 void SpriteEditor::DrawGridTool() {
