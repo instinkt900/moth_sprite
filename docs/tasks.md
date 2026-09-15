@@ -367,7 +367,7 @@ that auto scrolls through the selected clip.
 11. Close the Clips window while a clip plays. The Sprite Editor preview keeps animating.
 12. Untick Window > Clips, quit and start again. It is still closed. Tick it: it opens.
 
-### [todo] T-012 Clip preview window
+### [done] T-012 Clip preview window
 
 **Review:** reviewed 2026-09-15
 
@@ -380,14 +380,14 @@ buttons that mirror the ones on the clip window. The idea of this window is to b
 animation look like" preview.
 
 **Requirements:**
-- [ ] A dockable window shows the selected clip's animation.
-- [ ] Each frame is anchored on its cell's pivot, as in today's clip preview, so the animation does not jump.
-- [ ] The window shows no pivot, guides or markup.
-- [ ] The window has the same zoom options as the selected cell window (Fit, 1:1, mouse-wheel zoom).
-- [ ] Play/pause buttons mirror the ones in the clip editor window: both control the same playback, with the
+- [x] A dockable window shows the selected clip's animation.
+- [x] Each frame is anchored on its cell's pivot, as in today's clip preview, so the animation does not jump.
+- [x] The window shows no pivot, guides or markup.
+- [x] The window has the same zoom options as the selected cell window (Fit, 1:1, mouse-wheel zoom).
+- [x] Play/pause buttons mirror the ones in the clip editor window: both control the same playback, with the
   same behaviour.
-- [ ] The window is part of the default layout from T-007.
-- [ ] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
+- [x] The window is part of the default layout from T-007.
+- [x] The Window menu has a toggle for this window, and its open or closed state is remembered across runs.
 
 **Out of scope:**
 
@@ -395,10 +395,40 @@ animation look like" preview.
 - Q: What zoom does the preview have? A: The same as the selected cell window.
 
 **Notes:**
+- The window is named "Clip Preview". Its open state is `ShowClipPreviewWindow` in `moth_sprite.json`. The
+  default layout splits the Clips area: Clips on the left, Clip Preview on the right (30%).
+- The pivot-anchored preview moved out of the Sprite Editor window, which now holds only the project path box.
+  T-013 removes that window.
+- The playback controls are the same `DrawClipPlaybackControls` as in the Clips window: Play/Pause, Step and
+  the step counter. Both windows drive the same playback state.
+- The anchoring is unchanged: a bounding box over all of the clip's steps in pivot space, with each step's
+  pivot on one anchor. The pivot crosshair and the dark background fill of the old preview are removed.
+- Zoom works like the Selected Cell window: it fits on first draw and after File > New, Load and Import Sheet.
+  Fit, 1:1 and the shared `ZoomWithMouseWheel` helper are available. The canvas scrolls when the clip is
+  larger than the window.
+- Assumption: the animation is centred in the canvas when it is smaller than the canvas. A `Dummy` of the full
+  bounding box keeps the scroll range the same from step to step.
+- Assumption: the zoom is kept when another clip is selected, as the Selected Cell zoom is kept when another
+  cell is selected. Fit refits it.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- 6582467 feat(T-012): dockable Clip Preview window
 
 **Manual verification:**
+1. Start with no `imgui.ini`, or choose Window > Reset Layout. Clips and Clip Preview are side by side below the
+   Sheet window. The Sprite Editor window shows only the path box.
+2. With no clip selected, Clip Preview shows Play and Step disabled and "Select a clip in the Clips window to
+   preview it."
+3. Make a clip with several steps whose cells have different sizes and pivots (for example, set different pivots
+   in Selected Cell). Select it. The preview fits the window and shows no crosshair, border or background.
+4. Click Play in Clip Preview. The animation plays, the cells stay anchored on their pivots, and the Clips
+   window's button reads Pause and its outline moves. Click Pause in the Clips window: the preview stops on the
+   same step. Click Play in Clip Preview: it continues from that step. Click Step in either window: both show the
+   same step.
+5. Click 1:1, then Fit, and use the mouse wheel over the preview. The zoom changes around the cursor. At a
+   large zoom, scrollbars appear and do not jump while the clip plays.
+6. Untick Window > Clip Preview, quit and start again. It is still closed. Tick it: it opens.
 
 ### [todo] T-013 Remove the old UI window
 
