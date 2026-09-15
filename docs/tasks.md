@@ -120,7 +120,7 @@ be worth having a helper for common image drawing with a background.
    `PreviewBackgroundColor`.
 9. Change the background color and check that the window title gets no ` *` and Edit > Undo is not enabled by it.
 
-### [todo] T-015 Cell form undo per field
+### [done] T-015 Cell form undo per field
 
 **Review:** reviewed 2026-09-15
 
@@ -135,17 +135,17 @@ The Clips window uses a per-widget pending edit (`TrackClipEdit`/`CommitClipEdit
 form could use the same pattern.
 
 **Requirements:**
-- [ ] New `TrackFrameEdit`/`CommitFrameEdit` helpers follow the pattern of `TrackClipEdit`/`CommitClipEdit`: a
+- [x] New `TrackFrameEdit`/`CommitFrameEdit` helpers follow the pattern of `TrackClipEdit`/`CommitClipEdit`: a
   pending edit per widget, keyed by its ImGuiID, with a `FrameVec` snapshot and an `edited` flag.
-- [ ] The X, Y, W, H, Pivot X and Pivot Y fields in the Cells form each use the new helpers.
-- [ ] `m_pendingFrameSnapshot` is replaced by the new pending edit, and `ClearSpriteActions` resets it.
-- [ ] An edit in one field that changes the value adds one undo step. Undoing it reverts only that edit.
-- [ ] Focusing a field and leaving it without a change adds no undo step and leaves no snapshot. A later change
+- [x] The X, Y, W, H, Pivot X and Pivot Y fields in the Cells form each use the new helpers.
+- [x] `m_pendingFrameSnapshot` is replaced by the new pending edit, and `ClearSpriteActions` resets it.
+- [x] An edit in one field that changes the value adds one undo step. Undoing it reverts only that edit.
+- [x] Focusing a field and leaving it without a change adds no undo step and leaves no snapshot. A later change
   (a field edit, a drag on the sheet, a pivot preset) stays its own undo step.
-- [ ] When focus moves straight from one field to another, by Tab or by a click, in either direction, each
+- [x] When focus moves straight from one field to another, by Tab or by a click, in either direction, each
   changed field gets its own undo step, and no edit is lost.
-- [ ] A click on a field's - or + button that changes the value adds one undo step.
-- [ ] W and H are still at least 1.
+- [x] A click on a field's - or + button that changes the value adds one undo step.
+- [x] W and H are still at least 1.
 
 **Out of scope:**
 - The Clips window and `TrackClipEdit`/`CommitClipEdit`. They do not change.
@@ -158,10 +158,41 @@ form could use the same pattern.
   does not change.
 
 **Notes:**
+- `PendingFrameEdit { id, snapshot, edited }` replaces `m_pendingFrameSnapshot`, and `ClearSpriteActions` resets
+  it. The Clips code is unchanged.
+- Difference from `TrackClipEdit`: `TrackFrameEdit` returns true when the edit ended, and the form calls
+  `CommitFrameEdit` itself after it applies the field's value to the cell. A click on - or + changes the value on
+  the mouse release, in the same frame that the button stops being active (checked in ImGui 1.90.4
+  `ButtonBehavior`). If the edit were committed before the value is applied, that change would be missing from the
+  undo step. For the same reason, each field now applies its value right after it is drawn, not after the table.
+- An InputInt is a group. `EndGroup` gives the group the id of the part that is active, or was active last frame.
+  When focus moves from a field's text box to its own - or + button, the group reports the start and the end in
+  one frame, with the button's id. `TrackFrameEdit` checks the end (by id) before the start, so the text edit is
+  committed and the button's new edit is kept.
+- W and H are clamped to at least 1 before the value is applied, as before.
+- Known limit, also true of the Clips window: if the form is not drawn in the frame when a field's edit ends (for
+  example, the list's x deletes the last cell while a field is active), the pending edit is committed at the next
+  field activation, not at once. Recorded under `## Discovered`.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
+- 544201c fix(T-015): one undo step per Cells form field edit
 
 **Manual verification:**
+1. Import a sheet and add two cells. Select one. In the Cells form, click in X, type a new value, and press Enter
+   or click elsewhere. Edit > Undo reverts only X. Redo restores it.
+2. Click in Y and click out without changing it. Drag the cell on the sheet. Edit > Undo reverts only the drag,
+   and a second Undo does not revert anything that Y did (Y did nothing).
+3. Click in W, change it, press Tab to move to H, change H, and click outside. Undo reverts H only. Undo again
+   reverts W only.
+4. Click in Pivot Y, change it, then click straight into X (an earlier field) and change X. Click outside. Undo
+   reverts X only, and Undo again reverts Pivot Y only. Nothing is lost.
+5. Click in H, change it, then click straight on H's + button once. Undo reverts the + click only. Undo again
+   reverts the typed change.
+6. Click X's + button once. One undo step reverts it. Hold the - button until it repeats, then release. One undo
+   step reverts the whole hold.
+7. Set W to 0 or a negative number. It becomes 1.
+8. Focus a field without changing it, then use a pivot preset button. Undo reverts only the preset.
 
 ### [todo] T-016 Failed Load or Save As keeps the project path
 
@@ -215,3 +246,7 @@ Problems noticed during sessions that are outside the current tasks. Candidates 
 - Found in T-014: the step number at the top-left of each Clips timeline thumbnail is drawn in white. On the white
   checker squares, and on a light preview background color, it is hard to read. It could get a dark outline or a
   small dark backing.
+- Found in T-015: the Cells form and the Clips window commit a pending field edit when the field's widget reports
+  the end of the edit. If the widget is not drawn in that frame (the edited cell or clip is deleted by a button in
+  the same frame, or the window is closed), the edit stays pending until the next field is activated. Its undo step
+  then also covers changes made in between.
