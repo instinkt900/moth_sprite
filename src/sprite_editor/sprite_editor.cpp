@@ -148,6 +148,25 @@ void SpriteEditor::HandleShortcuts() {
     if (io.WantTextInput || ImGui::GetTopMostPopupModal() != nullptr) {
         return;
     }
+    // File shortcuts. Ctrl+S on an untitled project chooses a path first, like Save in the unsaved changes prompt.
+    // Saving needs a sheet image, as in the File menu.
+    bool const hasImage = m_imagePathBuffer[0] != '\0';
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false) && hasImage) {
+        if (io.KeyShift) {
+            SaveProjectAs();
+        } else {
+            SaveProject();
+        }
+    }
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_N, false)) {
+        RequestProjectAction({ ProjectActionKind::New, {} });
+    }
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_L, false)) {
+        RequestProjectAction({ ProjectActionKind::Load, {} });
+    }
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_X, false)) {
+        FireEvent(moth::gfx::EventRequestQuit{});
+    }
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
         UndoSpriteAction();
     }
@@ -197,10 +216,10 @@ void SpriteEditor::DrawMainMenuBar() {
     }
     if (ImGui::BeginMenu("File")) {
         // New, Load and Open Recent replace the project, so with unsaved changes they ask first.
-        if (ImGui::MenuItem("New")) {
+        if (ImGui::MenuItem("New", "Ctrl+N")) {
             RequestProjectAction({ ProjectActionKind::New, {} });
         }
-        if (ImGui::MenuItem("Load...")) {
+        if (ImGui::MenuItem("Load...", "Ctrl+L")) {
             RequestProjectAction({ ProjectActionKind::Load, {} });
         }
         // The entry is opened after the submenu is drawn, because opening a project changes the list.
@@ -224,10 +243,10 @@ void SpriteEditor::DrawMainMenuBar() {
         }
         bool const hasImage = m_imagePathBuffer[0] != '\0';
         bool const hasPath  = m_pathBuffer[0] != '\0';
-        if (ImGui::MenuItem("Save", nullptr, false, hasImage && hasPath)) {
+        if (ImGui::MenuItem("Save", "Ctrl+S", false, hasImage && hasPath)) {
             SaveSpriteSheet(m_pathBuffer);
         }
-        if (ImGui::MenuItem("Save As...", nullptr, false, hasImage)) {
+        if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S", false, hasImage)) {
             SaveProjectAs();
         }
         ImGui::Separator();
@@ -256,7 +275,7 @@ void SpriteEditor::DrawMainMenuBar() {
             }
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Exit")) {
+        if (ImGui::MenuItem("Exit", "Ctrl+X")) {
             FireEvent(moth::gfx::EventRequestQuit{});
         }
         ImGui::EndMenu();

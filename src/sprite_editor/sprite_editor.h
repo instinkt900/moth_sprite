@@ -46,7 +46,7 @@ public:
     bool HoldQuitForUnsavedChanges();
 
 private:
-    // Ctrl+Z, Ctrl+Y, Ctrl+A, Delete and Esc, in every window.
+    // Ctrl+S, Ctrl+Shift+S, Ctrl+N, Ctrl+L, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+A, Delete and Esc, in every window.
     void HandleShortcuts();
     void DrawMainMenuBar();
     // The dock space fills the application window below the main menu bar.
