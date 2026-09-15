@@ -701,7 +701,7 @@ A file selector for changing the image path from the sheet window. It may be add
 6. Export again and type `copy2.jpg`. The file is written as `copy2.png`.
 7. Load a project whose image is a JPG. Export Sheet filters on `*.jpg`, and the copy is a `.jpg`.
 
-### [todo] T-005 Recent files
+### [done] T-005 Recent files
 
 **Review:** reviewed 2026-09-15
 
@@ -712,13 +712,13 @@ There should be a short history of recently opened files. Additionally, the load
 their last location across runs.
 
 **Requirements:**
-- [ ] File > Open Recent lists the 10 most recently loaded or saved projects, newest first.
-- [ ] Choosing an entry loads that project. If the file no longer exists, the entry is removed and a warning is
+- [x] File > Open Recent lists the 10 most recently loaded or saved projects, newest first.
+- [x] Choosing an entry loads that project. If the file no longer exists, the entry is removed and a warning is
   logged.
-- [ ] File > Open Recent > Clear Recent empties the list.
-- [ ] The project dialogs (Load, Save As) open in the folder last used by a project dialog.
-- [ ] The image dialogs (Import Sheet, Export Sheet) open in the folder last used by an image dialog.
-- [ ] The recent list and both folders are saved in `moth_sprite.json`, so they are remembered after a restart.
+- [x] File > Open Recent > Clear Recent empties the list.
+- [x] The project dialogs (Load, Save As) open in the folder last used by a project dialog.
+- [x] The image dialogs (Import Sheet, Export Sheet) open in the folder last used by an image dialog.
+- [x] The recent list and both folders are saved in `moth_sprite.json`, so they are remembered after a restart.
 
 **Out of scope:**
 
@@ -727,10 +727,42 @@ their last location across runs.
 - Q: Do the dialogs share one remembered folder? A: No. Project dialogs and image dialogs each remember their own.
 
 **Notes:**
+- New editor settings in `moth_sprite.json`: `RecentProjects` (paths, newest first), `LastProjectDir` and
+  `LastImageDir`. A settings file without them loads with an empty list and no remembered folders.
+- `AddRecentProject` runs after a successful load (`LoadSpriteSheet`) and after a successful write
+  (`SaveSpriteSheet`, so both Save and Save As). It stores the absolute, normalised path, removes an earlier copy
+  of the same path, puts it first and keeps 10 entries.
+- File > Open Recent comes after Load. It is disabled while the list is empty. Each entry shows the full path,
+  then there is a separator and Clear Recent. The chosen entry is opened after the submenu is drawn, from a
+  copy of the path, because opening changes the list.
+- `OpenRecentProject` checks that the file exists. If not, it logs
+  `[warning] SpriteEditor: recent project '<path>' no longer exists, removed it from Open Recent` and removes the
+  entry. Otherwise it loads the project like File > Load: it sets the project path, then loads. A project that
+  exists but fails to load keeps the behaviour logged under Discovered for T-013.
+- Folders: a dialog starts in its remembered folder if that folder still exists. Otherwise Load, Save As and
+  Import Sheet start in the current directory, as before, and Export Sheet starts in the sheet's folder, as in
+  T-004. Choosing a file (not cancelling) remembers that file's folder for its kind of dialog. Open Recent does
+  not change the remembered folders, because it is not a dialog.
+- No NOLINT added. Build and clang-tidy clean. Smoke launch passed.
 
 **Commits:**
+- 68a7df6 feat(T-005): File > Open Recent and remembered dialog folders
 
 **Manual verification:**
+1. Start with a `moth_sprite.json` from before this change. File > Open Recent is disabled.
+2. Import a sheet from folder `imgA`, add a cell, and Save As `projA/one.json`. Open Recent lists
+   `.../projA/one.json`.
+3. File > New, then Save As again from a new import: the Save As dialog opens in `projA`. Save as
+   `projB/two.json`. Open Recent lists `two.json` first, then `one.json`.
+4. File > Import Sheet: the dialog opens in `imgA`. Pick a sheet from `imgB`. File > Export Sheet: the dialog opens
+   in `imgB`. File > Load: the dialog opens in `projB` (the project folder is separate from the image folder).
+5. Choose `one.json` from Open Recent. It loads, the title shows `one.json`, and it moves to the top of the list.
+6. Save or load more than 10 different projects. The list keeps the 10 newest.
+7. Quit and start again. Open Recent has the same entries, and Load and Import open in the remembered folders.
+8. Delete or rename `two.json` on disk, then choose it from Open Recent. Nothing loads, the log has a `[warning]`
+   line naming the path, and the entry is gone from the list.
+9. Delete the remembered folder `imgB`. File > Import Sheet opens in the current directory instead.
+10. File > Open Recent > Clear Recent. The list is empty and Open Recent is disabled. Restart: still empty.
 
 ### [todo] T-006 Unsaved changes indicator and prompt
 
