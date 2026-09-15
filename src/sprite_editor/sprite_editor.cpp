@@ -242,9 +242,9 @@ void SpriteEditor::DrawMainMenuBar() {
             RequestProjectAction({ ProjectActionKind::OpenRecent, *recentToOpen });
         }
         bool const hasImage = m_imagePathBuffer[0] != '\0';
-        bool const hasPath  = m_pathBuffer[0] != '\0';
-        if (ImGui::MenuItem("Save", "Ctrl+S", false, hasImage && hasPath)) {
-            SaveSpriteSheet(m_pathBuffer);
+        // Save on an untitled project chooses a path first, like Ctrl+S.
+        if (ImGui::MenuItem("Save", "Ctrl+S", false, hasImage)) {
+            SaveProject();
         }
         if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S", false, hasImage)) {
             SaveProjectAs();
