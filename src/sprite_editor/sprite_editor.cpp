@@ -10,6 +10,7 @@
 namespace {
     // Window names are also the IDs that imgui.ini uses to remember the layout. Do not rename them.
     char const* const kSpriteEditorWindow = "Sprite Editor";
+    char const* const kSheetWindow = "Sheet";
     char const* const kDockSpaceHostWindow = "##dock_space_host";
     char const* const kDockSpaceId = "##dock_space";
 
@@ -18,7 +19,11 @@ namespace {
         ImGui::DockBuilderRemoveNode(dockSpaceId);
         ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceId, size);
-        ImGui::DockBuilderDockWindow(kSpriteEditorWindow, dockSpaceId);
+        ImGuiID sheetId = 0;
+        ImGuiID editorId = 0;
+        ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, 0.6f, &sheetId, &editorId);
+        ImGui::DockBuilderDockWindow(kSheetWindow, sheetId);
+        ImGui::DockBuilderDockWindow(kSpriteEditorWindow, editorId);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
 } // namespace
@@ -188,10 +193,12 @@ void SpriteEditor::DrawMainMenuBar() {
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Window")) {
+        ImGui::MenuItem(kSheetWindow, nullptr, &m_config.ShowSheetWindow);
         ImGui::MenuItem(kSpriteEditorWindow, nullptr, &m_config.ShowSpriteEditorWindow);
         ImGui::Separator();
         if (ImGui::MenuItem("Reset Layout")) {
             // The default layout shows every window, as on first run.
+            m_config.ShowSheetWindow = true;
             m_config.ShowSpriteEditorWindow = true;
             m_resetLayout = true;
         }
@@ -228,8 +235,8 @@ void SpriteEditor::DrawDockSpace() {
 
 void SpriteEditor::Draw() {
     HandleShortcuts();
-    // New Cell mode draws on the sheet image, so it can't outlive the image.
-    if (!(m_spriteSheet && m_spriteSheet->GetImage())) {
+    // New Cell mode draws on the sheet image in the Sheet window, so it can't outlive either.
+    if (!(m_spriteSheet && m_spriteSheet->GetImage()) || !m_config.ShowSheetWindow) {
         m_newCellMode = false;
         m_newCellAnchor.reset();
     }
@@ -237,25 +244,17 @@ void SpriteEditor::Draw() {
     DrawMainMenuBar();
     DrawDockSpace();
 
-    // All of the editor UI is in one dockable window.
+    if (m_config.ShowSheetWindow) {
+        if (ImGui::Begin(kSheetWindow, &m_config.ShowSheetWindow)) {
+            DrawPreview();
+        }
+        ImGui::End();
+    }
+
+    // The rest of the editor UI, until it moves to its own windows.
     if (m_config.ShowSpriteEditorWindow) {
         if (ImGui::Begin(kSpriteEditorWindow, &m_config.ShowSpriteEditorWindow)) {
-            if (ImGui::BeginTable("##sprite_layout", 2,
-                    ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV)) {
-                ImGui::TableSetupColumn("Preview", ImGuiTableColumnFlags_WidthStretch, 0.6f);
-                ImGui::TableSetupColumn("Editor",  ImGuiTableColumnFlags_WidthStretch, 0.4f);
-                ImGui::TableNextRow();
-
-                ImGui::TableSetColumnIndex(0);
-                DrawPreview();
-
-                ImGui::TableSetColumnIndex(1);
-                ImGui::BeginChild("##sprite_data", ImVec2(0, 0), ImGuiChildFlags_None);
-                DrawDataEditor();
-                ImGui::EndChild();
-
-                ImGui::EndTable();
-            }
+            DrawDataEditor();
         }
         ImGui::End();
     }

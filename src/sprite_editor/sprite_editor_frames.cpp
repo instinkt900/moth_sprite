@@ -93,18 +93,6 @@ void SpriteEditor::DrawFramesPane() {
                 ImGui::EndTable();
             }
 
-            bool const hasSheetImage = m_spriteSheet && m_spriteSheet->GetImage();
-            ImGui::BeginDisabled(!hasSheetImage || m_newCellMode);
-            if (ImGui::Button("New Cell")) {
-                m_newCellMode = true;
-                m_newCellAnchor.reset();
-            }
-            ImGui::EndDisabled();
-            if (m_newCellMode) {
-                ImGui::SameLine();
-                ImGui::TextDisabled("Drag on the sheet to create a cell (Esc to cancel)");
-            }
-
             if (frameToDelete >= 0) {
                 DeleteFrame(frameToDelete);
             }

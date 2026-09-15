@@ -138,6 +138,7 @@ void SpriteEditor::DrawPreview() {
 
     auto const& image = m_spriteSheet->GetImage();
     if (!image) {
+        ImGui::TextDisabled("Use File > Import Sheet to add a sheet image.");
         return;
     }
 
@@ -158,7 +159,14 @@ void SpriteEditor::DrawPreview() {
         // so it retries on the next frame instead of falling back to 1:1.
     }
 
-    // Toolbar
+    // Toolbar. New Cell comes first so the zoom text changing width does not move it.
+    ImGui::BeginDisabled(m_newCellMode);
+    if (ImGui::Button("New Cell")) {
+        m_newCellMode = true;
+        m_newCellAnchor.reset();
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
     if (ImGui::Button("Fit")) {
         fitZoom();
     }
@@ -168,6 +176,10 @@ void SpriteEditor::DrawPreview() {
     }
     ImGui::SameLine();
     ImGui::Text("%.0f%%", m_zoom * 100.0f);
+    if (m_newCellMode) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("Drag on the sheet to create a cell (Esc to cancel)");
+    }
 
     // Scrollable viewport
     ImVec2 const childSize = ImGui::GetContentRegionAvail();

@@ -13,6 +13,7 @@ struct SpriteEditorConfig {
     int SpriteEditorRectThickness = 1;
     // Whether each editor window is open. Toggled from the Window menu.
     bool ShowSpriteEditorWindow = true;
+    bool ShowSheetWindow = true;
 };
 
 inline void to_json(nlohmann::json& j, SpriteEditorConfig const& config) {
@@ -20,6 +21,7 @@ inline void to_json(nlohmann::json& j, SpriteEditorConfig const& config) {
     j["SpriteEditorSelectedColor"] = config.SpriteEditorSelectedColor;
     j["SpriteEditorRectThickness"] = config.SpriteEditorRectThickness;
     j["ShowSpriteEditorWindow"] = config.ShowSpriteEditorWindow;
+    j["ShowSheetWindow"] = config.ShowSheetWindow;
 }
 
 inline void from_json(nlohmann::json const& j, SpriteEditorConfig& config) {
@@ -27,4 +29,5 @@ inline void from_json(nlohmann::json const& j, SpriteEditorConfig& config) {
     config.SpriteEditorSelectedColor = j.value("SpriteEditorSelectedColor", config.SpriteEditorSelectedColor);
     config.SpriteEditorRectThickness = std::max(j.value("SpriteEditorRectThickness", config.SpriteEditorRectThickness), 1);
     config.ShowSpriteEditorWindow = j.value("ShowSpriteEditorWindow", config.ShowSpriteEditorWindow);
+    config.ShowSheetWindow = j.value("ShowSheetWindow", config.ShowSheetWindow);
 }
