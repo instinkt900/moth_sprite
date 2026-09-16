@@ -237,7 +237,7 @@ empty clip and the +step button still adds the single selected cell.
 7. Clear the selection (Esc) and click "+ Step". One step for cell 0, with the Set all value.
 8. On a clip whose Set all box was never changed, "+ Step" adds a 100 ms step, whatever the last step's duration.
 
-### [todo] T-018 Cell list with thumbnails
+### [done] T-018 Cell list with thumbnails
 
 **Review:** reviewed 2026-09-16
 
@@ -248,16 +248,16 @@ The cell list should change from a text only list to a list with thumbnails of e
 right a listing of the cell index, cell offset and cell size. Keep the x button for deletion.
 
 **Requirements:**
-- [ ] Each row of the Cells list has a 48 x 48 px thumbnail box on the left.
-- [ ] The box shows the preview background (`DrawImageBackground`, with 8 px checker squares) and the cell's image,
+- [x] Each row of the Cells list has a 48 x 48 px thumbnail box on the left.
+- [x] The box shows the preview background (`DrawImageBackground`, with 8 px checker squares) and the cell's image,
   scaled to fit the box, keeping its aspect ratio, and centered. Parts of a cell outside the sheet image are
   clamped, as in the Clips thumbnails. With no sheet image, the box shows only the background.
-- [ ] To the right of the box are two lines: line 1 is the index, as `#3`; line 2 is the offset and size, as
+- [x] To the right of the box are two lines: line 1 is the index, as `#3`; line 2 is the offset and size, as
   `(x, y)  w x h`.
-- [ ] The x button that deletes the cell stays at the right end of the row.
-- [ ] Clicking anywhere on the row (box or text) selects as now: click, Ctrl+click, Shift+click, and picking a cell
+- [x] The x button that deletes the cell stays at the right end of the row.
+- [x] Clicking anywhere on the row (box or text) selects as now: click, Ctrl+click, Shift+click, and picking a cell
   for a clip step. The selected and prime highlights cover the whole row.
-- [ ] The Cells form below the list still fits, and the list still scrolls.
+- [x] The Cells form below the list still fits, and the list still scrolls.
 
 **Out of scope:**
 - The Cells form, the selection rules and the delete behaviour.
@@ -270,10 +270,36 @@ right a listing of the cell index, cell offset and cell size. Keep the x button 
   `(x, y)  w x h`.
 
 **Notes:**
+- Each row is one 48 px high `Selectable` (label `##cell_row`) over the whole row, so the click handling did not
+  change. The thumbnail and the two text lines are drawn over it: the background with `DrawImageBackground` (8 px
+  squares), the image with `DrawImage`, and the text with the window draw list in the style's text color.
+- The selected and prime highlights fill the whole row behind the thumbnail. The thumbnail's background covers the
+  highlight inside its 48 px box.
+- The x button is centred on the row's height. After the thumbnail, the cursor goes back to where it was after the
+  x button, so the rows lay out as before. This ImGui build (1.90.4) does not define
+  `IMGUI_DISABLE_OBSOLETE_FUNCTIONS`, so moving the cursor this way does not assert.
+- Assumption: text that is wider than the row (a narrow window, or large numbers) is drawn under the x button, and
+  is clipped by the list. It is not shortened.
+- The Cells form's height estimate did not change. The list keeps its minimum height of three frame heights, which is
+  now less than one row, and it scrolls.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed (it has no cells, so the rows were not drawn).
 
 **Commits:**
+- da59349 feat(T-018): thumbnails in the Cells list
 
 **Manual verification:**
+1. Import a sheet image with transparent areas, and add cells of different shapes: one wide, one tall, one square,
+   and one that extends past the right edge of the image.
+2. Each Cells row has a 48 px box on the left with an 8 px checkerboard. The cell's image is fitted in it, centred,
+   keeping its aspect ratio. The cell that extends past the image shows only the part inside the image, stretched as
+   in the Clips thumbnails.
+3. To the right of the box, line 1 is `#0`, `#1`, and so on, and line 2 is `(x, y)  w x h`, matching the Cells form.
+4. Click the thumbnail, then the text, of different rows. Each selects its cell. Ctrl+click and Shift+click work as
+   before. The prime row has the prime color across the whole row.
+5. The x button is at the right end of each row, vertically centred, and deletes that cell.
+6. Double-click a clip step, then click a row. The cell is picked for the step.
+7. Add many cells (Tools > Grid Cells). The list scrolls, and the Cells form below it is still fully visible.
+8. File > New. The list is empty. Load a project whose image file is missing: rows show the checkerboard only.
 
 ### [todo] T-023 Help menu with About dialog
 
