@@ -76,7 +76,7 @@ Rename Tools > Detect Frames to "Detect Cells".
 1. Import a sheet image. Open the Tools menu. The second item reads "Detect Cells...".
 2. Choose it. The dialog title reads "Detect Cells", and the tool works as before.
 
-### [todo] T-022 Move Preferences under Edit
+### [done] T-022 Move Preferences under Edit
 
 **Review:** reviewed 2026-09-16
 
@@ -86,11 +86,11 @@ Rename Tools > Detect Frames to "Detect Cells".
 Move the "Preferences" menu to under "Edit" so it becomes Edit > Preferences.
 
 **Requirements:**
-- [ ] Edit > Preferences is a submenu at the end of the Edit menu, after a separator below Pivot.
-- [ ] The submenu has the same controls, in the same order, as the Preferences menu has now: the three border
+- [x] Edit > Preferences is a submenu at the end of the Edit menu, after a separator below Pivot.
+- [x] The submenu has the same controls, in the same order, as the Preferences menu has now: the three border
   colors, the border thickness and the preview background color.
-- [ ] The top-level Preferences menu is removed. The menu bar is File, Edit, Tools, Window.
-- [ ] The settings and `moth_sprite.json` do not change.
+- [x] The top-level Preferences menu is removed. The menu bar is File, Edit, Tools, Window.
+- [x] The settings and `moth_sprite.json` do not change.
 
 **Out of scope:**
 - A Preferences window or dialog.
@@ -100,10 +100,20 @@ Move the "Preferences" menu to under "Edit" so it becomes Edit > Preferences.
 - Q: A submenu with the controls, or an item that opens a window? A: A submenu at the end of Edit.
 
 **Notes:**
+- The Preferences block moved unchanged into the Edit menu, after a new separator below the Pivot submenu. The
+  Preferences submenu is always enabled.
+- `moth_sprite.json` and `SpriteEditorConfig` did not change.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
+- 832eb97 feat(T-022): move Preferences under the Edit menu
 
 **Manual verification:**
+1. The menu bar reads File, Edit, Tools, Window. There is no Preferences menu.
+2. Open Edit. Below Pivot there is a separator, then Preferences. Preferences is enabled with no cell selected.
+3. Open Edit > Preferences. It shows Normal border, Selected border, Prime border, Border thickness, a separator,
+   and Preview background. Change the border thickness and a color. The Sheet window uses them.
+4. Quit and start the app again. The changed settings are kept.
 
 ### [todo] T-019 Browse button on the sprite sheet path
 
