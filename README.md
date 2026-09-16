@@ -1,16 +1,24 @@
 # Moth Sprite
 
-A sprite sheet and animation clip editor for [moth_graphics](https://github.com/instinkt900/moth_graphics). Load or
-import a sprite sheet image, mark out its cells and their pivots, build animation clips from those cells, and save a
-JSON project that moth_graphics loads as a `SpriteSheet`.
+[![Build Tests](https://github.com/instinkt900/moth_sprite/actions/workflows/build-test.yml/badge.svg)](https://github.com/instinkt900/moth_sprite/actions/workflows/build-test.yml)
+[![Release](https://github.com/instinkt900/moth_sprite/actions/workflows/upload-release.yml/badge.svg)](https://github.com/instinkt900/moth_sprite/actions/workflows/upload-release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+A sprite sheet and animation clip editor for [moth::gfx](https://github.com/instinkt900/moth_toolkit). Load or import
+a sprite sheet image, mark out its cells and their pivots, build animation clips from those cells, and save a JSON
+project that moth::gfx loads at runtime as a `SpriteSheet`.
+
+The editor is a separate application, not a toolkit one: it depends on the toolkit's modules but is not built as part
+of it.
 
 ---
 
 ## Table of Contents
 
 - [Features](#features)
+  - [AI Disclosure](#ai-disclosure)
 - [Usage](#usage)
-  - [Windows](#windows)
+  - [Editor windows](#editor-windows)
   - [Projects and sheet images](#projects-and-sheet-images)
   - [Making cells](#making-cells)
   - [Selecting and editing cells](#selecting-and-editing-cells)
@@ -22,7 +30,9 @@ JSON project that moth_graphics loads as a `SpriteSheet`.
 - [Project file format](#project-file-format)
 - [Building](#building)
   - [Prerequisites](#prerequisites)
-  - [Build and run](#build-and-run)
+  - [Linux](#linux)
+  - [Windows](#windows)
+  - [Running](#running)
 - [Related Projects](#related-projects)
 - [License](#license)
 
@@ -30,15 +40,32 @@ JSON project that moth_graphics loads as a `SpriteSheet`.
 
 ## Features
 
-- A zoomable sheet view where cells are drawn, moved and resized with the mouse.
-- Cells made by hand, from a regular grid, or found automatically from the image's pixels.
-- Multiple selection, with pivot presets that apply to every selected cell.
-- A pivot editor with a zoomable preview of the selected cell.
-- Animation clips as timelines of steps, each with a cell and a duration, with Stop, Reset and Loop playback.
-- A clip preview that keeps every step on its pivot, so the animation plays in place.
-- Undo and redo for every change to cells, pivots, clips and the sheet image.
-- A checkerboard or a chosen color behind every preview, to show transparency.
-- Recent projects, an unsaved changes prompt, and a dockable window layout.
+**Sheet editing:** draw, move and resize cells on a zoomable view of the sheet image. Select many cells at once with
+Ctrl+click or a selection box, and move them together.
+
+**Cell generation:** add a regular grid of cells in one step, or detect cells from the image's pixels by alpha or by a
+background color, with a live preview before the cells are added.
+
+**Pivots:** set each cell's pivot by clicking in a zoomable preview of the cell, by typing it, or with nine presets
+that apply to every selected cell.
+
+**Animation clips:** build clips as timelines of steps, each with a cell and a duration. Reorder steps by dragging,
+change a step's cell by picking it on the sheet, and choose Stop, Reset or Loop playback.
+
+**Live preview:** play clips inside the editor. Each step is kept on its pivot, so the animation plays in place, as it
+will in the application.
+
+**Undo and redo:** every change to cells, pivots, clips and the sheet image can be undone. A text edit or a drag is one
+undo step.
+
+**Editor comforts:** recent projects, an unsaved changes prompt, a dockable window layout, and a checkerboard or chosen
+color behind every preview to show transparency.
+
+### AI Disclosure
+
+AI agents (primarily Claude) are used as tools in this project for tasks such as refactoring, documentation writing,
+and test implementation. The architecture, design decisions, and direction of the project are human-driven. This is
+not a vibe-coded project.
 
 ---
 
@@ -46,7 +73,7 @@ JSON project that moth_graphics loads as a `SpriteSheet`.
 
 Start `moth_sprite`. It opens with an empty, untitled project.
 
-### Windows
+### Editor windows
 
 The editor has four dockable windows. Close and reopen them from the **Window** menu. **Window > Reset Layout**
 restores the default layout and opens every window.
@@ -216,35 +243,44 @@ A project is a JSON file:
 
 Other fields already in a project file are kept when the editor saves over it.
 
-moth_graphics loads a project with at least one cell. It skips a clip that has no steps, or a step whose duration is
+moth::gfx loads a project with at least one cell. It skips a clip that has no steps, or a step whose duration is
 0 or whose cell does not exist.
 
 ---
 
 ## Building
 
+Pre-built binaries for Windows and Linux are attached to each [GitHub Release](https://github.com/instinkt900/moth_sprite/releases) if you'd rather not build from source.
+
 ### Prerequisites
 
-- A C++17 compiler and CMake 3.27 or later.
-- [Conan 2](https://conan.io). For example:
+Set up a Python virtual environment and install Conan:
 
-  ```bash
-  python3 -m venv .venv
-  source .venv/bin/activate
-  pip install conan
-  ```
+```bash
+# Linux / macOS
+python3 -m venv .venv
+source .venv/bin/activate
+pip install conan
 
-- The moth toolkit packages (moth_bridge, which brings in moth_core, moth_graphics and moth_ui) come from the moth
-  Artifactory remote. Add it once:
+# Windows (PowerShell)
+python3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install conan
+```
 
-  ```bash
-  conan remote add moth https://artifactory.matthewcotton.net/artifactory/api/conan/conan-local
-  ```
+**C++17 is required.** A `.conan/profile` is provided that sets `compiler.cppstd=17` and configures Conan to install
+system packages automatically (`tools.system.package_manager:mode=install`). This profile is used in CI and can be used
+directly or as a reference when building locally. The app renders with Vulkan, so it also needs a Vulkan driver.
 
-- On Linux, the file dialogs need GTK 3 (`libgtk-3-dev`). Conan can install it as a system requirement.
-- The app uses Vulkan, so it needs a Vulkan driver.
+moth_sprite depends on the [moth_toolkit](https://github.com/instinkt900/moth_toolkit) module `moth_bridge`, which
+brings in `moth_core`, `moth_graphics` and `moth_ui`. These are published to an Artifactory remote rather than Conan
+Center. Register the remote once before installing (it is publicly readable, so no login is required):
 
-Clone with submodules, or initialise them after cloning:
+```bash
+conan remote add moth https://artifactory.matthewcotton.net/artifactory/api/conan/conan-local
+```
+
+The file dialogs come from a git submodule. Clone with submodules, or initialise them after cloning:
 
 ```bash
 git clone --recursive https://github.com/instinkt900/moth_sprite.git
@@ -252,21 +288,41 @@ git clone --recursive https://github.com/instinkt900/moth_sprite.git
 git submodule update --init
 ```
 
-### Build and run
+### Linux
+
+Several system packages are required on Linux. GTK3 is needed by nativefiledialog; GLFW, FreeType, and HarfBuzz are
+pulled in transitively via `moth_graphics` (see the [moth_toolkit README](https://github.com/instinkt900/moth_toolkit)
+for background on why these must come from the system).
+
+Using `.conan/profile`, Conan will install these automatically via `apt`:
 
 ```bash
-conan install . --build=missing -s build_type=Debug
-cmake --build --preset conan-debug
-./build/Debug/moth_sprite
+conan install . -pr .conan/profile -s build_type=Release --build=missing
+cmake --preset conan-release
+cmake --build --preset conan-release
 ```
 
-For a Release build, use `-s build_type=Release` and the `conan-release` preset. The binary is then in
-`build/Release`.
+If you'd rather install them yourself first:
 
-The Debug build treats warnings as errors and runs clang-tidy when it is installed.
+```bash
+sudo apt install libgtk-3-dev libglfw3-dev libfreetype-dev libharfbuzz-dev
+```
 
-The editor reads and writes `moth_sprite.json` and `imgui.ini` in the folder it is started from. Start it from a
-folder where those files belong.
+For a Debug build, use `-s build_type=Debug` and the `conan-debug` preset. The Debug build treats warnings as errors
+and runs clang-tidy when it is installed.
+
+### Windows
+
+```bash
+conan install . -pr .conan/profile -s build_type=Release --build=missing
+cmake --preset conan-default
+cmake --build --preset conan-release
+```
+
+### Running
+
+The binary is in `build/Release` (or `build/Debug`). The editor reads and writes `moth_sprite.json` and `imgui.ini` in
+the folder it is started from, so start it from a folder where those files belong.
 
 ---
 
@@ -274,14 +330,15 @@ folder where those files belong.
 
 | Project | Description |
 |---|---|
-| [moth_ui](https://github.com/instinkt900/moth_ui) | Core UI library: node graph, keyframe animation, and event system |
-| [moth_graphics](https://github.com/instinkt900/moth_graphics) | Graphics and application framework. Loads the projects this editor saves as a `SpriteSheet` |
-| [moth_editor](https://github.com/instinkt900/moth_editor) | Visual layout and animation editor for moth_ui layout files |
-| [moth_packer](https://github.com/instinkt900/moth_packer) | Texture atlas packer for images and moth_ui layouts |
+| [moth_toolkit](https://github.com/instinkt900/moth_toolkit) | The modular 2D engine toolkit this editor builds against |
+| `moth::gfx` | Vulkan-backed 2D renderer, window management, and the platform bootstrap. Loads the projects this editor saves as a `SpriteSheet` |
+| `moth::ui` | Core UI library: node graph, keyframe animation, and event system |
+| `moth::bridge` | Adapts `moth::ui` onto `moth::gfx` and provides the application loop |
+| [moth_editor](https://github.com/instinkt900/moth_editor) | Visual layout and animation editor for `moth::ui` layout files |
 | moth_sprite | *(this project)* Sprite sheet and animation clip editor |
 
 ---
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
