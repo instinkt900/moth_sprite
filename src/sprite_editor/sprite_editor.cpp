@@ -319,6 +319,21 @@ void SpriteEditor::DrawMainMenuBar() {
             }
             ImGui::EndMenu();
         }
+        ImGui::Separator();
+        if (ImGui::BeginMenu("Preferences")) {
+            auto& cfg = m_config;
+            ImGui::ColorEdit4("Normal border##pref",   cfg.SpriteEditorNormalColor.data,   ImGuiColorEditFlags_NoInputs);
+            ImGui::ColorEdit4("Selected border##pref", cfg.SpriteEditorSelectedColor.data, ImGuiColorEditFlags_NoInputs);
+            ImGui::ColorEdit4("Prime border##pref",    cfg.SpriteEditorPrimeColor.data,    ImGuiColorEditFlags_NoInputs);
+            ImGui::SetNextItemWidth(120.0f);
+            ImGui::InputInt("Border thickness##pref", &cfg.SpriteEditorRectThickness);
+            cfg.SpriteEditorRectThickness = std::max(1, cfg.SpriteEditorRectThickness);
+            ImGui::Separator();
+            // Shared by every preview window. Alpha 0 shows a checkerboard.
+            ImGui::ColorEdit4("Preview background##pref", cfg.PreviewBackgroundColor.data,
+                              ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
+            ImGui::EndMenu();
+        }
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Tools")) {
@@ -330,20 +345,6 @@ void SpriteEditor::DrawMainMenuBar() {
         if (ImGui::MenuItem("Detect Cells...", nullptr, false, hasSheetImage && m_imagePathBuffer[0] != '\0')) {
             m_openDetectTool = true;
         }
-        ImGui::EndMenu();
-    }
-    if (ImGui::BeginMenu("Preferences")) {
-        auto& cfg = m_config;
-        ImGui::ColorEdit4("Normal border##pref",   cfg.SpriteEditorNormalColor.data,   ImGuiColorEditFlags_NoInputs);
-        ImGui::ColorEdit4("Selected border##pref", cfg.SpriteEditorSelectedColor.data, ImGuiColorEditFlags_NoInputs);
-        ImGui::ColorEdit4("Prime border##pref",    cfg.SpriteEditorPrimeColor.data,    ImGuiColorEditFlags_NoInputs);
-        ImGui::SetNextItemWidth(120.0f);
-        ImGui::InputInt("Border thickness##pref", &cfg.SpriteEditorRectThickness);
-        cfg.SpriteEditorRectThickness = std::max(1, cfg.SpriteEditorRectThickness);
-        ImGui::Separator();
-        // Shared by every preview window. Alpha 0 shows a checkerboard.
-        ImGui::ColorEdit4("Preview background##pref", cfg.PreviewBackgroundColor.data,
-                          ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Window")) {
