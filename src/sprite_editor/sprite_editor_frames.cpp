@@ -2,6 +2,13 @@
 #include "sprite_editor.h"
 #include "sprite_editor_config.h"
 
+namespace {
+    // Side of a cell's thumbnail box in the Cells list, in pixels.
+    constexpr float kListThumbSize = 48.0f;
+    // Checkerboard square size behind a list thumbnail, in pixels.
+    constexpr float kListThumbCheckerSize = 8.0f;
+} // namespace
+
 int SpriteEditor::PrimeCell() const {
     return m_selection.empty() ? -1 : m_selection.back();
 }
@@ -158,9 +165,14 @@ void SpriteEditor::DrawCellListWindow() {
     ImVec4 const primeHeader{ primeColor[0], primeColor[1], primeColor[2], primeColor[3] * 0.45f };
     ImVec4 const primeHeaderHovered{ primeColor[0], primeColor[1], primeColor[2], primeColor[3] * 0.65f };
 
+    auto const* image = (m_spriteSheet && m_spriteSheet->GetImage())
+                        ? &m_spriteSheet->GetImage() : nullptr;
+    ImU32 const textColor = ImGui::GetColorU32(ImGuiCol_Text);
+
     int frameToDelete = -1;
     if (ImGui::BeginChild("##cell_list", ImVec2{ 0.0f, listH }, ImGuiChildFlags_Border)) {
         float const deleteW = ImGui::CalcTextSize("x").x + (style.FramePadding.x * 2.0f);
+        ImDrawList* const dl = ImGui::GetWindowDrawList();
         for (int i = 0; i < static_cast<int>(m_frames.size()); ++i) {
             auto const& fr = m_frames[i];
             ImGui::PushID(i);
@@ -171,9 +183,11 @@ void SpriteEditor::DrawCellListWindow() {
                 ImGui::PushStyleColor(ImGuiCol_HeaderHovered, primeHeaderHovered);
                 ImGui::PushStyleColor(ImGuiCol_HeaderActive, primeHeaderHovered);
             }
-            std::string const label = fmt::format("{:<4}({}, {}) {}x{}",
-                i, fr.rect.x(), fr.rect.y(), fr.rect.w(), fr.rect.h());
-            if (ImGui::Selectable(label.c_str(), cellSelected[static_cast<size_t>(i)], ImGuiSelectableFlags_AllowOverlap)) {
+            // One selectable covers the whole row, so a click on the thumbnail or the text selects the cell. The
+            // thumbnail and the text are drawn over it.
+            ImVec2 const rowMin = ImGui::GetCursorScreenPos();
+            if (ImGui::Selectable("##cell_row", cellSelected[static_cast<size_t>(i)], ImGuiSelectableFlags_AllowOverlap,
+                                  ImVec2{ 0.0f, kListThumbSize })) {
                 // While picking a cell for a clip step, every click is a plain click and picks the cell.
                 bool const plainClick = m_cellPick.has_value() || (!io.KeyCtrl && !io.KeyShift);
                 if (plainClick || (io.KeyShift && prime < 0)) {
@@ -194,11 +208,44 @@ void SpriteEditor::DrawCellListWindow() {
                 ImGui::PopStyleColor(3);
             }
 
-            // Delete button at the right end of the row, over the selectable.
+            // Delete button at the right end of the row, over the selectable, centred on the row.
             ImGui::SameLine(ImGui::GetContentRegionMax().x - deleteW);
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ((kListThumbSize - ImGui::GetTextLineHeight()) * 0.5f));
             if (ImGui::SmallButton("x")) {
                 frameToDelete = i;
             }
+            ImVec2 const nextRowPos = ImGui::GetCursorScreenPos();
+
+            // Thumbnail: the preview background, and the cell fitted in the box, keeping its aspect ratio.
+            DrawImageBackground({ rowMin.x, rowMin.y }, { kListThumbSize, kListThumbSize }, kListThumbCheckerSize);
+            if (image != nullptr && fr.rect.w() > 0 && fr.rect.h() > 0) {
+                float const imgW = static_cast<float>(image->GetWidth());
+                float const imgH = static_cast<float>(image->GetHeight());
+                moth::gfx::FloatVec2 const uv0{
+                    std::clamp(static_cast<float>(fr.rect.x())      / imgW, 0.0f, 1.0f),
+                    std::clamp(static_cast<float>(fr.rect.y())      / imgH, 0.0f, 1.0f) };
+                moth::gfx::FloatVec2 const uv1{
+                    std::clamp(static_cast<float>(fr.rect.right())  / imgW, 0.0f, 1.0f),
+                    std::clamp(static_cast<float>(fr.rect.bottom()) / imgH, 0.0f, 1.0f) };
+                float const scale = std::min(kListThumbSize / static_cast<float>(fr.rect.w()),
+                                             kListThumbSize / static_cast<float>(fr.rect.h()));
+                float const thumbW = static_cast<float>(fr.rect.w()) * scale;
+                float const thumbH = static_cast<float>(fr.rect.h()) * scale;
+                ImGui::SetCursorScreenPos({ rowMin.x + ((kListThumbSize - thumbW) * 0.5f),
+                                            rowMin.y + ((kListThumbSize - thumbH) * 0.5f) });
+                DrawImage(*image, { static_cast<int>(thumbW), static_cast<int>(thumbH) }, uv0, uv1);
+            }
+
+            // Two lines to the right of the box: the index, then the offset and the size.
+            float const lineH = ImGui::GetTextLineHeight();
+            float const textX = rowMin.x + kListThumbSize + style.ItemSpacing.x;
+            float const textY = rowMin.y + ((kListThumbSize - (lineH * 2.0f) - style.ItemSpacing.y) * 0.5f);
+            std::string const indexLabel = fmt::format("#{}", i);
+            std::string const rectLabel = fmt::format("({}, {})  {} x {}", fr.rect.x(), fr.rect.y(), fr.rect.w(), fr.rect.h());
+            dl->AddText({ textX, textY }, textColor, indexLabel.c_str());
+            dl->AddText({ textX, textY + lineH + style.ItemSpacing.y }, textColor, rectLabel.c_str());
+
+            ImGui::SetCursorScreenPos(nextRowPos);
             ImGui::PopID();
         }
     }
