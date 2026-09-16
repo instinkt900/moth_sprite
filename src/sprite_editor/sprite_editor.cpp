@@ -30,24 +30,31 @@ namespace {
         return fallback.string();
     }
 
-    // Replace the dock space's layout with the built-in default.
+    // Replace the dock space's layout with the built-in default: Sheet and Selected Cell side by side above Clips, and
+    // Cells down the right. Cells is the central node, so it takes the size changes of the application window.
     void BuildDefaultLayout(ImGuiID dockSpaceId, ImVec2 size) {
         ImGui::DockBuilderRemoveNode(dockSpaceId);
         ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceId, size);
         ImGuiID leftId = 0;
-        ImGuiID rightId = 0;
-        ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, 0.6f, &leftId, &rightId);
-        ImGuiID clipsId = 0;
-        ImGuiID sheetId = 0;
-        ImGui::DockBuilderSplitNode(leftId, ImGuiDir_Down, 0.35f, &clipsId, &sheetId);
-        ImGuiID cellId = 0;
         ImGuiID cellListId = 0;
-        ImGui::DockBuilderSplitNode(rightId, ImGuiDir_Up, 0.4f, &cellId, &cellListId);
+        ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, 0.825f, &leftId, &cellListId);
+        ImGuiID topId = 0;
+        ImGuiID clipsId = 0;
+        ImGui::DockBuilderSplitNode(leftId, ImGuiDir_Up, 0.65f, &topId, &clipsId);
+        ImGuiID sheetId = 0;
+        ImGuiID cellId = 0;
+        ImGui::DockBuilderSplitNode(topId, ImGuiDir_Left, 0.583f, &sheetId, &cellId);
         ImGui::DockBuilderDockWindow(kSheetWindow, sheetId);
         ImGui::DockBuilderDockWindow(kCellWindow, cellId);
         ImGui::DockBuilderDockWindow(kCellListWindow, cellListId);
         ImGui::DockBuilderDockWindow(kClipEditorWindow, clipsId);
+        // Each area holds one window, so its tab bar is hidden.
+        for (ImGuiID const nodeId : { sheetId, cellId, cellListId, clipsId }) {
+            if (ImGuiDockNode* const node = ImGui::DockBuilderGetNode(nodeId)) {
+                node->SetLocalFlags(node->LocalFlags | ImGuiDockNodeFlags_HiddenTabBar);
+            }
+        }
         ImGui::DockBuilderFinish(dockSpaceId);
     }
 } // namespace
