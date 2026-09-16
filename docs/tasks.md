@@ -165,11 +165,11 @@ Add a button to the sprite sheet path entry so that the user can load a differen
 3. Click "...". The image dialog opens in the folder of the last image dialog. Cancel. Nothing changes.
 4. Click "..." and choose a different image. The Sheet shows the new image, fitted to the window. The cells and the
    clip are kept, the selection is cleared, the title gets " *", and Edit > Undo is disabled.
-5. Click "..." and choose the first image's folder: the dialog starts in the folder chosen in step 4.
+5. Click "..." again. The dialog starts in the folder of the image chosen in step 4. Cancel.
 6. Choose a file that is not a valid image (for example, a renamed text file with a .png extension). The log shows
    "failed to load image", and the sheet does not change.
 
-### [todo] T-017 New clip and +step use all selected cells
+### [done] T-017 New clip and +step use all selected cells
 
 **Review:** reviewed 2026-09-16
 
@@ -181,21 +181,21 @@ selected cells get inserted to the new clip. With only one cell selected, the ne
 empty clip and the +step button still adds the single selected cell.
 
 **Requirements:**
-- [ ] With more than one cell selected, "+ Clip" creates a clip with one step for each selected cell.
-- [ ] With more than one cell selected, "+ Step" adds one step for each selected cell at the end of that clip's
+- [x] With more than one cell selected, "+ Clip" creates a clip with one step for each selected cell.
+- [x] With more than one cell selected, "+ Step" adds one step for each selected cell at the end of that clip's
   timeline.
-- [ ] Steps are added in selection order: the order in which the cells were added to the selection
+- [x] Steps are added in selection order: the order in which the cells were added to the selection
   (`m_selection`), so the prime cell's step is last.
-- [ ] With zero or one cell selected, "+ Clip" still creates an empty clip.
-- [ ] With one cell selected, "+ Step" still adds one step for that cell. With no cell selected it still adds a
+- [x] With zero or one cell selected, "+ Clip" still creates an empty clip.
+- [x] With one cell selected, "+ Step" still adds one step for that cell. With no cell selected it still adds a
   step for cell 0, as now.
-- [ ] Each step added by "+ Step" gets the duration in that clip's Set all box (the value it shows, 100 until it
+- [x] Each step added by "+ Step" gets the duration in that clip's Set all box (the value it shows, 100 until it
   is changed), for one cell and for several. This replaces "the last step's duration, or 100".
-- [ ] Each step of a new clip gets 100 ms, the Set all box's starting value.
-- [ ] "+ Clip" with an empty name creates the clip with the name `clip_N`, where N is the lowest number from 1 up
+- [x] Each step of a new clip gets 100 ms, the Set all box's starting value.
+- [x] "+ Clip" with an empty name creates the clip with the name `clip_N`, where N is the lowest number from 1 up
   that no other clip uses as `clip_N`. This is true with any selection. A typed name is used as now.
-- [ ] Each "+ Clip" or "+ Step" click is one undo step, however many steps it adds.
-- [ ] A new clip is selected, as now.
+- [x] Each "+ Clip" or "+ Step" click is one undo step, however many steps it adds.
+- [x] A new clip is selected, as now.
 
 **Out of scope:**
 - The Set all button and box, other than reading the box's value.
@@ -211,10 +211,31 @@ empty clip and the +step button still adds the single selected cell.
   selection.
 
 **Notes:**
+- "+ Clip" with more than one cell selected adds a step for each selected cell, in `m_selection` order, with 100 ms
+  each (`kDefaultStepDurationMs`, also the Set all box's starting value).
+- "+ Step" reads the clip's Set all value (clamped to at least 0, as Set all does) in the frame of the click, and
+  adds a step for each selected cell, or the prime cell (or cell 0) as before.
+- "+ Clip" no longer needs a name. An empty name becomes `clip_N`, the lowest N from 1 that no clip has as its name.
+- Assumption: the "No clips" hint said to enter a name first. It now reads "No clips. Click + Clip to add one.",
+  because a name is no longer needed.
+- Each click still adds one `PushClipAction`. Selection and playback handling did not change.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
+- 8cc8bdd feat(T-017): + Clip and + Step add a step for each selected cell
 
 **Manual verification:**
+1. Import a sheet and add at least four cells. With no clip name typed and no cell selected, click "+ Clip". A clip
+   named `clip_1` is created with no steps, and is selected. Click "+ Clip" again: `clip_2`.
+2. Rename `clip_1` to `walk`. Click "+ Clip" with an empty name. The new clip is `clip_1`.
+3. Select one cell and click "+ Clip". The clip has no steps.
+4. Click cell 3, then Ctrl+click cell 1, then Ctrl+click cell 2. Type `run` and click "+ Clip". The clip `run` has
+   three steps, for cells 3, 1, 2 in that order, each 100 ms. Edit > Undo removes the whole clip in one step.
+5. In `run`'s header, set the Set all box to 250 (without clicking Set all). Select cells 0 and 2 (Ctrl+click) and
+   click `run`'s "+ Step". Two steps are added at the end, for cells 0 and 2, each 250 ms. One Undo removes both.
+6. Select only cell 1 and click "+ Step". One step for cell 1, 250 ms.
+7. Clear the selection (Esc) and click "+ Step". One step for cell 0, with the Set all value.
+8. On a clip whose Set all box was never changed, "+ Step" adds a 100 ms step, whatever the last step's duration.
 
 ### [todo] T-018 Cell list with thumbnails
 
