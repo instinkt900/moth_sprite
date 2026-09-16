@@ -289,7 +289,7 @@ void SpriteEditor::DrawClipEditorWindow() {
     std::optional<StepMove> stepMove;
     std::optional<StepPayload> stepToDelete;
     int clipToAddStep = -1;
-    int addStepDurationMs = kDefaultStepDurationMs; // the Set all value of clipToAddStep
+    int addStepDurationMs = kDefaultStepDurationMs; // the Set all value of clipToAddStep, used when it has no steps
     int clipToDelete = -1;
 
     ImGui::BeginChild("##clip_list", ImVec2{ 0.0f, 0.0f }, ImGuiChildFlags_None);
@@ -484,7 +484,8 @@ void SpriteEditor::DrawClipEditorWindow() {
             ImGui::PopID();
         }
 
-        // "+ Step" adds the selected cells at the end of the timeline, with the Set all duration.
+        // "+ Step" adds the selected cells at the end of the timeline, with the last step's duration, or the Set all
+        // duration when the clip has no steps.
         if (stepCount > 0) {
             ImGui::SameLine();
         }
@@ -528,7 +529,7 @@ void SpriteEditor::DrawClipEditorWindow() {
         auto before = m_clips;
         auto& steps = m_clips[clipToAddStep].desc.frames;
         moth::gfx::SpriteSheet::ClipFrame newStep;
-        newStep.durationMs = addStepDurationMs;
+        newStep.durationMs = steps.empty() ? addStepDurationMs : steps.back().durationMs;
         if (m_selection.size() > 1) {
             for (int const sel : m_selection) {
                 if (sel >= 0 && sel <= maxFrameIdx) {

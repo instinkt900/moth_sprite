@@ -138,7 +138,8 @@ In the **Clips** window:
 - Each clip has a name, a loop type (**Stop**, **Reset** or **Loop**), its step count, a duration box with
   **Set all** to give every step that duration, and **X** to remove the clip.
 - **+ Step** adds the selected cells to the end of the clip, or the prime cell when one cell is selected. New steps
-  get the duration in the clip's **Set all** box.
+  get the duration of the clip's last step, or the duration in the **Set all** box when the clip has no steps. The
+  steps of a new clip get 100 ms, the box's starting value.
 - Each step shows its cell number, a thumbnail and its duration in milliseconds. Its **x** removes it.
 - Drag a step onto another step of the same clip to move it there.
 - Double-click a step, then select a cell on the sheet or in the Cells list, to change the step's cell. Esc cancels.
