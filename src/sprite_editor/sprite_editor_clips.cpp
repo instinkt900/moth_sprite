@@ -16,6 +16,20 @@ namespace {
     // Outline and hint colour for the step that is picking a cell.
     constexpr ImU32 kPickColor = IM_COL32(255, 160, 0, 255);
     constexpr ImVec4 kPickTextColor{ 1.0f, 160.0f / 255.0f, 0.0f, 1.0f };
+    // The starting value of a clip's Set all duration box, and the duration of the steps of a new clip.
+    constexpr int kDefaultStepDurationMs = 100;
+
+    // "clip_N" with the lowest N from 1 up that no clip uses.
+    std::string AutoClipName(std::vector<moth::gfx::SpriteSheet::ClipEntry> const& clips) {
+        for (int n = 1;; ++n) {
+            std::string name = fmt::format("clip_{}", n);
+            bool const used = std::any_of(clips.begin(), clips.end(),
+                                          [&name](auto const& clip) { return clip.name == name; });
+            if (!used) {
+                return name;
+            }
+        }
+    }
 } // namespace
 
 void SpriteEditor::AdvanceClipPlayback() {
@@ -220,12 +234,24 @@ void SpriteEditor::DrawClipEditorWindow() {
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - addBtnW - ImGui::GetStyle().ItemSpacing.x);
         ImGui::InputTextWithHint("##new_clip_name", "New clip name", m_newClipNameBuffer, sizeof(m_newClipNameBuffer) - 1);
         ImGui::SameLine();
-        if (ImGui::Button("+ Clip") && m_newClipNameBuffer[0] != '\0') {
+        if (ImGui::Button("+ Clip")) {
             auto before = m_clips;
             int const beforeSel = m_selectedClip;
             moth::gfx::SpriteSheet::ClipEntry newClip;
-            newClip.name = m_newClipNameBuffer;
+            // An empty name gets a generated one.
+            newClip.name = (m_newClipNameBuffer[0] != '\0') ? std::string{ m_newClipNameBuffer } : AutoClipName(m_clips);
             newClip.desc.loop = moth::gfx::SpriteSheet::LoopType::Stop;
+            // With more than one cell selected, the clip gets a step for each, in selection order.
+            if (m_selection.size() > 1) {
+                for (int const sel : m_selection) {
+                    if (sel >= 0 && sel < static_cast<int>(m_frames.size())) {
+                        moth::gfx::SpriteSheet::ClipFrame step;
+                        step.frameIndex = sel;
+                        step.durationMs = kDefaultStepDurationMs;
+                        newClip.desc.frames.push_back(step);
+                    }
+                }
+            }
             m_clips.push_back(std::move(newClip));
             m_newClipNameBuffer[0] = '\0';
             SelectClip(static_cast<int>(m_clips.size()) - 1);
@@ -263,6 +289,7 @@ void SpriteEditor::DrawClipEditorWindow() {
     std::optional<StepMove> stepMove;
     std::optional<StepPayload> stepToDelete;
     int clipToAddStep = -1;
+    int addStepDurationMs = kDefaultStepDurationMs; // the Set all value of clipToAddStep
     int clipToDelete = -1;
 
     ImGui::BeginChild("##clip_list", ImVec2{ 0.0f, 0.0f }, ImGuiChildFlags_None);
@@ -310,7 +337,7 @@ void SpriteEditor::DrawClipEditorWindow() {
         ImGui::SameLine();
         ImGuiStorage* const storage = ImGui::GetStateStorage();
         ImGuiID const allDurationId = ImGui::GetID("##all_ms_value");
-        int allDurationMs = storage->GetInt(allDurationId, 100);
+        int allDurationMs = storage->GetInt(allDurationId, kDefaultStepDurationMs);
         ImGui::SetNextItemWidth(64.0f);
         if (ImGui::InputInt("##all_ms", &allDurationMs, 0, 0)) {
             storage->SetInt(allDurationId, std::max(allDurationMs, 0));
@@ -457,7 +484,7 @@ void SpriteEditor::DrawClipEditorWindow() {
             ImGui::PopID();
         }
 
-        // "+ Step" adds the selected cell at the end of the timeline.
+        // "+ Step" adds the selected cells at the end of the timeline, with the Set all duration.
         if (stepCount > 0) {
             ImGui::SameLine();
         }
@@ -465,6 +492,7 @@ void SpriteEditor::DrawClipEditorWindow() {
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + stepLabelH);
         if (ImGui::Button("+ Step", ImVec2{ 0.0f, kThumbSize })) {
             clipToAddStep = c;
+            addStepDurationMs = std::max(allDurationMs, 0);
         }
         ImGui::EndChild();
 
@@ -476,7 +504,7 @@ void SpriteEditor::DrawClipEditorWindow() {
         ImGui::PopID();
     }
     if (m_clips.empty()) {
-        ImGui::TextDisabled("No clips. Enter a name above and click + Clip.");
+        ImGui::TextDisabled("No clips. Click + Clip to add one.");
     }
     ImGui::EndChild();
     m_scrollToClipStep = false;
@@ -496,15 +524,24 @@ void SpriteEditor::DrawClipEditorWindow() {
     } else if (stepToDelete.has_value()) {
         DeleteClipStep(stepToDelete->clip, stepToDelete->step);
     } else if (clipToAddStep >= 0) {
-        // Add step — defaults to the prime cell (or 0)
+        // With more than one cell selected, a step for each in selection order. Otherwise the prime cell (or 0).
         auto before = m_clips;
         auto& steps = m_clips[clipToAddStep].desc.frames;
         moth::gfx::SpriteSheet::ClipFrame newStep;
-        int const prime = PrimeCell();
-        newStep.frameIndex = (prime >= 0 && maxFrameIdx >= 0)
-            ? std::clamp(prime, 0, maxFrameIdx) : 0;
-        newStep.durationMs = steps.empty() ? 100 : steps.back().durationMs;
-        steps.push_back(newStep);
+        newStep.durationMs = addStepDurationMs;
+        if (m_selection.size() > 1) {
+            for (int const sel : m_selection) {
+                if (sel >= 0 && sel <= maxFrameIdx) {
+                    newStep.frameIndex = sel;
+                    steps.push_back(newStep);
+                }
+            }
+        } else {
+            int const prime = PrimeCell();
+            newStep.frameIndex = (prime >= 0 && maxFrameIdx >= 0)
+                ? std::clamp(prime, 0, maxFrameIdx) : 0;
+            steps.push_back(newStep);
+        }
         PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
     } else if (clipToDelete >= 0) {
         auto before = m_clips;
