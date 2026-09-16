@@ -251,14 +251,7 @@ void SpriteEditor::DrawMainMenuBar() {
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
-            nfdchar_t* outPath = nullptr;
-            std::string const startDir = DialogFolder(m_config.LastImageDir, std::filesystem::current_path());
-            if (NFD_OpenDialog("png,jpg,jpeg,bmp", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
-                std::filesystem::path const imagePath = outPath;
-                NFD_Free(outPath);
-                m_config.LastImageDir = imagePath.parent_path().string();
-                ImportSheet(imagePath);
-            }
+            ImportSheetWithDialog();
         }
         if (ImGui::MenuItem("Export Sheet...", nullptr, false, hasImage)) {
             // Filter on the sheet's own extension. Before any image dialog has been used, start in the sheet's folder.
@@ -377,6 +370,17 @@ void SpriteEditor::LoadWithDialog() {
         // The folder is remembered even when the load fails. The project path changes only when it succeeds.
         m_config.LastProjectDir = path.parent_path().string();
         LoadSpriteSheet(path);
+    }
+}
+
+void SpriteEditor::ImportSheetWithDialog() {
+    nfdchar_t* outPath = nullptr;
+    std::string const startDir = DialogFolder(m_config.LastImageDir, std::filesystem::current_path());
+    if (NFD_OpenDialog("png,jpg,jpeg,bmp", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
+        std::filesystem::path const imagePath = outPath;
+        NFD_Free(outPath);
+        m_config.LastImageDir = imagePath.parent_path().string();
+        ImportSheet(imagePath);
     }
 }
 

@@ -166,12 +166,21 @@ void SpriteEditor::DrawPreview() {
         return;
     }
 
-    // The sheet image file the project uses. Read-only; File > Export Sheet changes it.
+    // The sheet image file the project uses. Read-only; File > Export Sheet changes it, and "..." imports another
+    // image, as File > Import Sheet does.
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Image");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(-FLT_MIN);
+    float const browseW = ImGui::CalcTextSize("...").x + (ImGui::GetStyle().FramePadding.x * 2.0f);
+    ImGui::SetNextItemWidth(-(browseW + ImGui::GetStyle().ItemSpacing.x));
     ImGui::InputText("##sheet_image_path", m_imagePathBuffer, sizeof(m_imagePathBuffer), ImGuiInputTextFlags_ReadOnly);
+    ImGui::SameLine();
+    if (ImGui::Button("...##sheet_image_browse")) {
+        // An import replaces the sheet, and with it the image drawn below, so stop drawing for this frame.
+        ImportSheetWithDialog();
+        return;
+    }
+    ImGui::SetItemTooltip("Import a different sheet image (File > Import Sheet)");
 
     float const imgW = static_cast<float>(image.GetWidth());
     float const imgH = static_cast<float>(image.GetHeight());

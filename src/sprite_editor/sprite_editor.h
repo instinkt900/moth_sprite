@@ -87,6 +87,8 @@ private:
     // File > Save As: choose a path in a dialog, then save. Returns true when the file was written.
     bool SaveProjectAs();
     void ImportSheet(std::filesystem::path const& imagePath);
+    // File > Import Sheet and the Sheet window's "..." button: choose an image in a dialog, then import it.
+    void ImportSheetWithDialog();
     // Copy the sheet image file, unchanged, to exportPath (given the sheet's extension), then point the project at
     // the copy as one undoable action.
     void ExportSheet(std::filesystem::path exportPath);
