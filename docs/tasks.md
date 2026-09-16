@@ -44,7 +44,7 @@ Rename the Tools > Grid option to "Grid Cells".
 1. Import a sheet image. Open the Tools menu. The first item reads "Grid Cells...".
 2. Choose it. The dialog title reads "Grid Cells", and the tool works as before.
 
-### [todo] T-021 Rename Tools > Detect Frames to Detect Cells
+### [done] T-021 Rename Tools > Detect Frames to Detect Cells
 
 **Review:** reviewed 2026-09-16
 
@@ -54,8 +54,8 @@ Rename the Tools > Grid option to "Grid Cells".
 Rename Tools > Detect Frames to "Detect Cells".
 
 **Requirements:**
-- [ ] The Tools menu item reads "Detect Cells...".
-- [ ] The dialog it opens has the title "Detect Cells" (now "Detect Frames").
+- [x] The Tools menu item reads "Detect Cells...".
+- [x] The dialog it opens has the title "Detect Cells" (now "Detect Frames").
 
 **Out of scope:**
 - Code names (`DrawDetectFramesTool`, `DetectToolState`, `frame_detection.*`) and the popup's `##` ID part.
@@ -65,10 +65,16 @@ Rename Tools > Detect Frames to "Detect Cells".
 - Q: Does the dialog title change too? A: Yes, the menu item and the dialog title. Code names stay.
 
 **Notes:**
+- The popup's visible label changed from "Detect Frames" to "Detect Cells". Its `##tool_detect` part is kept. The
+  popup uses `NoSavedSettings`.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
+- 6d462cf feat(T-021): rename Tools > Detect Frames to Detect Cells
 
 **Manual verification:**
+1. Import a sheet image. Open the Tools menu. The second item reads "Detect Cells...".
+2. Choose it. The dialog title reads "Detect Cells", and the tool works as before.
 
 ### [todo] T-022 Move Preferences under Edit
 
