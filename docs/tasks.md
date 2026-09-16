@@ -299,9 +299,9 @@ right a listing of the cell index, cell offset and cell size. Keep the x button 
 5. The x button is at the right end of each row, vertically centred, and deletes that cell.
 6. Double-click a clip step, then click a row. The cell is picked for the step.
 7. Add many cells (Tools > Grid Cells). The list scrolls, and the Cells form below it is still fully visible.
-8. File > New. The list is empty. Load a project whose image file is missing: rows show the checkerboard only.
+8. File > New. The list is empty.
 
-### [todo] T-023 Help menu with About dialog
+### [done] T-023 Help menu with About dialog
 
 **Review:** reviewed 2026-09-16
 
@@ -312,17 +312,17 @@ Add a "Help" menu with one option "About" for now. It should open a small dialog
 a short description of what it is for, and the author (eventually the GitHub repo too when we have a remote).
 
 **Requirements:**
-- [ ] The menu bar has a Help menu, last: File, Edit, Tools, Window, Help.
-- [ ] The Help menu has one item, "About...".
-- [ ] About opens a modal "About Moth Sprite" dialog, centered, sized to its content, with a Close button. Esc also
+- [x] The menu bar has a Help menu, last: File, Edit, Tools, Window, Help.
+- [x] The Help menu has one item, "About...".
+- [x] About opens a modal "About Moth Sprite" dialog, centered, sized to its content, with a Close button. Esc also
   closes it.
-- [ ] The dialog shows: "Moth Sprite"; "Version 0.1.0", from `version.txt`; the description from the CMake
+- [x] The dialog shows: "Moth Sprite"; "Version 0.1.0", from `version.txt`; the description from the CMake
   `project(... DESCRIPTION ...)`; "Author: Matthew Cotton"; and `https://github.com/instinkt900/moth_sprite` as
   text.
-- [ ] The version and the description come from CMake at build time (for example, compile definitions from
+- [x] The version and the description come from CMake at build time (for example, compile definitions from
   `MOTH_SPRITE_VERSION_FULL` and `PROJECT_DESCRIPTION`), so changing `version.txt` changes the dialog. They are
   not typed into the source.
-- [ ] Keyboard shortcuts do not fire while the dialog is open, as with the other modal popups.
+- [x] Keyboard shortcuts do not fire while the dialog is open, as with the other modal popups.
 
 **Out of scope:**
 - A clickable link, or opening a browser.
@@ -336,10 +336,28 @@ a short description of what it is for, and the author (eventually the GitHub rep
 - Q: Is the GitHub repo link part of this task? A: Yes. The remote exists: `github.com/instinkt900/moth_sprite`.
 
 **Notes:**
+- `CMakeLists.txt` passes `MOTH_SPRITE_VERSION_STRING` (from `MOTH_SPRITE_VERSION_FULL`, the stripped contents of
+  `version.txt`, including any `-` or `+` suffix) and `MOTH_SPRITE_DESCRIPTION` (`PROJECT_DESCRIPTION`) as compile
+  definitions. `version.txt` is added to `CMAKE_CONFIGURE_DEPENDS`, so a change to it runs CMake again and the dialog
+  gets the new version on the next build. The definitions apply to every source file, so a version change rebuilds
+  all of them.
+- The dialog is a modal popup like the unsaved changes prompt: centred, sized to its content, `NoSavedSettings`. It is
+  opened with a flag set by the menu item, and drawn at the end of `Draw()`.
+- The popup title is "About Moth Sprite". Close and Esc close it. `HandleShortcuts` already does nothing while a modal
+  popup is open.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
+- a5ba938 feat(T-023): Help > About dialog
 
 **Manual verification:**
+1. The menu bar reads File, Edit, Tools, Window, Help. Help has one item, "About...".
+2. Choose Help > About. A dialog titled "About Moth Sprite" opens in the middle of the window. It shows "Moth Sprite",
+   "Version 0.1.0", "A sprite sheet and animation clip editor for moth", "Author: Matthew Cotton" and
+   `https://github.com/instinkt900/moth_sprite`.
+3. Click Close. The dialog closes. Open it again and press Esc. It closes.
+4. With the dialog open, press Ctrl+N, Ctrl+Z and Delete. Nothing happens.
+5. Optional: change `version.txt` to `0.1.1`, build, and open About. It shows 0.1.1. Change it back.
 
 ### [todo] T-024 Add a README.md
 
