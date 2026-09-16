@@ -12,271 +12,383 @@ Session reports are in [sessions/](sessions/). `/task-planning` moves finished t
 
 ## Tasks
 
-### [done] T-014 Preview background color and checkerboard
+### [todo] T-020 Rename Tools > Grid to Grid Cells
 
-**Review:** reviewed 2026-09-15
-
-**Depends on:** none
-
-**Goal:**
-All preview windows should get controls to control the background color of the preview image. There should
-also be a gray and white checkerboard option to indicate transparency.
-
-A preview window is any window that shows an image from the sprite sheet, including the sheet itself. It might
-be worth having a helper for common image drawing with a background.
-
-**Requirements:**
-- [x] Every window that shows an image from the sprite sheet draws a background behind the image: Sheet, Selected
-  Cell, Clip Preview, the Clips timeline thumbnails, and the Tools > Grid and Tools > Detect Frames previews.
-- [x] The background covers these areas:
-  - Sheet, Selected Cell, Grid and Detect Frames: the rectangle where the image is drawn.
-  - Clip Preview: the clip's whole bounding box (the area the `Dummy` reserves). It does not change size or
-    position from step to step. This replaces "no background" from T-012.
-  - Clips timeline: the whole 72 px thumbnail box. It replaces the dark fill that the box has now.
-- [x] Overlays (cell borders, pivots, grid lines, the overflow tint, box select) are still drawn over the image
-  and the background.
-- [x] The background color is set with a color picker, with alpha, in the Preferences menu.
-- [x] All windows share one background setting.
-- [x] The background setting is saved in `moth_sprite.json` and remembered across runs. A settings file without
-  it still loads, and gets the default.
-- [x] The default color has alpha 0, so the checkerboard shows on first run.
-- [x] When the chosen color has alpha 0, the background is a gray and white checkerboard, to show transparency.
-  Any other alpha draws the color, not the checkerboard.
-- [x] Each checkerboard square is 128 screen pixels, except in the Clips timeline thumbnails, where it is 16 screen
-  pixels. The size does not change with the zoom.
-- [x] A square corner is at the top-left of the background area, and the pattern scrolls with the image.
-- [x] The checker colors are always light gray (192, 192, 192) and white. They cannot be set.
-
-**Out of scope:**
-- The background setting is an editor setting, not project data. It is not undoable, not saved to the project
-  file, and does not mark the project as having unsaved changes.
-- Per-window background settings, preset color buttons, and toolbar controls.
-- Changes to how the image, zoom, scrolling or overlays work.
-- Changes to the moth_bridge dependency. The background is drawn with the ImGui draw list.
-
-**Open questions:**
-- Q: Which windows count as preview windows: Sheet, Selected Cell, Clip Preview, the clip timeline thumbnails,
-  the Tools > Grid and Detect Frames previews? A: Any window that shows an image from the sprite sheet,
-  including the sprite sheet itself.
-- Q: Does each window have its own background setting, or do all windows share one? A: All windows share the
-  background color and settings.
-- Q: Is the background setting remembered across runs, in `moth_sprite.json`? A: Yes, remembered between runs.
-- Q: What do the controls look like: a color picker, a few preset colors, a toolbar button or a menu?
-  A: A color picker. If a transparent color is used, the checkerboard is drawn.
-- Q: What size are the checkerboard squares, and do they scale with the zoom or stay a fixed size on screen?
-  A: Not sure of the scale; start with 128. The checkers do not change with zoom.
-- Q: Is 128 the size of one checker square in screen pixels, or the size of a 128×128 checkerboard texture?
-  A: 128 screen pixels.
-- Q: Where is the color picker: in each window's toolbar, in Preferences, or both? A: In Preferences.
-- Q: Does "transparent" mean alpha 0 only? What is drawn for a partly transparent color: the color over the
-  checkerboard, or the color alone? A: The checkerboard is drawn only at alpha 0.
-- Q: Are the gray and white checker colors fixed, or can they be set? A: Always gray and white.
-- Q: What area does the background fill? A: The image area in Sheet, Selected Cell, Grid and Detect Frames. The
-  clip's whole bounding box in Clip Preview, so it does not change between steps. The whole thumbnail box in the
-  Clips timeline, in place of its dark fill.
-- Q: What is the default for a new or older `moth_sprite.json`? A: The checkerboard (alpha 0).
-- Q: Where does the checker pattern start? A: At the top-left of the background area. It scrolls with the image.
-- Q: The Clips thumbnails are 72 px, so a 128 px square shows one color. What size do they use? A: Smaller squares
-  in the thumbnails (16 px). 128 px everywhere else.
-
-**Notes:**
-- One helper, `SpriteEditor::DrawImageBackground(pos, size, checkerSize = 128)`, draws the background in every
-  window. It draws only the part inside the draw list's clip rect, so a zoomed-in sheet does not add thousands of
-  squares.
-- The setting is `PreviewBackgroundColor` in `moth_sprite.json`. It is read with `j.value` like the border colors,
-  so a settings file without it gets the default `{ 0, 0, 0, 0 }`.
-- Assumption: alpha counts as 0 when the 8-bit color that ImGui draws has alpha 0 (float alpha below 0.5/255).
-  Such a color would draw nothing, so the checkerboard shows.
-- Assumption: the top-left checker square is gray.
-- Assumption: the picker is the last item in Preferences, after a separator. It uses `NoInputs`, like the border
-  colors, with `AlphaBar` and `AlphaPreviewHalf` so that the alpha is visible and easy to set.
-- Assumption: in Sheet, Selected Cell, Grid and Detect Frames the background uses the image's whole-pixel size, the
-  same size `DrawImage` uses, so no strip of background shows past the image's right or bottom edge.
-- The step number drawn at the top-left of each Clips thumbnail is white, and is hard to read on the white
-  checker squares. Changing it is outside this task (overlays), so it is recorded under `## Discovered`.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed. The script deletes its temporary folder on
-  success, so the written `moth_sprite.json` was not inspected.
-- Changed after the session, at the user's request, in 929fa55. The Requirements and Open questions above are kept
-  as reviewed, so they still name Clip Preview and the old square sizes.
-  - The checker squares are 32 screen pixels, and 8 in the Clips thumbnails (were 128 and 16). The default
-    `checkerSize` of `DrawImageBackground` is 32.
-  - The step number on each Clips thumbnail is drawn twice: in black 1 px down and right, then in white. The
-    shadow makes it readable on the checkerboard, so the `## Discovered` note is removed.
-  - The Clip Preview window is removed, and Selected Cell previews the selected clip. With a clip selected, the
-    Selected Cell background covers the clip's bounding box, which does not change from step to step. With no
-    clip selected, it covers the cell.
-
-**Commits:**
-- bbe6932 feat(T-014): preview background color and transparency checkerboard
-- 929fa55 feat: Selected Cell previews clips, playback selects cells, Set all durations (after the session)
-
-**Manual verification:**
-1. Move `moth_sprite.json` aside (or run from a new folder) and start the app. Import a sheet image that has
-   transparent areas. The Sheet window shows a gray and white checkerboard behind the image, with 32 px squares
-   and a gray square at the image's top-left corner.
-2. Zoom the Sheet in and out with the mouse wheel. The squares stay 32 screen pixels. Scroll the Sheet. The
-   pattern moves with the image. Cell borders, pivots, box select and the New Cell rectangle draw over it.
-3. With no clip selected, select a cell. Selected Cell shows the checkerboard behind the cell only, and the pivot
-   cross over it.
-4. Add a clip with steps of different sizes and pivots, and select it. Selected Cell shows the checkerboard over
-   the whole clip area, and the area does not move or change size while the clip plays.
-5. In Clips, each step's 72 px box shows a checkerboard with 8 px squares in place of the dark fill. The box
-   outline and the current step outline draw over it, and the step number has a black shadow.
-6. Open Tools > Grid and Tools > Detect Frames. Both previews show the checkerboard behind the image, with grid
-   lines, the overflow tint and detected rectangles over it.
-7. Open Preferences > Preview background. Pick an opaque color. Every window above now shows that color, not the
-   checkerboard. Set alpha to about half. The color draws with the window showing through. Set alpha back to 0.
-   The checkerboard returns.
-8. Pick an opaque color, quit, and start the app again. The color is kept. Check that `moth_sprite.json` has
-   `PreviewBackgroundColor`.
-9. Change the background color and check that the window title gets no ` *` and Edit > Undo is not enabled by it.
-
-### [done] T-015 Cell form undo per field
-
-**Review:** reviewed 2026-09-15
+**Review:** reviewed 2026-09-16
 
 **Depends on:** none
 
 **Goal:**
-Found in T-011. The X, Y, W, H and Pivot fields in the Cells window share one `m_pendingFrameSnapshot`. It is
-taken when a field is activated only if none is pending, and it is dropped only after an edit. If a field is
-focused without editing, the old snapshot stays and a later edit's undo step also reverts changes made in between.
-If focus moves straight from a later field to an earlier one, one of the two edits can end up with no undo step.
-The Clips window uses a per-widget pending edit (`TrackClipEdit`/`CommitClipEdit`) that avoids both problems. The
-form could use the same pattern.
+Rename the Tools > Grid option to "Grid Cells".
 
 **Requirements:**
-- [x] New `TrackFrameEdit`/`CommitFrameEdit` helpers follow the pattern of `TrackClipEdit`/`CommitClipEdit`: a
-  pending edit per widget, keyed by its ImGuiID, with a `FrameVec` snapshot and an `edited` flag.
-- [x] The X, Y, W, H, Pivot X and Pivot Y fields in the Cells form each use the new helpers.
-- [x] `m_pendingFrameSnapshot` is replaced by the new pending edit, and `ClearSpriteActions` resets it.
-- [x] An edit in one field that changes the value adds one undo step. Undoing it reverts only that edit.
-- [x] Focusing a field and leaving it without a change adds no undo step and leaves no snapshot. A later change
-  (a field edit, a drag on the sheet, a pivot preset) stays its own undo step.
-- [x] When focus moves straight from one field to another, by Tab or by a click, in either direction, each
-  changed field gets its own undo step, and no edit is lost.
-- [x] A click on a field's - or + button that changes the value adds one undo step.
-- [x] W and H are still at least 1.
+- [ ] The Tools menu item reads "Grid Cells...".
+- [ ] The dialog it opens has the title "Grid Cells" (now "Grid Tool").
 
 **Out of scope:**
-- The Clips window and `TrackClipEdit`/`CommitClipEdit`. They do not change.
-- Other ways to edit cells: drag and resize on the sheet, the pivot drag in Selected Cell, the pivot presets and
-  Edit > Pivot.
-- The form's layout.
+- Code names (`DrawGridTool`, `GridToolState`, `m_gridTool`) and the popup's `##` ID part.
+- The tool's behaviour and layout.
 
 **Open questions:**
-- Q: A separate helper for frames, or one shared with the Clips window? A: A separate frame helper. The Clips code
-  does not change.
+- Q: Does the dialog title change too? A: Yes, the menu item and the dialog title. Code names stay.
 
 **Notes:**
-- `PendingFrameEdit { id, snapshot, edited }` replaces `m_pendingFrameSnapshot`, and `ClearSpriteActions` resets
-  it. The Clips code is unchanged.
-- Difference from `TrackClipEdit`: `TrackFrameEdit` returns true when the edit ended, and the form calls
-  `CommitFrameEdit` itself after it applies the field's value to the cell. A click on - or + changes the value on
-  the mouse release, in the same frame that the button stops being active (checked in ImGui 1.90.4
-  `ButtonBehavior`). If the edit were committed before the value is applied, that change would be missing from the
-  undo step. For the same reason, each field now applies its value right after it is drawn, not after the table.
-- An InputInt is a group. `EndGroup` gives the group the id of the part that is active, or was active last frame.
-  When focus moves from a field's text box to its own - or + button, the group reports the start and the end in
-  one frame, with the button's id. `TrackFrameEdit` checks the end (by id) before the start, so the text edit is
-  committed and the button's new edit is kept.
-- W and H are clamped to at least 1 before the value is applied, as before.
-- Known limit, also true of the Clips window: if the form is not drawn in the frame when a field's edit ends (for
-  example, the list's x deletes the last cell while a field is active), the pending edit is committed at the next
-  field activation, not at once. Recorded under `## Discovered`.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
-- 544201c fix(T-015): one undo step per Cells form field edit
 
 **Manual verification:**
-1. Import a sheet and add two cells. Select one. In the Cells form, click in X, type a new value, and press Enter
-   or click elsewhere. Edit > Undo reverts only X. Redo restores it.
-2. Click in Y and click out without changing it. Drag the cell on the sheet. Edit > Undo reverts only the drag,
-   and a second Undo does not revert anything that Y did (Y did nothing).
-3. Click in W, change it, press Tab to move to H, change H, and click outside. Undo reverts H only. Undo again
-   reverts W only.
-4. Click in Pivot Y, change it, then click straight into X (an earlier field) and change X. Click outside. Undo
-   reverts X only, and Undo again reverts Pivot Y only. Nothing is lost.
-5. Click in H, change it, then click straight on H's + button once. Undo reverts the + click only. Undo again
-   reverts the typed change.
-6. Click X's + button once. One undo step reverts it. Hold the - button until it repeats, then release. One undo
-   step reverts the whole hold.
-7. Set W to 0 or a negative number. It becomes 1.
-8. Focus a field without changing it, then use a pivot preset button. Undo reverts only the preset.
 
-### [done] T-016 Failed Load or Save As keeps the project path
+### [todo] T-021 Rename Tools > Detect Frames to Detect Cells
 
-**Review:** reviewed 2026-09-15
+**Review:** reviewed 2026-09-16
 
 **Depends on:** none
 
 **Goal:**
-Found in T-013. The Load menu item copies the chosen path into `m_pathBuffer` before `LoadSpriteSheet` runs. If
-the load fails, the previous project stays open, but the window title shows the file that failed to load, and
-File > Save writes the open project to that file. File > Open Recent has the same problem.
-
-File > Save As has the same problem: it sets the path before it writes the file, so a failed write changes the
-title and the file that later saves write to.
+Rename Tools > Detect Frames to "Detect Cells".
 
 **Requirements:**
-- [x] When File > Load fails, the previous project stays open with its path. The window title and File > Save
-  still use the previous project's file, or Untitled, where Save opens Save As.
-- [x] The same is true when File > Open Recent fails for a file that exists.
-- [x] When File > Save As fails to write the file, the project path does not change. The title and File > Save
-  still use the previous file. The unsaved changes prompt still stays open when the save fails.
-- [x] A successful Load, Open Recent or Save As works as now: it sets the path, updates the title and adds the
-  file to Open Recent.
-- [x] A failed Load or Open Recent does not add the file to Open Recent.
-- [x] An Open Recent entry whose file exists but fails to load stays in the list. An entry whose file no longer
-  exists is still removed.
-- [x] The Load and Save As dialogs still remember the chosen folder in `LastProjectDir`, even when the load or
-  the save fails.
-- [x] A failed load or save is still reported only by its existing log line.
+- [ ] The Tools menu item reads "Detect Cells...".
+- [ ] The dialog it opens has the title "Detect Cells" (now "Detect Frames").
 
 **Out of scope:**
-- Error popups or any other new UI.
-- How projects are loaded and saved, and the project file format.
-- Import Sheet and Export Sheet.
+- Code names (`DrawDetectFramesTool`, `DetectToolState`, `frame_detection.*`) and the popup's `##` ID part.
+- The tool's behaviour and layout.
 
 **Open questions:**
-- Q: Should Save As be fixed in this task too? A: Yes.
-- Q: What does the user see when a load fails? A: Only the existing log line, as now.
-- Q: What happens to an Open Recent entry whose file exists but fails to load? A: It stays in the list.
+- Q: Does the dialog title change too? A: Yes, the menu item and the dialog title. Code names stay.
 
 **Notes:**
-- `LoadSpriteSheet(path)` now sets `m_pathBuffer` itself, after the sheet has loaded. `LoadWithDialog` and
-  `OpenRecentProject` no longer copy the path into `m_pathBuffer` first.
-- `SaveSpriteSheet` now takes the path to write (`SaveSpriteSheet(path)`), and sets `m_pathBuffer` only after the
-  file is written, before `AddRecentProject` and `MarkSaved`. File > Save and `SaveProject` pass `m_pathBuffer`.
-  `SaveProjectAs` passes the chosen path.
-- `LastProjectDir` is still set from the chosen file before the load or the save, so it is kept on failure.
-- A failed load or Open Recent never reached `AddRecentProject`, and an Open Recent entry is still removed only when
-  its file does not exist. Those lines did not need a change.
-- No log lines were added or changed. How projects are loaded and saved, the file format, and Import and Export
-  Sheet did not change.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
-- 814f4e3 fix(T-016): failed Load, Open Recent or Save As keeps the project path
 
 **Manual verification:**
-1. Make a file `broken.json` that is not a valid project (for example, containing `{`). Load a valid project `a.json`.
-   The title shows `a.json`.
-2. File > Load and choose `broken.json`. The log shows the existing "Failed to load sprite sheet" error. The title
-   still shows `a.json`, `a.json`'s cells are still shown, and Open Recent does not list `broken.json`. Make a
-   change and use File > Save. `a.json` is written, and `broken.json` is unchanged.
-3. File > New, then File > Load `broken.json`. The title stays `Untitled`, and File > Save is disabled (Save As must
-   be used).
-4. Open Recent: make a valid project `b.json`, load it so it is in Open Recent, then load `a.json`. Replace the
-   contents of `b.json` with `{`. Choose `b.json` in Open Recent. The title still shows `a.json`, and `b.json` stays
-   in the Open Recent list. Delete `b.json` and choose it again. It is removed from the list, as before.
-5. Save As failure: with `a.json` open, make a read-only folder (`chmod a-w`). Use File > Save As and choose a file
-   in it. The log shows the existing "failed to open ... for writing" error. The title still shows `a.json`, and
-   File > Save writes `a.json`. The next Save As dialog opens in the read-only folder.
-6. With unsaved changes and an Untitled project, choose File > New, click Save in the prompt, and choose a file in
-   the read-only folder. The prompt stays open, and the title still shows `Untitled *`.
-7. A successful Load, Open Recent and Save As still set the title and add the file to the top of Open Recent.
+
+### [todo] T-022 Move Preferences under Edit
+
+**Review:** reviewed 2026-09-16
+
+**Depends on:** none
+
+**Goal:**
+Move the "Preferences" menu to under "Edit" so it becomes Edit > Preferences.
+
+**Requirements:**
+- [ ] Edit > Preferences is a submenu at the end of the Edit menu, after a separator below Pivot.
+- [ ] The submenu has the same controls, in the same order, as the Preferences menu has now: the three border
+  colors, the border thickness and the preview background color.
+- [ ] The top-level Preferences menu is removed. The menu bar is File, Edit, Tools, Window.
+- [ ] The settings and `moth_sprite.json` do not change.
+
+**Out of scope:**
+- A Preferences window or dialog.
+- New settings, or changes to how the settings work or are saved.
+
+**Open questions:**
+- Q: A submenu with the controls, or an item that opens a window? A: A submenu at the end of Edit.
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
+### [todo] T-019 Browse button on the sprite sheet path
+
+**Review:** reviewed 2026-09-16
+
+**Depends on:** none
+
+**Goal:**
+Add a button to the sprite sheet path entry so that the user can load a different sprite sheet image.
+
+**Requirements:**
+- [ ] The Sheet window's Image row has a "..." button to the right of the read-only path field. The path field
+  still fills the rest of the row.
+- [ ] The button does the same as File > Import Sheet: an image dialog with the same filter, starting in
+  `LastImageDir` (or the current folder), and remembering the chosen folder. The chosen image replaces the sheet
+  image, and the cells and clips are kept.
+- [ ] The result is the same as Import Sheet in every other way: the project is marked as having unsaved changes,
+  the undo stack is cleared, the selection and clip playback are reset, and the zoom fits the new image.
+- [ ] The button and the menu item share one code path, so they cannot differ.
+- [ ] Cancelling the dialog, or choosing an image that fails to load, changes nothing (as Import Sheet).
+
+**Out of scope:**
+- Making Import Sheet undoable. It stays outside the undo stack, as now.
+- An Image row when no sheet image is loaded. The Sheet window still shows its "Use File > Import Sheet" hint.
+- Export Sheet, and the project file format.
+
+**Open questions:**
+- Q: What happens to the existing cells and clips when a different image is loaded? A: They are kept, as Import
+  Sheet does.
+- Q: Does the button open a file dialog, and where does it start? A: It does exactly what File > Import Sheet
+  does, including the dialog folder.
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
+### [todo] T-017 New clip and +step use all selected cells
+
+**Review:** reviewed 2026-09-16
+
+**Depends on:** none
+
+**Goal:**
+When creating a new clip, or pressing the +step button, with multiple cells selected (more than 1), all the
+selected cells get inserted to the new clip. With only one cell selected, the new clip button still creates an
+empty clip and the +step button still adds the single selected cell.
+
+**Requirements:**
+- [ ] With more than one cell selected, "+ Clip" creates a clip with one step for each selected cell.
+- [ ] With more than one cell selected, "+ Step" adds one step for each selected cell at the end of that clip's
+  timeline.
+- [ ] Steps are added in selection order: the order in which the cells were added to the selection
+  (`m_selection`), so the prime cell's step is last.
+- [ ] With zero or one cell selected, "+ Clip" still creates an empty clip.
+- [ ] With one cell selected, "+ Step" still adds one step for that cell. With no cell selected it still adds a
+  step for cell 0, as now.
+- [ ] Each step added by "+ Step" gets the duration in that clip's Set all box (the value it shows, 100 until it
+  is changed), for one cell and for several. This replaces "the last step's duration, or 100".
+- [ ] Each step of a new clip gets 100 ms, the Set all box's starting value.
+- [ ] "+ Clip" with an empty name creates the clip with the name `clip_N`, where N is the lowest number from 1 up
+  that no other clip uses as `clip_N`. This is true with any selection. A typed name is used as now.
+- [ ] Each "+ Clip" or "+ Step" click is one undo step, however many steps it adds.
+- [ ] A new clip is selected, as now.
+
+**Out of scope:**
+- The Set all button and box, other than reading the box's value.
+- How the selection is made or ordered.
+- Unique names for typed clip names. Only auto-names avoid clashes.
+- The project file format.
+
+**Open questions:**
+- Q: In what order are the steps added when several cells are selected? A: Selection order.
+- Q: What duration does each added step get? A: The value in the clip's Set all box. A new clip has no box yet,
+  so its steps get 100, the box's starting value. A single-cell "+ Step" also uses the box.
+- Q: "+ Clip" needs a typed name. What happens with no name? A: The clip is auto-named `clip_N`, with any
+  selection.
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
+### [todo] T-018 Cell list with thumbnails
+
+**Review:** reviewed 2026-09-16
+
+**Depends on:** none
+
+**Goal:**
+The cell list should change from a text only list to a list with thumbnails of each cell on the left, and on the
+right a listing of the cell index, cell offset and cell size. Keep the x button for deletion.
+
+**Requirements:**
+- [ ] Each row of the Cells list has a 48 x 48 px thumbnail box on the left.
+- [ ] The box shows the preview background (`DrawImageBackground`, with 8 px checker squares) and the cell's image,
+  scaled to fit the box, keeping its aspect ratio, and centered. Parts of a cell outside the sheet image are
+  clamped, as in the Clips thumbnails. With no sheet image, the box shows only the background.
+- [ ] To the right of the box are two lines: line 1 is the index, as `#3`; line 2 is the offset and size, as
+  `(x, y)  w x h`.
+- [ ] The x button that deletes the cell stays at the right end of the row.
+- [ ] Clicking anywhere on the row (box or text) selects as now: click, Ctrl+click, Shift+click, and picking a cell
+  for a clip step. The selected and prime highlights cover the whole row.
+- [ ] The Cells form below the list still fits, and the list still scrolls.
+
+**Out of scope:**
+- The Cells form, the selection rules and the delete behaviour.
+- Thumbnails anywhere else.
+
+**Open questions:**
+- Q: How large is the thumbnail, and what happens to cells that are not square? A: A 48 px box; the cell is fitted
+  inside, keeping its aspect ratio.
+- Q: How are the index, offset and size laid out and labelled in the row? A: Two lines: `#3`, then
+  `(x, y)  w x h`.
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
+### [todo] T-023 Help menu with About dialog
+
+**Review:** reviewed 2026-09-16
+
+**Depends on:** T-022
+
+**Goal:**
+Add a "Help" menu with one option "About" for now. It should open a small dialog with the tool name, its version,
+a short description of what it is for, and the author (eventually the GitHub repo too when we have a remote).
+
+**Requirements:**
+- [ ] The menu bar has a Help menu, last: File, Edit, Tools, Window, Help.
+- [ ] The Help menu has one item, "About...".
+- [ ] About opens a modal "About Moth Sprite" dialog, centered, sized to its content, with a Close button. Esc also
+  closes it.
+- [ ] The dialog shows: "Moth Sprite"; "Version 0.1.0", from `version.txt`; the description from the CMake
+  `project(... DESCRIPTION ...)`; "Author: Matthew Cotton"; and `https://github.com/instinkt900/moth_sprite` as
+  text.
+- [ ] The version and the description come from CMake at build time (for example, compile definitions from
+  `MOTH_SPRITE_VERSION_FULL` and `PROJECT_DESCRIPTION`), so changing `version.txt` changes the dialog. They are
+  not typed into the source.
+- [ ] Keyboard shortcuts do not fire while the dialog is open, as with the other modal popups.
+
+**Out of scope:**
+- A clickable link, or opening a browser.
+- Other Help items (documentation, shortcuts list).
+- Changes to how the version is set in `version.txt` or `conanfile.py`.
+
+**Open questions:**
+- Q: Where does the version come from, and what is it for the first release? A: `version.txt`, now 0.1.0, passed
+  in by CMake.
+- Q: What text is used for the description and the author? A: The CMake project description; "Matthew Cotton".
+- Q: Is the GitHub repo link part of this task? A: Yes. The remote exists: `github.com/instinkt900/moth_sprite`.
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
+### [todo] T-024 Add a README.md
+
+**Review:** reviewed 2026-09-16
+
+**Depends on:** T-017, T-018, T-019, T-020, T-021, T-022, T-023
+
+**Goal:**
+Add a `README.md`.
+
+**Requirements:**
+- [ ] The repository root has a `README.md`, for users of the tool, in the style of moth_packer's README
+  (`~/Development/moth/moth_packer/README.md`), with a table of contents.
+- [ ] It covers: what the tool is and what it is for (a sprite sheet and clip editor whose projects moth_graphics
+  loads as a `SpriteSheet`); features; usage: the windows (Sheet, Selected Cell, Cells, Clips), making cells
+  (New Cell, Tools > Grid Cells, Tools > Detect Cells), selection, pivots, clips and playback, undo, and the
+  keyboard shortcuts; the project file format (`image`, `frames`, `clips`, as in `CLAUDE.md`); editor settings
+  (`moth_sprite.json` and `imgui.ini` in the current folder); building with Conan and CMake; related moth
+  projects; and the license (MIT, as in `conanfile.py`).
+- [ ] Everything it says matches the app at the commit that adds it: menu names, window names, shortcuts and
+  file fields. Check each against the source.
+- [ ] No screenshots and no badges for CI that does not exist.
+
+**Out of scope:**
+- A `LICENSE` file, CI, and changes to `CLAUDE.md` or `docs/`.
+- Developer workflow docs beyond a pointer to `docs/workflow.md`.
+
+**Open questions:**
+- Q: What does the README cover? A: What the tool is, features, usage, project file format, building, related
+  projects, license. No screenshots.
+- Q: Who is it for? A: Users of the tool, with build steps.
+
+**Notes:**
+- Depends on the UI tasks so that it describes the final menus and windows.
+
+**Commits:**
+
+**Manual verification:**
+
+### [deferred] T-025 Import cells from off-sheet images
+
+**Review:** unreviewed
+
+**Depends on:** none
+
+**Goal:**
+Add support for importing cells from off-sheet images. The cell list window should get a new "import" button so
+the user can import an image to use as a new cell.
+
+**Requirements:**
+- [ ] The cell list window has an "import" button.
+- [ ] The button lets the user choose an image that is not the sprite sheet, and adds it as a new cell.
+
+**Open questions:**
+- Q: Where do the imported pixels live: composited into the sheet image, or kept as a separate image?
+- Q: How is such a cell saved in the project file, which stores cells as a rectangle in the sheet image?
+- Q: Can moth_graphics load a sprite sheet whose cells come from more than one image?
+- Q: Where is the imported cell placed in the sheet, and what happens if there is no room?
+
+**Notes:**
+- Deferred on 2026-09-16 by `/task-planning`, to finish the smaller tasks first. The open questions above are
+  still open.
+- moth_graphics (`SpriteSheetFactory`) reads one `image` and each frame as a rectangle in it. A cell from another
+  image needs a new project file field that moth_graphics would ignore, so such a cell would draw the wrong pixels
+  in game until the sheet is re-packed (T-026, T-027). Decide the file format before this task is reviewed.
+
+**Commits:**
+
+**Manual verification:**
+
+### [deferred] T-026 Re-pack the sprite sheet
+
+**Review:** unreviewed
+
+**Depends on:** T-025
+
+**Goal:**
+Add support for re-packing the sprite sheet (sheet cells and external cells). This will mirror features from
+moth_packer (`~/Development/moth/moth_packer`) and can probably use its library. A dialog should pop up allowing
+the user to specify the packing parameters with a preview.
+
+**Requirements:**
+- [ ] The sprite sheet can be re-packed, covering both sheet cells and external cells imported by T-025.
+- [ ] A dialog lets the user specify the packing parameters.
+- [ ] The dialog shows a preview of the packing result.
+
+**Open questions:**
+- Q: Which moth_packer features are mirrored, and which packing parameters does the dialog expose?
+- Q: Is moth_packer's library available as a Conan package or another dependency this project can use?
+- Q: Where does the re-packed image get written, and what happens to the original sheet image?
+- Q: How is the re-pack undone: one undo step for the whole operation?
+
+**Notes:**
+- Deferred on 2026-09-16 by `/task-planning`, to finish the smaller tasks first. The open questions above are
+  still open.
+- The packer library is now part of the moth toolkit, and links like the other modules. moth_editor uses it:
+  `self.requires("moth_packer/[>=2 <3]")` in `conanfile.py`, and `find_package(moth_packer REQUIRED)` with
+  `target_link_libraries(... moth::packer)` in `CMakeLists.txt`. moth_editor also sets
+  `self.options["moth_packer"].with_ui = True`, which re-packing sheet cells probably does not need. The local
+  `~/Development/moth/moth_packer` checkout (1.0.0, moth_ui 1.x) is out of date. Read the 2.x API, not that one.
+- Adding the dependency is a change to `conanfile.py` and `CMakeLists.txt`, and needs a new `conan install`. When
+  this task is reviewed, write the dependency into `Requirements`, so that a session does not block on it.
+
+**Commits:**
+
+**Manual verification:**
+
+### [deferred] T-027 Notice when saving a project with external cells
+
+**Review:** unreviewed
+
+**Depends on:** T-025
+
+**Goal:**
+When saving a project with external cells, pop up a notice dialog that notifies the user that external cells are
+only supported by the tool and will not work in game until the sheet is repacked.
+
+**Requirements:**
+- [ ] Saving a project that has external cells (from T-025) opens a notice dialog.
+- [ ] The notice says that external cells are only supported by the tool and will not work in game until the sheet
+  is repacked.
+- [ ] Saving a project with no external cells does not show the notice.
+
+**Open questions:**
+- Q: Does the notice appear before or after the file is written, and can the user cancel the save from it?
+- Q: Does it appear on every save, or is there a way to stop it showing again?
+
+**Notes:**
+- Deferred on 2026-09-16 by `/task-planning`, to finish the smaller tasks first. The open questions above are
+  still open.
+- Depends on the external cells design in T-025.
+
+**Commits:**
+
+**Manual verification:**
 
 ## Discovered
 
