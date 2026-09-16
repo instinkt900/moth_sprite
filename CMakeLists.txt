@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.27)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/version.txt" MOTH_SPRITE_VERSION_FULL)
 string(STRIP "${MOTH_SPRITE_VERSION_FULL}" MOTH_SPRITE_VERSION_FULL)
 string(REGEX REPLACE "[-+].*$" "" MOTH_SPRITE_VERSION "${MOTH_SPRITE_VERSION_FULL}")
+# Configure again when the version changes, so Help > About shows the new version.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/version.txt")
 
 project(moth_sprite VERSION ${MOTH_SPRITE_VERSION} DESCRIPTION "A sprite sheet and animation clip editor for moth")
 
@@ -37,6 +39,10 @@ target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE external/stb)
 target_link_libraries(${PROJECT_NAME} moth::bridge)
 target_link_libraries(${PROJECT_NAME} nativefiledialog)
 target_precompile_headers(${PROJECT_NAME} PRIVATE src/common.h)
+# Shown in Help > About.
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+	MOTH_SPRITE_VERSION_STRING="${MOTH_SPRITE_VERSION_FULL}"
+	MOTH_SPRITE_DESCRIPTION="${PROJECT_DESCRIPTION}")
 
 if(MSVC)
 	set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/ignore:4099")

@@ -16,6 +16,7 @@ namespace {
     char const* const kDockSpaceHostWindow = "##dock_space_host";
     char const* const kDockSpaceId = "##dock_space";
     char const* const kUnsavedPromptId = "Unsaved Changes##unsaved_prompt";
+    char const* const kAboutDialogId = "About Moth Sprite##about";
     // The checkerboard that shows transparency behind preview images.
     constexpr ImU32 kCheckerGray = IM_COL32(192, 192, 192, 255);
     constexpr ImU32 kCheckerWhite = IM_COL32(255, 255, 255, 255);
@@ -356,6 +357,12 @@ void SpriteEditor::DrawMainMenuBar() {
         }
         ImGui::EndMenu();
     }
+    if (ImGui::BeginMenu("Help")) {
+        if (ImGui::MenuItem("About...")) {
+            m_openAboutDialog = true;
+        }
+        ImGui::EndMenu();
+    }
     ImGui::EndMainMenuBar();
 }
 
@@ -490,6 +497,35 @@ void SpriteEditor::DrawUnsavedChangesPrompt() {
     }
 }
 
+void SpriteEditor::DrawAboutDialog() {
+    if (m_openAboutDialog) {
+        m_openAboutDialog = false;
+        ImGui::OpenPopup(kAboutDialogId);
+    }
+    ImGuiViewport const* const viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2{ 0.5f, 0.5f });
+    if (!ImGui::BeginPopupModal(kAboutDialogId, nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+        return;
+    }
+
+    // The version and the description come from CMakeLists.txt, which reads the version from version.txt.
+    ImGui::TextUnformatted("Moth Sprite");
+    ImGui::Text("Version %s", MOTH_SPRITE_VERSION_STRING);
+    ImGui::Spacing();
+    ImGui::TextUnformatted(MOTH_SPRITE_DESCRIPTION);
+    ImGui::Spacing();
+    ImGui::TextUnformatted("Author: Matthew Cotton");
+    ImGui::TextUnformatted("https://github.com/instinkt900/moth_sprite");
+    ImGui::Spacing();
+
+    constexpr float kButtonW = 110.0f;
+    if (ImGui::Button("Close", ImVec2{ kButtonW, 0.0f }) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+}
+
 void SpriteEditor::DrawDockSpace() {
     // A borderless host window covers the work area (the viewport minus the main menu bar).
     ImGuiViewport const* const viewport = ImGui::GetMainViewport();
@@ -565,4 +601,5 @@ void SpriteEditor::Draw() {
 
     // Asks about unsaved changes before New, Load, Open Recent and quitting.
     DrawUnsavedChangesPrompt();
+    DrawAboutDialog();
 }

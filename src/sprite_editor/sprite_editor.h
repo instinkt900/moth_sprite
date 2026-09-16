@@ -80,6 +80,8 @@ private:
     void RunProjectAction(ProjectAction const& action);
     // The unsaved changes prompt (Save, Don't Save, Cancel) for the pending project action.
     void DrawUnsavedChangesPrompt();
+    // Help > About: the tool's name, version, description, author and repository.
+    void DrawAboutDialog();
     // File > Load: choose a project file in a dialog, then load it.
     void LoadWithDialog();
     // Save to the project path, or choose a path first when there is none. Returns true when the file was written.
@@ -197,6 +199,7 @@ private:
     std::optional<ProjectAction> m_pendingProjectAction; // the action waiting for the user's answer
     bool m_openUnsavedPrompt = false;                    // open the prompt on the next draw
     bool m_quitApproved = false;                         // the user answered for a quit; let the next request through
+    bool m_openAboutDialog = false;                      // set by Help > About; opened outside the menu's ID scope
 
     // A Cells form input being edited. id is the widget's ImGuiID, so that focus moving straight from one field to
     // another commits the first edit before the second snapshot is taken.
