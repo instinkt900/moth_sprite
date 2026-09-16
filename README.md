@@ -36,7 +36,7 @@ JSON project that moth_graphics loads as a `SpriteSheet`.
 - A pivot editor with a zoomable preview of the selected cell.
 - Animation clips as timelines of steps, each with a cell and a duration, with Stop, Reset and Loop playback.
 - A clip preview that keeps every step on its pivot, so the animation plays in place.
-- Undo and redo for every change to cells, pivots and clips.
+- Undo and redo for every change to cells, pivots, clips and the sheet image.
 - A checkerboard or a chosen color behind every preview, to show transparency.
 - Recent projects, an unsaved changes prompt, and a dockable window layout.
 
@@ -150,8 +150,8 @@ step's cell as it plays. The Selected Cell window places each step's cell on its
 ### Undo
 
 **Edit > Undo** (Ctrl+Z) and **Edit > Redo** (Ctrl+Y) cover every change to cells, pivots, clips and steps, and
-**Export Sheet**. Typing in a field, or a drag, is one undo step. **Import Sheet** cannot be undone, and clears the
-undo history.
+**Import Sheet** and **Export Sheet**. Typing in a field, or a drag, is one undo step. New, Load and Open Recent clear
+the undo history.
 
 ### Keyboard shortcuts
 

@@ -60,8 +60,7 @@ private:
     // Load a project chosen from Open Recent. A project file that no longer exists is removed from the list instead.
     // Takes a copy, because it changes the list the path comes from.
     void OpenRecentProject(std::string path);
-    // Unsaved changes. The project differs from its last save when the undo position is not the one it had then,
-    // or after a change that is not on the undo stack (Import Sheet).
+    // Unsaved changes. The project differs from its last save when the undo position is not the one it had then.
     bool HasUnsavedChanges() const;
     void MarkSaved();
     uint64_t CurrentUndoId() const;
@@ -88,6 +87,7 @@ private:
     bool SaveProject();
     // File > Save As: choose a path in a dialog, then save. Returns true when the file was written.
     bool SaveProjectAs();
+    // Replace the sheet image, keeping the cells and clips, as one undoable action.
     void ImportSheet(std::filesystem::path const& imagePath);
     // File > Import Sheet and the Sheet window's "..." button: choose an image in a dialog, then import it.
     void ImportSheetWithDialog();
@@ -193,7 +193,6 @@ private:
     std::vector<uint64_t> m_undoIds;  // an id for each m_undoStack entry; ids are never reused
     uint64_t m_nextUndoId = 1;
     uint64_t m_savedUndoId = 0;        // CurrentUndoId() when the project was last saved, loaded or created
-    bool m_unsavedOutsideUndo = false; // a change that is not on the undo stack, such as Import Sheet
 
     // Unsaved changes prompt
     std::optional<ProjectAction> m_pendingProjectAction; // the action waiting for the user's answer

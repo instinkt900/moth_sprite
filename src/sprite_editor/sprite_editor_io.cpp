@@ -115,20 +115,24 @@ void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
     }
     moth::gfx::Image image{ texture };
 
-    ClearSpriteActions();
-    // Import Sheet is not on the undo stack, so it marks the project as changed directly.
-    m_unsavedOutsideUndo = true;
+    // Replacing the sheet image is one undoable action. Each side of it keeps its sheet, and so its texture, alive.
+    auto const setSheet = [this](std::shared_ptr<moth::gfx::SpriteSheet> const& sheet, std::string const& path) {
+        m_spriteSheet = sheet;
+        strncpy(m_imagePathBuffer, path.c_str(), sizeof(m_imagePathBuffer) - 1);
+        m_imagePathBuffer[sizeof(m_imagePathBuffer) - 1] = '\0';
+        m_zoom = -1.0f; // re-fit to the image dimensions
+        m_cellZoom = -1.0f;
+    };
+    std::shared_ptr<moth::gfx::SpriteSheet> const previousSheet = m_spriteSheet;
+    std::string const previousPath = m_imagePathBuffer;
+    auto const importedSheet = std::make_shared<moth::gfx::SpriteSheet>(std::move(image), m_frames, m_clips);
+    std::string const importedPath = imagePath.string();
+    setSheet(importedSheet, importedPath);
+    AddSpriteAction(std::make_unique<BasicAction>(
+        [setSheet, importedSheet, importedPath]() { setSheet(importedSheet, importedPath); },
+        [setSheet, previousSheet, previousPath]() { setSheet(previousSheet, previousPath); }
+    ));
 
-    auto imageStr = imagePath.string();
-    strncpy(m_imagePathBuffer, imageStr.c_str(), sizeof(m_imagePathBuffer) - 1);
-    m_imagePathBuffer[sizeof(m_imagePathBuffer) - 1] = '\0';
-
-    m_spriteSheet = std::make_shared<moth::gfx::SpriteSheet>(
-        std::move(image),
-        m_frames,
-        m_clips);
-    m_zoom = -1.0f;    // re-fit to new image dimensions
-    m_cellZoom = -1.0f;
     m_selection.clear();
     m_selectedClip  = -1;
     m_clipPlaying   = false;

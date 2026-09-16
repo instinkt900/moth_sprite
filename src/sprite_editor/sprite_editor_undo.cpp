@@ -51,12 +51,11 @@ uint64_t SpriteEditor::CurrentUndoId() const {
 bool SpriteEditor::HasUnsavedChanges() const {
     // Undoing or redoing back to the saved position counts as saved. A new action after undoing past it never
     // matches again, because ids are never reused.
-    return m_unsavedOutsideUndo || CurrentUndoId() != m_savedUndoId;
+    return CurrentUndoId() != m_savedUndoId;
 }
 
 void SpriteEditor::MarkSaved() {
     m_savedUndoId = CurrentUndoId();
-    m_unsavedOutsideUndo = false;
 }
 
 void SpriteEditor::PushFrameAction(FrameVec before, Selection selBefore, Selection selAfter) {
