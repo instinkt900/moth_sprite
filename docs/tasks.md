@@ -359,7 +359,7 @@ a short description of what it is for, and the author (eventually the GitHub rep
 4. With the dialog open, press Ctrl+N, Ctrl+Z and Delete. Nothing happens.
 5. Optional: change `version.txt` to `0.1.1`, build, and open About. It shows 0.1.1. Change it back.
 
-### [todo] T-024 Add a README.md
+### [done] T-024 Add a README.md
 
 **Review:** reviewed 2026-09-16
 
@@ -369,17 +369,17 @@ a short description of what it is for, and the author (eventually the GitHub rep
 Add a `README.md`.
 
 **Requirements:**
-- [ ] The repository root has a `README.md`, for users of the tool, in the style of moth_packer's README
+- [x] The repository root has a `README.md`, for users of the tool, in the style of moth_packer's README
   (`~/Development/moth/moth_packer/README.md`), with a table of contents.
-- [ ] It covers: what the tool is and what it is for (a sprite sheet and clip editor whose projects moth_graphics
+- [x] It covers: what the tool is and what it is for (a sprite sheet and clip editor whose projects moth_graphics
   loads as a `SpriteSheet`); features; usage: the windows (Sheet, Selected Cell, Cells, Clips), making cells
   (New Cell, Tools > Grid Cells, Tools > Detect Cells), selection, pivots, clips and playback, undo, and the
   keyboard shortcuts; the project file format (`image`, `frames`, `clips`, as in `CLAUDE.md`); editor settings
   (`moth_sprite.json` and `imgui.ini` in the current folder); building with Conan and CMake; related moth
   projects; and the license (MIT, as in `conanfile.py`).
-- [ ] Everything it says matches the app at the commit that adds it: menu names, window names, shortcuts and
+- [x] Everything it says matches the app at the commit that adds it: menu names, window names, shortcuts and
   file fields. Check each against the source.
-- [ ] No screenshots and no badges for CI that does not exist.
+- [x] No screenshots and no badges for CI that does not exist.
 
 **Out of scope:**
 - A `LICENSE` file, CI, and changes to `CLAUDE.md` or `docs/`.
@@ -391,11 +391,29 @@ Add a `README.md`.
 - Q: Who is it for? A: Users of the tool, with build steps.
 
 **Notes:**
-- Depends on the UI tasks so that it describes the final menus and windows.
+- Each statement was checked against the source at this commit: menu items, window names, toolbar buttons, the Grid
+  Cells and Detect Cells options and their "Add Frames" button, the selection rules in `sprite_editor_preview.cpp`
+  and `sprite_editor_frames.cpp`, the clip controls, `HandleShortcuts`, `SpriteEditorConfig`, `SaveSpriteSheet` and
+  moth_graphics' `SpriteSheetFactory` (for what a game loads).
+- Assumption: the Conan remote is given as in moth_packer's README
+  (`https://artifactory.matthewcotton.net/artifactory/api/conan/conan-local`, named `moth`). The local Conan setup
+  names this remote `artifactory` and uses `http://`.
+- Assumption: the related projects table links moth_ui, moth_graphics, moth_editor and moth_packer on GitHub, as
+  moth_packer's README does. moth_core and moth_bridge are named in the prerequisites without links, because their
+  URLs were not found.
+- The license is given as MIT, from `conanfile.py`. The repository has no `LICENSE` file (out of scope).
+- The README says that moth_graphics does not load a project with no cells, and skips empty clips and steps with a
+  0 ms duration. The editor allows all three. Recorded under `## Discovered`.
+- No code changed. Build and smoke launch passed.
 
 **Commits:**
+- 0cbdfbb docs(T-024): add README.md
 
 **Manual verification:**
+1. Read `README.md` on GitHub, or in a Markdown viewer. The table of contents links work, and the tables and code
+   blocks render.
+2. Check the Artifactory remote URL and name, and the related project links, against what you publish.
+3. Follow "Build and run" in a fresh clone.
 
 ### [deferred] T-025 Import cells from off-sheet images
 
@@ -502,3 +520,7 @@ Problems noticed during sessions that are outside the current tasks. Candidates 
   the end of the edit. If the widget is not drawn in that frame (the edited cell or clip is deleted by a button in
   the same frame, or the window is closed), the edit stays pending until the next field is activated. Its undo step
   then also covers changes made in between.
+- Found in T-024: the editor can save projects that moth_graphics' `SpriteSheetFactory` does not load as saved. A
+  project with no cells fails to load ("frames array is empty"), in the editor too. A clip with no steps, and a clip
+  with a step whose duration is 0 ms (the duration fields allow 0), are skipped with a warning, so they are lost
+  when the project is loaded again.
