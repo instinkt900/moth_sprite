@@ -12,7 +12,7 @@ Session reports are in [sessions/](sessions/). `/task-planning` moves finished t
 
 ## Tasks
 
-### [todo] T-020 Rename Tools > Grid to Grid Cells
+### [done] T-020 Rename Tools > Grid to Grid Cells
 
 **Review:** reviewed 2026-09-16
 
@@ -22,8 +22,8 @@ Session reports are in [sessions/](sessions/). `/task-planning` moves finished t
 Rename the Tools > Grid option to "Grid Cells".
 
 **Requirements:**
-- [ ] The Tools menu item reads "Grid Cells...".
-- [ ] The dialog it opens has the title "Grid Cells" (now "Grid Tool").
+- [x] The Tools menu item reads "Grid Cells...".
+- [x] The dialog it opens has the title "Grid Cells" (now "Grid Tool").
 
 **Out of scope:**
 - Code names (`DrawGridTool`, `GridToolState`, `m_gridTool`) and the popup's `##` ID part.
@@ -33,10 +33,16 @@ Rename the Tools > Grid option to "Grid Cells".
 - Q: Does the dialog title change too? A: Yes, the menu item and the dialog title. Code names stay.
 
 **Notes:**
+- The popup's visible label changed from "Grid Tool" to "Grid Cells". Its `##tool_grid` part is kept. The popup uses
+  `NoSavedSettings`, so no `imgui.ini` entry depends on the label.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
+- fb6cf59 feat(T-020): rename Tools > Grid to Grid Cells
 
 **Manual verification:**
+1. Import a sheet image. Open the Tools menu. The first item reads "Grid Cells...".
+2. Choose it. The dialog title reads "Grid Cells", and the tool works as before.
 
 ### [todo] T-021 Rename Tools > Detect Frames to Detect Cells
 
