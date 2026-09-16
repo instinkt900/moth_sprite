@@ -115,7 +115,7 @@ Move the "Preferences" menu to under "Edit" so it becomes Edit > Preferences.
    and Preview background. Change the border thickness and a color. The Sheet window uses them.
 4. Quit and start the app again. The changed settings are kept.
 
-### [todo] T-019 Browse button on the sprite sheet path
+### [done] T-019 Browse button on the sprite sheet path
 
 **Review:** reviewed 2026-09-16
 
@@ -125,15 +125,15 @@ Move the "Preferences" menu to under "Edit" so it becomes Edit > Preferences.
 Add a button to the sprite sheet path entry so that the user can load a different sprite sheet image.
 
 **Requirements:**
-- [ ] The Sheet window's Image row has a "..." button to the right of the read-only path field. The path field
+- [x] The Sheet window's Image row has a "..." button to the right of the read-only path field. The path field
   still fills the rest of the row.
-- [ ] The button does the same as File > Import Sheet: an image dialog with the same filter, starting in
+- [x] The button does the same as File > Import Sheet: an image dialog with the same filter, starting in
   `LastImageDir` (or the current folder), and remembering the chosen folder. The chosen image replaces the sheet
   image, and the cells and clips are kept.
-- [ ] The result is the same as Import Sheet in every other way: the project is marked as having unsaved changes,
+- [x] The result is the same as Import Sheet in every other way: the project is marked as having unsaved changes,
   the undo stack is cleared, the selection and clip playback are reset, and the zoom fits the new image.
-- [ ] The button and the menu item share one code path, so they cannot differ.
-- [ ] Cancelling the dialog, or choosing an image that fails to load, changes nothing (as Import Sheet).
+- [x] The button and the menu item share one code path, so they cannot differ.
+- [x] Cancelling the dialog, or choosing an image that fails to load, changes nothing (as Import Sheet).
 
 **Out of scope:**
 - Making Import Sheet undoable. It stays outside the undo stack, as now.
@@ -147,10 +147,27 @@ Add a button to the sprite sheet path entry so that the user can load a differen
   does, including the dialog folder.
 
 **Notes:**
+- The dialog code of File > Import Sheet moved, unchanged, into `ImportSheetWithDialog()`. The menu item and the new
+  "..." button both call it, so they share one code path.
+- The button is to the right of the path field, which now fills the row minus the button's width. It has the
+  tooltip "Import a different sheet image (File > Import Sheet)".
+- After the button runs an import, `DrawPreview` returns for that frame. An import replaces `m_spriteSheet`, and the
+  image reference used by the rest of `DrawPreview` would otherwise point at the old sheet.
+- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
 
 **Commits:**
+- f1744fc feat(T-019): browse button on the Sheet window's image path
 
 **Manual verification:**
+1. Start with no sheet image. The Sheet window shows the "Use File > Import Sheet" hint and no Image row.
+2. Import a sheet with File > Import Sheet, add two cells and a clip with steps. The Sheet window's Image row shows
+   the path, with a "..." button at its right end. Resize the window. The field fills the row up to the button.
+3. Click "...". The image dialog opens in the folder of the last image dialog. Cancel. Nothing changes.
+4. Click "..." and choose a different image. The Sheet shows the new image, fitted to the window. The cells and the
+   clip are kept, the selection is cleared, the title gets " *", and Edit > Undo is disabled.
+5. Click "..." and choose the first image's folder: the dialog starts in the folder chosen in step 4.
+6. Choose a file that is not a valid image (for example, a renamed text file with a .png extension). The log shows
+   "failed to load image", and the sheet does not change.
 
 ### [todo] T-017 New clip and +step use all selected cells
 
