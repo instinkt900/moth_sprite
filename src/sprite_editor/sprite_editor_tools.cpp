@@ -4,7 +4,7 @@
 
 namespace {
     char const* const kGridPopupId   = "Grid Cells##tool_grid";
-    char const* const kDetectPopupId = "Detect Frames##tool_detect";
+    char const* const kDetectPopupId = "Detect Cells##tool_detect";
     // Upper bounds keep the preview, the frame list and the rect math sane.
     constexpr int kMaxGridDim = 1024;
     constexpr int kMaxCellDim = 65536;
