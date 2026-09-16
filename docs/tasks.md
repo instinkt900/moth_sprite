@@ -154,9 +154,16 @@ Add a button to the sprite sheet path entry so that the user can load a differen
 - After the button runs an import, `DrawPreview` returns for that frame. An import replaces `m_spriteSheet`, and the
   image reference used by the rest of `DrawPreview` would otherwise point at the old sheet.
 - Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
+- Changed after the session, at the user's request, in e9b9838. The Requirements above are kept as reviewed, so they
+  still say that Import Sheet clears the undo stack.
+  - Import Sheet, from the menu or the "..." button, is one undoable action. Undo gives back the previous sheet image
+    and path, and Redo the imported one. Both sides keep their sheet (and texture) alive on the undo stack. The undo
+    history is no longer cleared, and `m_unsavedOutsideUndo` is removed, because no change is outside the undo stack
+    now. The import still clears the selection and resets clip playback. Undo and Redo re-fit the zoom.
 
 **Commits:**
 - f1744fc feat(T-019): browse button on the Sheet window's image path
+- e9b9838 feat: Import Sheet is undoable (after the session)
 
 **Manual verification:**
 1. Start with no sheet image. The Sheet window shows the "Use File > Import Sheet" hint and no Image row.
@@ -164,7 +171,9 @@ Add a button to the sprite sheet path entry so that the user can load a differen
    the path, with a "..." button at its right end. Resize the window. The field fills the row up to the button.
 3. Click "...". The image dialog opens in the folder of the last image dialog. Cancel. Nothing changes.
 4. Click "..." and choose a different image. The Sheet shows the new image, fitted to the window. The cells and the
-   clip are kept, the selection is cleared, the title gets " *", and Edit > Undo is disabled.
+   clip are kept, the selection is cleared, and the title gets " *". Edit > Undo gives back the previous image, with
+   the path and the title's " *" as before the import. Edit > Redo shows the imported image again. Do the same with
+   File > Import Sheet. Earlier edits can still be undone after an import.
 5. Click "..." again. The dialog starts in the folder of the image chosen in step 4. Cancel.
 6. Choose a file that is not a valid image (for example, a renamed text file with a .png extension). The log shows
    "failed to load image", and the sheet does not change.
@@ -220,9 +229,14 @@ empty clip and the +step button still adds the single selected cell.
   because a name is no longer needed.
 - Each click still adds one `PushClipAction`. Selection and playback handling did not change.
 - Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
+- Changed after the session, at the user's request, in d9fd5d1. The Requirements above are kept as reviewed, so they
+  still say that "+ Step" always uses the Set all value.
+  - "+ Step" gives each added step the clip's last step's duration. Only a clip with no steps uses its Set all value.
+    A new clip's steps still get 100 ms, the Set all box's starting value.
 
 **Commits:**
 - 8cc8bdd feat(T-017): + Clip and + Step add a step for each selected cell
+- d9fd5d1 feat: + Step uses the last step's duration, or Set all for an empty clip (after the session)
 
 **Manual verification:**
 1. Import a sheet and add at least four cells. With no clip name typed and no cell selected, click "+ Clip". A clip
@@ -231,11 +245,12 @@ empty clip and the +step button still adds the single selected cell.
 3. Select one cell and click "+ Clip". The clip has no steps.
 4. Click cell 3, then Ctrl+click cell 1, then Ctrl+click cell 2. Type `run` and click "+ Clip". The clip `run` has
    three steps, for cells 3, 1, 2 in that order, each 100 ms. Edit > Undo removes the whole clip in one step.
-5. In `run`'s header, set the Set all box to 250 (without clicking Set all). Select cells 0 and 2 (Ctrl+click) and
-   click `run`'s "+ Step". Two steps are added at the end, for cells 0 and 2, each 250 ms. One Undo removes both.
-6. Select only cell 1 and click "+ Step". One step for cell 1, 250 ms.
-7. Clear the selection (Esc) and click "+ Step". One step for cell 0, with the Set all value.
-8. On a clip whose Set all box was never changed, "+ Step" adds a 100 ms step, whatever the last step's duration.
+5. Set `run`'s last step to 150 ms. In its header, set the Set all box to 250 (without clicking Set all). Select
+   cells 0 and 2 (Ctrl+click) and click `run`'s "+ Step". Two steps are added at the end, for cells 0 and 2, each
+   150 ms (the last step's duration). One Undo removes both.
+6. Select only cell 1 and click "+ Step". One step for cell 1, 150 ms.
+7. Clear the selection (Esc) and click "+ Step". One step for cell 0, with the last step's duration.
+8. On `clip_2`, which has no steps, set the Set all box to 300 and click "+ Step". The step gets 300 ms.
 
 ### [done] T-018 Cell list with thumbnails
 
