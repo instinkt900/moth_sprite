@@ -93,7 +93,7 @@ jobs:
       shell: bash
       run: |
         conan remote add artifactory ${{ vars.ARTIFACTORY_URL }} --force
-        conan remote login artifactory ci -p ${{ secrets.ARTIFACTS_TOKEN }}
+        conan remote login artifactory ci -p ${{ secrets.ARTIFACTORY_TOKEN }}
 
     - name: Configure and build
       shell: bash
