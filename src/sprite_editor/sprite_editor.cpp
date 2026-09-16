@@ -323,7 +323,7 @@ void SpriteEditor::DrawMainMenuBar() {
     }
     if (ImGui::BeginMenu("Tools")) {
         bool const hasSheetImage = m_spriteSheet && m_spriteSheet->GetImage();
-        if (ImGui::MenuItem("Grid...", nullptr, false, hasSheetImage)) {
+        if (ImGui::MenuItem("Grid Cells...", nullptr, false, hasSheetImage)) {
             m_openGridTool = true;
         }
         // Detection decodes the image file, so it also needs a known image path.
