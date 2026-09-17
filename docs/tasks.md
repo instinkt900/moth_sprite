@@ -483,9 +483,10 @@ other images is "unpacked": it must be packed (T-030) before it can be exported 
   succeeds, then the export writes the descriptor to the chosen path. Cancelling either dialog cancels the export.
   `ExportProject` chooses the path and `ExportToPath` writes. The requirement still says Export opens the pack dialog
   first; `/task-planning` should reword it.
-- Export of an unpacked project checks the other export problems only after the pack, because a pack can fix some
-  of them (no sheet image). A problem a pack cannot fix, such as a 0 ms step, is reported after the pack has
-  already changed the project and written the image.
+- Export of an unpacked project checked the other export problems only after the pack, so a problem a pack cannot
+  fix, such as a 0 ms step, was reported after the pack had changed the project and written the image. Fixed from
+  PR review: the problems a pack cannot fix (no cells, clip problems) are checked before the path dialog; the sheet
+  image and cell sizes are left to the pack, which refuses without changing the project.
 - The pack dialog refused a path that is the image of any cell, as well as the sheet image. Since 691d6f3 it warns
   that the file will be overwritten instead (see T-030).
 - Cells that share an image file when a project is loaded share one texture. Cells imported separately load their
@@ -588,3 +589,8 @@ Problems noticed during sessions that are outside the current tasks. Candidates 
   the end of the edit. If the widget is not drawn in that frame (the edited cell or clip is deleted by a button in
   the same frame, or the window is closed), the edit stays pending until the next field is activated. Its undo step
   then also covers changes made in between.
+- Found in PR #1 review: on Windows, file paths with characters outside the active code page are not handled. NFD
+  returns UTF-8, but the editor stores paths as `std::string`, builds `std::filesystem::path` from them (read as the
+  code page on Windows), passes `path.string()` to stb (`stb_image` in `LoadImagePixels`, `stb_image_write` in
+  `packed_image_write.c`, neither built with its `*_WINDOWS_UTF8` option), and to `TextureFromFile`. A fix has to
+  cover every path from the dialogs to the file calls, not only the packed image writer.
