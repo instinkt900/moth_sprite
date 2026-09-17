@@ -129,6 +129,10 @@ The pack dialog has:
 | **Min width**, **Min height**, **Max width**, **Max height** | The size limits of the packed image, in powers of two. |
 | **Format** | PNG, BMP, TGA or JPEG (with **JPEG quality**). Changing it changes the path's extension. |
 
+Beside the settings, the dialog previews the packed image that the settings would produce, with its width and
+height. The preview updates when a setting changes, and shows the reason instead when the cells do not fit or an
+image cannot be read. The preview writes no files.
+
 **Pack** writes the image and changes the project as one undo step. Undo restores the previous sheet image, cell
 rectangles and pack settings; the packed file stays on disk. If the cells do not fit into one image of the maximum
 size, or an image cannot be read or written, the dialog shows why and nothing changes. The dialog changes nothing

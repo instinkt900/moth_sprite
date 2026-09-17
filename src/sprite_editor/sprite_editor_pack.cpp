@@ -10,6 +10,8 @@ namespace {
     constexpr float kPackFieldWidth = 360.0f;
     constexpr int kMaxPackPadding = 1024;
     constexpr ImVec4 kPackWarningColor{ 1.0f, 0.45f, 0.35f, 1.0f };
+    constexpr float kPackPreviewSize = 400.0f;
+    constexpr float kPackPreviewCheckerSize = 16.0f;
 
     // The sizes offered for the minimum and maximum width and height.
     constexpr std::array<int, 15> kPackSizes{ 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384 };
@@ -40,6 +42,13 @@ namespace {
             ImGui::EndCombo();
         }
         return changed;
+    }
+
+    // Settings that change the packed pixels. The path, format and JPEG quality only change how the file is written.
+    bool SamePackLayout(PackSettings const& a, PackSettings const& b) {
+        return a.padding == b.padding && a.paddingType == b.paddingType && a.paddingColor == b.paddingColor &&
+               a.minWidth == b.minWidth && a.minHeight == b.minHeight && a.maxWidth == b.maxWidth &&
+               a.maxHeight == b.maxHeight;
     }
 
     // Two paths name the same file: the same file on disk, or the same absolute path when either does not exist.
@@ -86,14 +95,24 @@ void SpriteEditor::DrawPackDialog() {
         strncpy(dialog.pathBuffer, dialog.settings.imagePath.c_str(), sizeof(dialog.pathBuffer) - 1);
         dialog.pathBuffer[sizeof(dialog.pathBuffer) - 1] = '\0';
         dialog.error.clear();
+        dialog.previewSettings.reset();
         ImGui::OpenPopup(kPackPopupId);
     }
     ImGuiViewport const* const viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2{ 0.5f, 0.5f });
     if (!ImGui::BeginPopupModal(kPackPopupId, nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+        // The preview and its source images are held only while the dialog is open. The last frame that drew the
+        // preview has been rendered, so its texture can go.
+        dialog.previewImages.clear();
+        dialog.previewSettings.reset();
+        dialog.previewImage = moth::gfx::Image{};
         return;
     }
     auto& settings = dialog.settings;
+    // Pack the preview before anything is drawn this frame, so a replaced texture is not used by this frame.
+    UpdatePackPreview();
+
+    ImGui::BeginGroup();
 
     // Packed image path, with a browse button.
     ImGui::AlignTextToFramePadding();
@@ -204,6 +223,10 @@ void SpriteEditor::DrawPackDialog() {
         ImGui::PopTextWrapPos();
     }
 
+    ImGui::EndGroup();
+    ImGui::SameLine();
+    DrawPackPreview();
+
     ImGui::Spacing();
     constexpr float kButtonW = 110.0f;
     bool close = false;
@@ -224,6 +247,77 @@ void SpriteEditor::DrawPackDialog() {
         ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
+}
+
+void SpriteEditor::UpdatePackPreview() {
+    auto& dialog = m_packDialog;
+    if (dialog.previewSettings.has_value() && SamePackLayout(*dialog.previewSettings, dialog.settings)) {
+        return;
+    }
+    dialog.previewSettings = dialog.settings;
+    dialog.previewImage = moth::gfx::Image{};
+    dialog.previewWidth = 0;
+    dialog.previewHeight = 0;
+    dialog.previewError.clear();
+    if (m_imagePathBuffer[0] == '\0') {
+        dialog.previewError = "The project has no sheet image.";
+        return;
+    }
+    // The same cells as PackProject.
+    std::vector<PackCell> cells;
+    cells.reserve(m_frames.size());
+    for (auto const& frame : m_frames) {
+        cells.push_back({ m_imagePathBuffer, frame.rect });
+    }
+    std::optional<PackedSheet> const packed = PackCells(cells, dialog.settings, dialog.previewImages, dialog.previewError);
+    if (!packed.has_value()) {
+        return;
+    }
+    std::shared_ptr<moth::gfx::ITexture> texture(
+        m_assetContext.TextureFromPixels(packed->width, packed->height, packed->rgba.data()));
+    if (!texture) {
+        dialog.previewError = "Could not create the preview image.";
+        return;
+    }
+    dialog.previewImage = moth::gfx::Image{ texture };
+    dialog.previewWidth = packed->width;
+    dialog.previewHeight = packed->height;
+}
+
+void SpriteEditor::DrawPackPreview() {
+    auto const& dialog = m_packDialog;
+    ImGui::BeginGroup();
+    if (dialog.previewImage) {
+        ImGui::Text("Packed image: %d x %d", dialog.previewWidth, dialog.previewHeight);
+    } else {
+        ImGui::TextUnformatted("Packed image");
+    }
+    ImVec2 const areaPos = ImGui::GetCursorScreenPos();
+    ImGui::Dummy(ImVec2{ kPackPreviewSize, kPackPreviewSize });
+    if (dialog.previewImage && dialog.previewWidth > 0 && dialog.previewHeight > 0) {
+        // Fit the image in the area, centred.
+        auto const w = static_cast<float>(dialog.previewWidth);
+        auto const h = static_cast<float>(dialog.previewHeight);
+        float const scale = std::min(kPackPreviewSize / w, kPackPreviewSize / h);
+        float const drawW = std::max(std::floor(w * scale), 1.0f);
+        float const drawH = std::max(std::floor(h * scale), 1.0f);
+        ImVec2 const imagePos{ areaPos.x + std::floor((kPackPreviewSize - drawW) * 0.5f),
+                               areaPos.y + std::floor((kPackPreviewSize - drawH) * 0.5f) };
+        DrawImageBackground({ imagePos.x, imagePos.y }, { drawW, drawH }, kPackPreviewCheckerSize);
+        ImVec2 const cursor = ImGui::GetCursorScreenPos();
+        ImGui::SetCursorScreenPos(imagePos);
+        DrawImage(dialog.previewImage, { static_cast<int>(drawW), static_cast<int>(drawH) });
+        ImGui::SetCursorScreenPos(cursor);
+    } else {
+        ImGui::GetWindowDrawList()->AddRect(areaPos, ImVec2{ areaPos.x + kPackPreviewSize, areaPos.y + kPackPreviewSize },
+                                            ImGui::GetColorU32(ImGuiCol_Border));
+        ImGui::SetCursorScreenPos(ImVec2{ areaPos.x + ImGui::GetStyle().FramePadding.x, areaPos.y + ImGui::GetStyle().FramePadding.y });
+        ImGui::PushTextWrapPos(areaPos.x + kPackPreviewSize - ImGui::GetStyle().FramePadding.x - ImGui::GetWindowPos().x);
+        ImGui::TextColored(kPackWarningColor, "%s", dialog.previewError.c_str());
+        ImGui::PopTextWrapPos();
+        ImGui::SetCursorScreenPos(ImVec2{ areaPos.x, areaPos.y + kPackPreviewSize + ImGui::GetStyle().ItemSpacing.y });
+    }
+    ImGui::EndGroup();
 }
 
 bool SpriteEditor::PackProject(PackSettings const& settings, std::string& error) {

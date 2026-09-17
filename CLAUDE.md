@@ -38,7 +38,7 @@ steps, and each step refers to a frame and has a duration.
 | `src/sprite_editor/sprite_editor_clips.cpp`   | Clips pane and clip playback.                                    |
 | `src/sprite_editor/sprite_editor_tools.cpp`   | Tools menu: grid generator, detect frames.                       |
 | `src/sprite_editor/sprite_editor_undo.cpp`    | Undo stack and snapshot helpers.                                 |
-| `src/sprite_editor/sprite_editor_pack.cpp`    | File > Pack dialog, and applying a pack as one undo action.      |
+| `src/sprite_editor/sprite_editor_pack.cpp`    | File > Pack dialog with preview; applying a pack as one undo.    |
 | `src/sprite_editor/frame_detection.*`         | Frame detection from image pixels. No UI.                        |
 | `src/sprite_editor/sheet_packing.*`           | Packing cells with moth_packer, writing the packed image. No UI. |
 | `src/sprite_editor/packed_image_write.*`      | stb_image_write, compiled as C (outside clang-tidy).             |

@@ -114,6 +114,9 @@ private:
     void DrawExportMessage();
     // File > Pack: the pack dialog. Pack runs PackProject with the dialog's settings.
     void DrawPackDialog();
+    // The pack dialog's preview of the packed image for its current settings. Writes no files.
+    void UpdatePackPreview();
+    void DrawPackPreview();
     // The settings the pack dialog opens with: the project's, or defaults with the path <project name>_packed.<ext>.
     PackSettings InitialPackSettings() const;
     // Pack every cell into a new image with settings, write it, and use it as the sheet: the sheet image, the cell
@@ -246,6 +249,13 @@ private:
         PackSettings settings;     // being edited; the project changes only when Pack succeeds
         char pathBuffer[1024] = {};
         std::string error;         // why the last Pack failed
+        // The preview, packed in memory. Sources are read once while the dialog is open.
+        PackImageCache previewImages;
+        std::optional<PackSettings> previewSettings; // the settings the preview was packed with; unset = pack again
+        moth::gfx::Image previewImage;
+        int previewWidth = 0;
+        int previewHeight = 0;
+        std::string previewError; // why the preview could not be packed
     };
     PackDialogState m_packDialog;
     bool m_openPackDialog = false; // set by the menu; the popup is opened outside the menu's ID scope
