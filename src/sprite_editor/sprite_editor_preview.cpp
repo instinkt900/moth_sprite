@@ -166,8 +166,7 @@ void SpriteEditor::DrawPreview() {
         return;
     }
 
-    // The sheet image file the project uses. Read-only; File > Export Sheet changes it, and "..." imports another
-    // image, as File > Import Sheet does.
+    // The sheet image file the project uses. Read-only; "..." imports another image, as File > Import Sheet does.
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Image");
     ImGui::SameLine();

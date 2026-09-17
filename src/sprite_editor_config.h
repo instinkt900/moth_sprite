@@ -23,8 +23,8 @@ struct SpriteEditorConfig {
     bool ShowClipEditorWindow = true;
     // File > Open Recent: project file paths, newest first.
     std::vector<std::string> RecentProjects;
-    // The folders that the project dialogs (Load, Save As) and the image dialogs (Import Sheet, Export Sheet)
-    // last used. Empty until a dialog is used.
+    // The folders that the project dialogs (Load, Save As) and the image dialogs (Import Sheet) last used. Empty
+    // until a dialog is used.
     std::string LastProjectDir;
     std::string LastImageDir;
 };

@@ -50,6 +50,8 @@ A project is a `.mothsprite` file with JSON content, read and written by the edi
 
 - `version`: the format version (`kProjectFormatVersion`). A newer version is not loaded.
 - `image`: optional path to the sheet image, relative to the project file.
+- `export_path`: optional path of the last exported descriptor, relative to the project file. Changing it is
+  undoable.
 - `frames`: cells, each `{ x, y, w, h, pivot_x, pivot_y }`.
 - `clips`: each `{ name, loop, frames: [ { frame, duration_ms } ] }`, where `frame` is an index into `frames`.
 
@@ -57,7 +59,9 @@ The project is the editing source. It keeps data that games reject (no cells, cl
 through save and load unchanged.
 
 Games load sprite sheet descriptors, not project files. A descriptor has `image`, `frames` and `clips` and no
-`version`; `SpriteSheetFactory` loads it. File > Load imports a `.json` descriptor as a new project with no path and
+`version`; `SpriteSheetFactory` loads it. File > Export writes one to the export path (File > Export As picks a new
+path) and copies the sheet image beside it, named after the descriptor. Export refuses, writing nothing, when the
+project has data that `SpriteSheetFactory` rejects or skips (`ExportProblems`). Saving does not export. File > Load imports a `.json` descriptor as a new project with no path and
 unsaved changes, so the first save opens Save As. Imported descriptors are not added to Open Recent.
 
 `.json` project files saved before the `.mothsprite` format still open, as a descriptor import.

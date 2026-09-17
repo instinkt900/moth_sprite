@@ -7,11 +7,14 @@
 #include <moth/graphics/graphics/asset_context.h>
 #include <moth/graphics/graphics/spritesheet_factory.h>
 
+#include <nfd.h>
+
 namespace {
     // File > Open Recent keeps this many projects.
     constexpr size_t kMaxRecentProjects = 10;
     // The project file format version this editor writes. A file with a higher version is not loaded.
     constexpr int kProjectFormatVersion = 1;
+    char const* const kExportMessageId = "Export##export_message";
 
     char const* LoopTypeName(moth::gfx::SpriteSheet::LoopType loop) {
         switch (loop) {
@@ -32,9 +35,77 @@ namespace {
         return moth::gfx::SpriteSheet::LoopType::Stop;
     }
 
+    // Write the cells and clips in the format that project files and sprite sheet descriptors share. Steps are
+    // written as they are.
+    void WriteFramesAndClips(nlohmann::json& json, std::vector<moth::gfx::SpriteSheet::FrameEntry> const& frames,
+                             std::vector<moth::gfx::SpriteSheet::ClipEntry> const& clips) {
+        nlohmann::json framesJson = nlohmann::json::array();
+        for (auto const& fr : frames) {
+            nlohmann::json obj;
+            obj["x"]       = fr.rect.x();
+            obj["y"]       = fr.rect.y();
+            obj["w"]       = fr.rect.w();
+            obj["h"]       = fr.rect.h();
+            obj["pivot_x"] = fr.pivot.x;
+            obj["pivot_y"] = fr.pivot.y;
+            framesJson.push_back(std::move(obj));
+        }
+        json["frames"] = std::move(framesJson);
+
+        nlohmann::json clipsJson = nlohmann::json::array();
+        for (auto const& entry : clips) {
+            nlohmann::json clipObj;
+            clipObj["name"] = entry.name;
+            clipObj["loop"] = LoopTypeName(entry.desc.loop);
+
+            nlohmann::json stepsJson = nlohmann::json::array();
+            for (auto const& step : entry.desc.frames) {
+                nlohmann::json stepObj;
+                stepObj["frame"]       = step.frameIndex;
+                stepObj["duration_ms"] = step.durationMs;
+                stepsJson.push_back(std::move(stepObj));
+            }
+            clipObj["frames"] = std::move(stepsJson);
+
+            clipsJson.push_back(std::move(clipObj));
+        }
+        json["clips"] = std::move(clipsJson);
+    }
+
+    // A path stored in a project file: relative to the project file's folder, or absolute when there is no relative
+    // path (another drive).
+    std::string ProjectRelativePath(std::filesystem::path const& target, std::filesystem::path const& projectPath) {
+        std::filesystem::path const rel = target.lexically_relative(projectPath.parent_path());
+        return rel.empty() ? target.string() : rel.string();
+    }
+
+    // A path read from a project file, made absolute.
+    std::string ResolveProjectPath(std::string const& stored, std::filesystem::path const& projectPath) {
+        return std::filesystem::absolute(projectPath.parent_path() / stored).lexically_normal().string();
+    }
+
+    // Write a JSON file. Returns false when it could not be written completely.
+    bool WriteJsonFile(std::filesystem::path const& path, nlohmann::json const& json) {
+        try {
+            // Dump first, because it throws on text that is not UTF-8, and the file must not be left empty.
+            std::string const text = json.dump(2);
+            std::ofstream ofile(path);
+            if (!ofile.is_open()) {
+                return false;
+            }
+            ofile << text;
+            ofile.flush();
+            return static_cast<bool>(ofile);
+        } catch (std::exception const& e) {
+            moth::core::log::error("SpriteEditor: failed to write '{}': {}", path.string(), e.what());
+            return false;
+        }
+    }
+
     // The contents of a project file, read before any editor state changes.
     struct ProjectFileData {
         std::string imagePath; // absolute, or empty when the project has no sheet image
+        std::string exportPath; // absolute, or empty when the project has not been exported
         std::vector<moth::gfx::SpriteSheet::FrameEntry> frames;
         std::vector<moth::gfx::SpriteSheet::ClipEntry> clips;
     };
@@ -59,9 +130,10 @@ namespace {
 
             ProjectFileData data;
             if (json.contains("image")) {
-                data.imagePath = std::filesystem::absolute(path.parent_path() / json.at("image").get<std::string>())
-                                     .lexically_normal()
-                                     .string();
+                data.imagePath = ResolveProjectPath(json.at("image").get<std::string>(), path);
+            }
+            if (json.contains("export_path")) {
+                data.exportPath = ResolveProjectPath(json.at("export_path").get<std::string>(), path);
             }
             for (auto const& frameJson : json.value("frames", nlohmann::json::array())) {
                 moth::gfx::SpriteSheet::FrameEntry frame;
@@ -114,6 +186,7 @@ void SpriteEditor::ReplaceProject(std::shared_ptr<moth::gfx::SpriteSheet> sheet,
     m_spriteSheet = std::move(sheet);
     m_frames = std::move(frames);
     m_clips = std::move(clips);
+    m_exportPath.clear();
 }
 
 void SpriteEditor::LoadProjectFile(std::filesystem::path const& path) {
@@ -138,6 +211,7 @@ void SpriteEditor::LoadProjectFile(std::filesystem::path const& path) {
     auto sheet = std::make_shared<moth::gfx::SpriteSheet>(std::move(image), data->frames, data->clips);
 
     ReplaceProject(std::move(sheet), data->imagePath, std::move(data->frames), std::move(data->clips));
+    m_exportPath = data->exportPath;
     std::string const pathStr = path.string();
     strncpy(m_pathBuffer, pathStr.c_str(), sizeof(m_pathBuffer) - 1);
     m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
@@ -262,47 +336,150 @@ void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
     m_clipElapsedMs   = 0.0f;
 }
 
-void SpriteEditor::ExportSheet(std::filesystem::path exportPath) {
+std::vector<std::string> SpriteEditor::ExportProblems() const {
+    // Everything that SpriteSheetFactory rejects or skips, so the game data never differs from the project.
+    std::vector<std::string> problems;
     if (m_imagePathBuffer[0] == '\0') {
+        problems.emplace_back("The project has no sheet image.");
+    }
+    if (m_frames.empty()) {
+        problems.emplace_back("The project has no cells.");
+    }
+    int const frameCount = static_cast<int>(m_frames.size());
+    for (int i = 0; i < frameCount; ++i) {
+        auto const& rect = m_frames[static_cast<size_t>(i)].rect;
+        if (rect.w() <= 0 || rect.h() <= 0) {
+            problems.push_back(fmt::format("Cell #{} has a size of {} x {}.", i, rect.w(), rect.h()));
+        }
+    }
+    for (auto const& clip : m_clips) {
+        auto const& steps = clip.desc.frames;
+        if (steps.empty()) {
+            problems.push_back(fmt::format("Clip \"{}\" has no steps.", clip.name));
+        }
+        for (size_t i = 0; i < steps.size(); ++i) {
+            if (steps[i].durationMs <= 0) {
+                problems.push_back(fmt::format("Clip \"{}\" step {} has a duration of {} ms.", clip.name, i + 1,
+                                               steps[i].durationMs));
+            }
+            if (steps[i].frameIndex < 0 || steps[i].frameIndex >= frameCount) {
+                problems.push_back(fmt::format("Clip \"{}\" step {} has no cell.", clip.name, i + 1));
+            }
+        }
+    }
+    return problems;
+}
+
+void SpriteEditor::ShowExportMessage(std::string heading, std::vector<std::string> lines) {
+    m_exportMessage.heading = std::move(heading);
+    m_exportMessage.lines = std::move(lines);
+    m_exportMessage.open = true;
+}
+
+void SpriteEditor::ExportProject(bool choosePath) {
+    // Refuse before asking for a path, and write no files.
+    std::vector<std::string> problems = ExportProblems();
+    if (!problems.empty()) {
+        ShowExportMessage("The project cannot be exported:", std::move(problems));
         return;
     }
-    std::filesystem::path const sheetPath = m_imagePathBuffer;
 
-    // The copy keeps the sheet's format, so it always gets the sheet's extension.
-    if (exportPath.extension() != sheetPath.extension()) {
-        exportPath.replace_extension(sheetPath.extension());
+    std::filesystem::path exportPath = m_exportPath;
+    if (choosePath || exportPath.empty()) {
+        // Start in the folder of the last export, else the project's folder, else the last project dialog folder.
+        std::filesystem::path folder;
+        if (!m_exportPath.empty()) {
+            folder = std::filesystem::path(m_exportPath).parent_path();
+        } else if (m_pathBuffer[0] != '\0') {
+            folder = std::filesystem::path(m_pathBuffer).parent_path();
+        }
+        std::error_code ec;
+        std::string startDir = std::filesystem::current_path().string();
+        if (std::filesystem::is_directory(folder, ec)) {
+            startDir = folder.string();
+        } else if (!m_config.LastProjectDir.empty()) {
+            startDir = m_config.LastProjectDir;
+        }
+        nfdchar_t* outPath = nullptr;
+        if (NFD_SaveDialog("json", startDir.c_str(), &outPath) != NFD_OKAY || outPath == nullptr) {
+            return;
+        }
+        exportPath = outPath;
+        NFD_Free(outPath);
+        if (exportPath.extension() != ".json") {
+            exportPath += ".json";
+        }
     }
-    std::string const exportStr = exportPath.string();
-    if (exportStr.size() >= sizeof(m_imagePathBuffer)) {
-        moth::core::log::error("SpriteEditor: export path is too long: '{}'", exportStr);
-        return;
-    }
-
-    // Exporting onto the sheet file itself copies nothing and keeps the project's path.
     std::error_code ec;
-    if (std::filesystem::equivalent(sheetPath, exportPath, ec)) {
-        return;
-    }
-    ec.clear();
-    std::filesystem::copy_file(sheetPath, exportPath, std::filesystem::copy_options::overwrite_existing, ec);
+    std::filesystem::path absolutePath = std::filesystem::absolute(exportPath, ec);
     if (ec) {
-        moth::core::log::error("SpriteEditor: failed to export sheet '{}' to '{}': {}",
-            sheetPath.string(), exportStr, ec.message());
+        absolutePath = exportPath;
+    }
+    exportPath = absolutePath.lexically_normal();
+
+    // The sheet image is copied beside the descriptor, named after it with the image's extension.
+    std::filesystem::path const sheetPath = m_imagePathBuffer;
+    std::filesystem::path imageTarget = exportPath;
+    imageTarget.replace_extension(sheetPath.extension());
+    // Exporting beside the sheet image with its own name needs no copy.
+    ec.clear();
+    if (!std::filesystem::equivalent(sheetPath, imageTarget, ec)) {
+        ec.clear();
+        std::filesystem::copy_file(sheetPath, imageTarget, std::filesystem::copy_options::overwrite_existing, ec);
+        if (ec) {
+            std::string message = fmt::format("Could not copy the sheet image '{}' to '{}': {}", sheetPath.string(),
+                                              imageTarget.string(), ec.message());
+            moth::core::log::error("SpriteEditor: {}", message);
+            ShowExportMessage("The export failed:", { std::move(message) });
+            return;
+        }
+    }
+
+    nlohmann::json json = nlohmann::json::object();
+    json["image"] = imageTarget.filename().string();
+    WriteFramesAndClips(json, m_frames, m_clips);
+    if (!WriteJsonFile(exportPath, json)) {
+        std::string message = fmt::format("Could not write '{}'.", exportPath.string());
+        moth::core::log::error("SpriteEditor: {}", message);
+        ShowExportMessage("The export failed:", { std::move(message) });
         return;
     }
-    moth::core::log::info("SpriteEditor: exported sheet to '{}'", exportStr);
+    moth::core::log::info("SpriteEditor: exported '{}'", exportPath.string());
 
-    // Point the project at the exported file. Undo points it back at the old file; the copy stays on disk.
-    std::string const previousStr = m_imagePathBuffer;
-    auto const setImagePath = [this](std::string const& path) {
-        strncpy(m_imagePathBuffer, path.c_str(), sizeof(m_imagePathBuffer) - 1);
-        m_imagePathBuffer[sizeof(m_imagePathBuffer) - 1] = '\0';
-    };
-    setImagePath(exportStr);
+    // The project remembers a new export path as one undoable action. Undo does not remove the exported files.
+    std::string const exportStr = exportPath.string();
+    if (exportStr == m_exportPath) {
+        return;
+    }
+    std::string const previousStr = m_exportPath;
+    m_exportPath = exportStr;
     AddSpriteAction(std::make_unique<BasicAction>(
-        [setImagePath, exportStr]()   { setImagePath(exportStr); },
-        [setImagePath, previousStr]() { setImagePath(previousStr); }
+        [this, exportStr]()   { m_exportPath = exportStr; },
+        [this, previousStr]() { m_exportPath = previousStr; }
     ));
+}
+
+void SpriteEditor::DrawExportMessage() {
+    if (m_exportMessage.open) {
+        m_exportMessage.open = false;
+        ImGui::OpenPopup(kExportMessageId);
+    }
+    ImGuiViewport const* const viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2{ 0.5f, 0.5f });
+    if (!ImGui::BeginPopupModal(kExportMessageId, nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+        return;
+    }
+    ImGui::TextUnformatted(m_exportMessage.heading.c_str());
+    for (auto const& line : m_exportMessage.lines) {
+        ImGui::BulletText("%s", line.c_str());
+    }
+    ImGui::Spacing();
+    constexpr float kButtonW = 110.0f;
+    if (ImGui::Button("OK", ImVec2{ kButtonW, 0.0f }) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
 }
 
 bool SpriteEditor::SaveSpriteSheet(std::filesystem::path const& path) {
@@ -314,48 +491,17 @@ bool SpriteEditor::SaveSpriteSheet(std::filesystem::path const& path) {
     nlohmann::json json = nlohmann::json::object();
     json["version"] = kProjectFormatVersion;
 
-    // The sheet image is optional.
+    // The sheet image and the export path are optional.
     if (m_imagePathBuffer[0] != '\0') {
-        std::filesystem::path const imagePath = m_imagePathBuffer;
-        std::filesystem::path const relImage  = imagePath.lexically_relative(path.parent_path());
-        // A relative path cannot reach an image on another drive, so that image keeps its absolute path.
-        json["image"] = relImage.empty() ? imagePath.string() : relImage.string();
+        json["image"] = ProjectRelativePath(m_imagePathBuffer, path);
+    }
+    if (!m_exportPath.empty()) {
+        json["export_path"] = ProjectRelativePath(m_exportPath, path);
     }
 
-    // Write frames
-    nlohmann::json framesJson = nlohmann::json::array();
-    for (auto const& fr : m_frames) {
-        nlohmann::json obj;
-        obj["x"]       = fr.rect.x();
-        obj["y"]       = fr.rect.y();
-        obj["w"]       = fr.rect.w();
-        obj["h"]       = fr.rect.h();
-        obj["pivot_x"] = fr.pivot.x;
-        obj["pivot_y"] = fr.pivot.y;
-        framesJson.push_back(std::move(obj));
-    }
-    json["frames"] = std::move(framesJson);
-
-    // Write clips. Steps are written as they are, so a project keeps clips with no steps, 0 ms steps, and the steps
-    // of a project with no cells.
-    nlohmann::json clipsJson = nlohmann::json::array();
-    for (auto const& entry : m_clips) {
-        nlohmann::json clipObj;
-        clipObj["name"] = entry.name;
-        clipObj["loop"] = LoopTypeName(entry.desc.loop);
-
-        nlohmann::json stepsJson = nlohmann::json::array();
-        for (auto const& step : entry.desc.frames) {
-            nlohmann::json stepObj;
-            stepObj["frame"]       = step.frameIndex;
-            stepObj["duration_ms"] = step.durationMs;
-            stepsJson.push_back(std::move(stepObj));
-        }
-        clipObj["frames"] = std::move(stepsJson);
-
-        clipsJson.push_back(std::move(clipObj));
-    }
-    json["clips"] = std::move(clipsJson);
+    // Steps are written as they are, so a project keeps clips with no steps, 0 ms steps, and the steps of a project
+    // with no cells.
+    WriteFramesAndClips(json, m_frames, m_clips);
 
     // Write to file
     std::ofstream ofile(path);

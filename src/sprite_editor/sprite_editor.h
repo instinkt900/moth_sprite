@@ -101,9 +101,16 @@ private:
     void ImportSheet(std::filesystem::path const& imagePath);
     // File > Import Sheet and the Sheet window's "..." button: choose an image in a dialog, then import it.
     void ImportSheetWithDialog();
-    // Copy the sheet image file, unchanged, to exportPath (given the sheet's extension), then point the project at
-    // the copy as one undoable action.
-    void ExportSheet(std::filesystem::path exportPath);
+    // File > Export (choosePath false) and File > Export As (choosePath true): write the sprite sheet descriptor
+    // that games load, and copy the sheet image beside it. Export uses the project's export path, and chooses one in
+    // a dialog when there is none. A new export path is set as one undoable action after a successful export.
+    // Refuses, writing no files, when ExportProblems finds any.
+    void ExportProject(bool choosePath);
+    // What stops the project from being exported as game data, one message each. Empty when it can be exported.
+    std::vector<std::string> ExportProblems() const;
+    // Show the export message popup on the next draw.
+    void ShowExportMessage(std::string heading, std::vector<std::string> lines);
+    void DrawExportMessage();
     // Write the project file (the .mothsprite format) to path. Returns true when it was written. Only then path becomes the project path (the
     // window title, Save and Open Recent).
     bool SaveSpriteSheet(std::filesystem::path const& path);
@@ -190,6 +197,7 @@ private:
     bool m_resetLayout = false; // set by Window > Reset Layout; applied before the dock space is drawn
     char m_pathBuffer[1024] = {};
     char m_imagePathBuffer[1024] = {};
+    std::string m_exportPath; // absolute path of the last export's descriptor, or empty; saved in the project file
     std::shared_ptr<moth::gfx::SpriteSheet> m_spriteSheet;
     std::vector<moth::gfx::SpriteSheet::FrameEntry> m_frames;
     std::vector<moth::gfx::SpriteSheet::ClipEntry> m_clips;
@@ -214,6 +222,14 @@ private:
     bool m_openUnsavedPrompt = false;                    // open the prompt on the next draw
     bool m_quitApproved = false;                         // the user answered for a quit; let the next request through
     bool m_openAboutDialog = false;                      // set by Help > About; opened outside the menu's ID scope
+
+    // The export message popup: why an export was refused or failed.
+    struct ExportMessage {
+        std::string heading;
+        std::vector<std::string> lines;
+        bool open = false; // open the popup on the next draw
+    };
+    ExportMessage m_exportMessage;
 
     // A Cells form input being edited. id is the widget's ImGuiID, so that focus moving straight from one field to
     // another commits the first edit before the second snapshot is taken.

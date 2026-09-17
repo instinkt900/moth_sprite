@@ -21,6 +21,7 @@ of it.
 - [Usage](#usage)
   - [Editor windows](#editor-windows)
   - [Projects and sheet images](#projects-and-sheet-images)
+  - [Exporting](#exporting)
   - [Making cells](#making-cells)
   - [Selecting and editing cells](#selecting-and-editing-cells)
   - [Pivots](#pivots)
@@ -101,13 +102,28 @@ The **File** menu has:
 | **Save** | Save the project. An untitled project asks for a file name first. |
 | **Save As...** | Save the project to a new file. |
 | **Import Sheet...** | Use a different sheet image (`png`, `jpg`, `jpeg` or `bmp`). Cells and clips are kept. |
-| **Export Sheet...** | Copy the sheet image to a new file, and make the project use the copy. |
+| **Export...** | Export the sprite sheet descriptor that games load (see [Exporting](#exporting)) to the project's export path. The first export asks for a file name. |
+| **Export As...** | Export to a new file name, which becomes the project's export path. |
 | **Exit** | Quit. |
 
 The **...** button next to the image path in the Sheet window does the same as **File > Import Sheet**.
 
 A project can be saved without a sheet image. The window title shows the project's file name, and ` *` when it has
 unsaved changes. New, Load, Open Recent and quitting ask whether to save unsaved changes first.
+
+### Exporting
+
+Games do not load project files. **File > Export...** writes a sprite sheet descriptor (`.json`) that moth::gfx loads
+as a `SpriteSheet`, and copies the sheet image beside it, named after the descriptor with the image's extension:
+exporting `hero.json` writes `hero.png`. Files already there are overwritten. Saving the project does not export.
+
+The project remembers its export path, relative to the project file, so **Export...** does not ask again. **Export
+As...** always asks. Setting a new export path is an undo step; undo does not remove exported files.
+
+Export refuses, writes no files, and lists the problems when the project has no sheet image, has no cells, has a cell
+with no width or height, has a clip with no steps, or has a step with a duration of 0 ms or with no cell. These are the
+things moth::gfx rejects or skips, so the game data never differs from the project without a warning. The same
+message shows when the image cannot be copied or the descriptor cannot be written.
 
 ### Making cells
 
@@ -179,7 +195,7 @@ step's cell as it plays. The Selected Cell window places each step's cell on its
 ### Undo
 
 **Edit > Undo** (Ctrl+Z) and **Edit > Redo** (Ctrl+Y) cover every change to cells, pivots, clips and steps, and
-**Import Sheet** and **Export Sheet**. Typing in a field, or a drag, is one undo step. New, Load and Open Recent clear
+**Import Sheet**, and a change of the export path. Typing in a field, or a drag, is one undo step. New, Load and Open Recent clear
 the undo history.
 
 ### Keyboard shortcuts
@@ -241,6 +257,7 @@ not load. Games load sprite sheet descriptors, not project files.
 |---|---|
 | `version` | The format version. The editor does not load a file with a version newer than it knows. |
 | `image` | Path to the sheet image, relative to the project file. Optional: a project can have no sheet image. |
+| `export_path` | Path of the last exported descriptor, relative to the project file. Optional. |
 | `frames` | The cells. Each has `x`, `y`, `w` and `h` in pixels, and `pivot_x` and `pivot_y` relative to the cell's top-left corner. |
 | `clips` | Each clip has a `name`, a `loop` type (`stop`, `reset` or `loop`), and `frames`: its steps. |
 | `clips[].frames` | Each step has `frame`, an index into `frames`, and `duration_ms`. |
@@ -250,8 +267,9 @@ steps with a 0 ms duration are saved and loaded unchanged.
 
 ### Sprite sheet descriptors
 
-A sprite sheet descriptor is the JSON file that moth::gfx loads as a `SpriteSheet`. It has the `image`, `frames` and
-`clips` fields above, with no `version`. Projects saved before the `.mothsprite` format are descriptors.
+A sprite sheet descriptor is the JSON file that moth::gfx loads as a `SpriteSheet`, written by
+[File > Export](#exporting). It has the `image`, `frames` and `clips` fields above, with no `version` or
+`export_path`. Frame indices follow the project's cell order. Projects saved before the `.mothsprite` format are descriptors.
 
 **File > Load** opens a descriptor (`.json`) as a new project: the project has no file name and has unsaved changes,
 so the first save asks for a `.mothsprite` file name and never writes over the descriptor. A descriptor that

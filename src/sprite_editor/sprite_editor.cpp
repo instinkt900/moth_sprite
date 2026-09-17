@@ -79,6 +79,7 @@ void SpriteEditor::NewSpriteSheet() {
     MarkSaved();
     m_pathBuffer[0]      = '\0';
     m_imagePathBuffer[0] = '\0';
+    m_exportPath.clear();
     m_frames.clear();
     m_clips.clear();
     m_selection.clear();
@@ -220,8 +221,8 @@ void SpriteEditor::HandleShortcuts() {
 }
 
 void SpriteEditor::DrawMainMenuBar() {
-    // Image dialogs (Import Sheet, Export Sheet) start in the folder that an image dialog last used, and remember
-    // the folder of the file chosen. The project dialogs do the same in LoadWithDialog and SaveProjectAs.
+    // The Import Sheet dialog starts in the folder that an image dialog last used, and remembers the folder of the
+    // file chosen. The project dialogs do the same in LoadWithDialog and SaveProjectAs.
     if (!ImGui::BeginMainMenuBar()) {
         return;
     }
@@ -263,19 +264,11 @@ void SpriteEditor::DrawMainMenuBar() {
         if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
             ImportSheetWithDialog();
         }
-        if (ImGui::MenuItem("Export Sheet...", nullptr, false, m_imagePathBuffer[0] != '\0')) {
-            // Filter on the sheet's own extension. Before any image dialog has been used, start in the sheet's folder.
-            std::filesystem::path const sheetPath = m_imagePathBuffer;
-            std::string const extension = sheetPath.extension().string();
-            std::string const filter = extension.empty() ? std::string{} : extension.substr(1);
-            std::string const startDir = DialogFolder(m_config.LastImageDir, sheetPath.parent_path());
-            nfdchar_t* outPath = nullptr;
-            if (NFD_SaveDialog(filter.empty() ? nullptr : filter.c_str(), startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
-                std::filesystem::path const exportPath = outPath;
-                NFD_Free(outPath);
-                m_config.LastImageDir = exportPath.parent_path().string();
-                ExportSheet(exportPath);
-            }
+        if (ImGui::MenuItem("Export...")) {
+            ExportProject(false);
+        }
+        if (ImGui::MenuItem("Export As...")) {
+            ExportProject(true);
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Exit", "Ctrl+X")) {
@@ -609,4 +602,5 @@ void SpriteEditor::Draw() {
     // Asks about unsaved changes before New, Load, Open Recent and quitting.
     DrawUnsavedChangesPrompt();
     DrawAboutDialog();
+    DrawExportMessage();
 }
