@@ -13,516 +13,317 @@ Session reports are in [sessions/](sessions/). `/task-planning` moves finished t
 
 ## Tasks
 
-### [done] T-020 Rename Tools > Grid to Grid Cells
+### [todo] T-028 Sprite project file format
 
-**Review:** reviewed 2026-09-16
-
-**Depends on:** none
-
-**Goal:**
-Rename the Tools > Grid option to "Grid Cells".
-
-**Requirements:**
-- [x] The Tools menu item reads "Grid Cells...".
-- [x] The dialog it opens has the title "Grid Cells" (now "Grid Tool").
-
-**Out of scope:**
-- Code names (`DrawGridTool`, `GridToolState`, `m_gridTool`) and the popup's `##` ID part.
-- The tool's behaviour and layout.
-
-**Open questions:**
-- Q: Does the dialog title change too? A: Yes, the menu item and the dialog title. Code names stay.
-
-**Notes:**
-- The popup's visible label changed from "Grid Tool" to "Grid Cells". Its `##tool_grid` part is kept. The popup uses
-  `NoSavedSettings`, so no `imgui.ini` entry depends on the label.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
-
-**Commits:**
-- fb6cf59 feat(T-020): rename Tools > Grid to Grid Cells
-
-**Manual verification:**
-1. Import a sheet image. Open the Tools menu. The first item reads "Grid Cells...".
-2. Choose it. The dialog title reads "Grid Cells", and the tool works as before.
-
-### [done] T-021 Rename Tools > Detect Frames to Detect Cells
-
-**Review:** reviewed 2026-09-16
+**Review:** reviewed 2026-09-17
 
 **Depends on:** none
 
 **Goal:**
-Rename Tools > Detect Frames to "Detect Cells".
+The editor saves projects in its own format, separate from the sprite sheet descriptor that moth_graphics loads in
+games. The project file is the source for editing. It can hold data that games do not need: cells from other
+images (T-025), packing settings (T-030) and the export path (T-029). Games load only exported data (T-029).
+
+This replaces two earlier ideas: making moth_graphics load cells from more than one image, and warning on save
+that the project does not work in game (T-027, now removed).
 
 **Requirements:**
-- [x] The Tools menu item reads "Detect Cells...".
-- [x] The dialog it opens has the title "Detect Cells" (now "Detect Frames").
+- [ ] Projects are saved as `.mothsprite` files with JSON content. The file has a format version field. The
+  project Open and Save As dialogs filter on `mothsprite`.
+- [ ] The editor reads and writes project files with its own code, not with `SpriteSheetFactory`.
+- [ ] The project file stores what the current format stores: the sheet image path (relative to the project
+  file), the cells with their pivots, and the clips.
+- [ ] The sheet image is optional. A project with no sheet image, with or without cells and clips, is saved and
+  loaded again with its cells and clips unchanged.
+- [ ] A project with no cells, a clip with no steps, and a step with a 0 ms duration are saved and loaded again
+  unchanged.
+- [ ] File > Open also accepts sprite sheet descriptors (`.json`, the format saved before this task). Opening a
+  descriptor makes a new project from it, with no project path and with unsaved changes. The first save opens
+  Save As, so the descriptor is never written over. A descriptor that `SpriteSheetFactory` does not load is not
+  opened, as today.
+- [ ] Open Recent lists project files only. Opening a descriptor does not add it; saving the project adds the
+  `.mothsprite` file, as for any save.
+- [ ] `CLAUDE.md` ("Project file") and `README.md` describe the project file and the descriptor import, and say
+  that games load exported descriptors, not project files.
+- [ ] `docs/task-profile.md` Compatibility says: `.json` project files saved before this task still open, as a
+  descriptor import.
 
 **Out of scope:**
-- Code names (`DrawDetectFramesTool`, `DetectToolState`, `frame_detection.*`) and the popup's `##` ID part.
-- The tool's behaviour and layout.
+- Export to the game format (T-029). File > Export Sheet stays until T-029.
+- Cells from other images (T-025) and packing (T-030). The format only needs to leave room for them.
+- Editor features for working without a sheet image, beyond saving and loading such a project. Cells are still
+  drawn on the sheet image.
+- Changes to moth_graphics. Its sprite sheet descriptor format stays as it is.
 
 **Open questions:**
-- Q: Does the dialog title change too? A: Yes, the menu item and the dialog title. Code names stay.
+- Q: Should moth_graphics load sprite sheets whose cells come from more than one image? A: No. A moth_graphics
+  `SpriteSheet` is one image plus frame rectangles, and `.pak` loading (`GetSpriteSheetFromMemory`), moth_packer
+  output and moth_anim rely on that. The project gets its own format, and games load exported data only.
+- Q: What is the project file extension? A: `.mothsprite`, with JSON content.
+- Q: Old `.json` projects? A: File > Open imports them as descriptors. The task profile's Compatibility rule is
+  reworded to say so.
+- Q: Does the project keep data that games cannot load (no cells, clips with no steps, 0 ms steps) through save
+  and load? A: Yes. The project is the editing source. Only export (T-029) checks what games reject. This covers
+  the T-024 item under Discovered for project files.
+- Q: Can a project have no sheet image? A: Yes, the sheet image is optional in the project.
+- Q: Does Open Recent list opened descriptors? A: No, project files only.
 
 **Notes:**
-- The popup's visible label changed from "Detect Frames" to "Detect Cells". Its `##tool_detect` part is kept. The
-  popup uses `NoSavedSettings`.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
+- Written 2026-09-17 from a design discussion. Reviewed the same day.
+- Today `LoadSpriteSheet` loads a project with `SpriteSheetFactory::GetSpriteSheet` (`sprite_editor_io.cpp`), and
+  `SaveSpriteSheet` writes the descriptor format, keeps unknown fields of an existing file, and returns false when
+  `m_spriteSheet` is null. The Open and Save dialogs filter on `json` (`sprite_editor.cpp`).
+- The editor draws from `m_spriteSheet`, built from the sheet image. With no sheet image it can be null, as after
+  File > New.
 
 **Commits:**
-- 6d462cf feat(T-021): rename Tools > Detect Frames to Detect Cells
 
 **Manual verification:**
-1. Import a sheet image. Open the Tools menu. The second item reads "Detect Cells...".
-2. Choose it. The dialog title reads "Detect Cells", and the tool works as before.
 
-### [done] T-022 Move Preferences under Edit
+### [todo] T-029 Export to the game format
 
-**Review:** reviewed 2026-09-16
+**Review:** reviewed 2026-09-17
 
-**Depends on:** none
+**Depends on:** T-028
 
 **Goal:**
-Move the "Preferences" menu to under "Edit" so it becomes Edit > Preferences.
+Export writes the sprite sheet descriptor and image that moth_graphics loads in games. Export is its own operation:
+saving saves only the project. The project remembers where it was last exported, so exporting again does not ask
+for a path.
 
 **Requirements:**
-- [x] Edit > Preferences is a submenu at the end of the Edit menu, after a separator below Pivot.
-- [x] The submenu has the same controls, in the same order, as the Preferences menu has now: the three border
-  colors, the border thickness and the preview background color.
-- [x] The top-level Preferences menu is removed. The menu bar is File, Edit, Tools, Window.
-- [x] The settings and `moth_sprite.json` do not change.
+- [ ] File > Export... writes the descriptor to the project's export path. When the project has no export path, it
+  opens a save dialog (filter `json`) first. File > Export As... always opens the dialog.
+- [ ] The descriptor has `image`, `frames` and `clips`, and `SpriteSheetFactory` loads it.
+- [ ] Export copies the sheet image next to the descriptor, named after the descriptor with the sheet image's
+  extension (`hero.json` gets `hero.png`). An existing file is overwritten. The descriptor's `image` is that file
+  name.
+- [ ] Frame indices in the descriptor follow the project's cell order, so clip steps keep their frame indices.
+- [ ] Export refuses, writes no files, and shows a message popup that lists the problems, when the project has no
+  sheet image, has no cells, has a clip with no steps, or has a step with a 0 ms duration.
+- [ ] If writing the descriptor or copying the image fails, an error is logged and shown in the same popup.
+- [ ] The project stores the export path, relative to the project file. A successful export to a different path
+  sets it as one undoable action. Undo does not remove exported files.
+- [ ] Saving the project does not export.
+- [ ] File > Export Sheet (T-004) is removed. The Sheet window's image path text no longer mentions it.
+- [ ] `README.md` and `CLAUDE.md` describe Export and Export As, and no longer describe Export Sheet.
 
 **Out of scope:**
-- A Preferences window or dialog.
-- New settings, or changes to how the settings work or are saved.
+- Packing cells into a new image (T-030). Without packing, the export copies the sheet image as it is.
+- Cells from other images (T-025).
+- Exporting on save.
 
 **Open questions:**
-- Q: A submenu with the controls, or an item that opens a window? A: A submenu at the end of Edit.
+- Q: Without packing, where does the exported image come from? A: The sheet image is copied next to the
+  descriptor.
+- Q: What is the copied image named? A: After the descriptor, with the sheet image's extension. Re-export
+  overwrites it.
+- Q: What happens to File > Export Sheet (T-004)? A: It is removed. File > Export... and File > Export As... are
+  added.
+- Q: Does saving export? A: No. Export is its own operation, and saving saves only the project.
+- Q: Does the project remember the export path? A: Yes. Export reuses it without a dialog. Export As picks a new
+  one. Changing it is undoable, as for any data saved to the project file.
+- Q: What does export do with data that `SpriteSheetFactory` rejects or skips? A: It refuses with a message that
+  says why, so game data never differs from the project without the user knowing.
 
 **Notes:**
-- The Preferences block moved unchanged into the Edit menu, after a new separator below the Pivot submenu. The
-  Preferences submenu is always enabled.
-- `moth_sprite.json` and `SpriteEditorConfig` did not change.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
+- Written 2026-09-17 from a design discussion. Reviewed the same day.
+- A project imported from a descriptor (T-028) has no export path. Setting one to the descriptor it came from is
+  allowed.
+- `ExportSheet` (`sprite_editor_io.cpp`) and its menu item (`sprite_editor.cpp`) are removed. The tooltip text in
+  `sprite_editor_preview.cpp` mentions Export Sheet.
 
 **Commits:**
-- 832eb97 feat(T-022): move Preferences under the Edit menu
 
 **Manual verification:**
-1. The menu bar reads File, Edit, Tools, Window. There is no Preferences menu.
-2. Open Edit. Below Pivot there is a separator, then Preferences. Preferences is enabled with no cell selected.
-3. Open Edit > Preferences. It shows Normal border, Selected border, Prime border, Border thickness, a separator,
-   and Preview background. Change the border thickness and a color. The Sheet window uses them.
-4. Quit and start the app again. The changed settings are kept.
 
-### [done] T-019 Browse button on the sprite sheet path
+### [todo] T-030 Pack the sprite sheet
 
-**Review:** reviewed 2026-09-16
+**Review:** reviewed 2026-09-17
 
-**Depends on:** none
+**Depends on:** T-029
 
 **Goal:**
-Add a button to the sprite sheet path entry so that the user can load a different sprite sheet image.
+Add a Pack operation that packs all of the project's cells into a new sprite sheet image with the moth_packer
+library. After a pack, the project uses the packed image as its sheet, and its cells are the packed rectangles.
+This is how cells from other images (T-025) get onto one sheet, so the project can be exported for games. Packing
+a project that has only sheet cells is also allowed, and lays them out again tightly.
+
+(Split from T-026, together with T-031, on 2026-09-17.)
 
 **Requirements:**
-- [x] The Sheet window's Image row has a "..." button to the right of the read-only path field. The path field
-  still fills the rest of the row.
-- [x] The button does the same as File > Import Sheet: an image dialog with the same filter, starting in
-  `LastImageDir` (or the current folder), and remembering the chosen folder. The chosen image replaces the sheet
-  image, and the cells and clips are kept.
-- [x] The result is the same as Import Sheet in every other way: the project is marked as having unsaved changes,
-  the undo stack is cleared, the selection and clip playback are reset, and the zoom fits the new image.
-- [x] The button and the menu item share one code path, so they cannot differ.
-- [x] Cancelling the dialog, or choosing an image that fails to load, changes nothing (as Import Sheet).
+- [ ] moth_sprite depends on moth_packer: `self.requires("moth_packer/[>=2 <3]")` in `conanfile.py` (the default
+  `with_ui=False`), and `find_package(moth_packer REQUIRED)` with `moth::packer` added to
+  `target_link_libraries` in `CMakeLists.txt`. The README's dependency list names it.
+- [ ] `stb_image_write.h` is vendored in `external/stb` beside `stb_image.h`, and compiled with
+  `STB_IMAGE_WRITE_STATIC`, as `frame_detection.cpp` does for `stb_image`.
+- [ ] File > Pack... opens a pack dialog. It is enabled when the project has cells.
+- [ ] The dialog has: the packed image path, with a "..." browse button that opens an image save dialog; padding
+  (px); padding type (Color, Extend, Mirror, Wrap) and a padding colour for Color; minimum and maximum width and
+  height (powers of two); output format (PNG, BMP, TGA, JPEG) and JPEG quality for JPEG. It has Pack and Cancel
+  buttons.
+- [ ] The first time the dialog opens for a project, the path is `<project name>_packed.<format extension>` in the
+  project's folder, or in the last image folder for a project with no path (`Untitled_packed` then). After that
+  it shows the settings from the project.
+- [ ] The dialog refuses to pack, with a message in the dialog, when the path is one of the project's current
+  source images (the sheet image, or later an image used by a cell from T-025).
+- [ ] Pack reads each cell's pixels from its source image and packs every cell as its own image, in one image, with
+  the dialog's settings. Parts of a cell outside its source image are transparent in the packed image. The cell
+  order, sizes, pivots and clips do not change.
+- [ ] If the cells do not fit into one image of the maximum size, or a source image cannot be read, or the image
+  cannot be written, nothing in the project changes, and the dialog shows the reason.
+- [ ] A successful pack writes the image file, then, as one undoable action: sets the project's sheet image to the
+  packed image, sets each cell's rectangle to its packed rectangle, and stores the pack settings and path in the
+  project file. Undo restores the previous sheet image, rectangles and settings. The packed file stays on disk.
+- [ ] After a pack, the Sheet window shows the packed image, fitted to the window. Selection and clip playback are
+  reset, as for Import Sheet.
+- [ ] Changing a setting in the dialog does not change the project until Pack succeeds.
+- [ ] `README.md` and `CLAUDE.md` describe File > Pack and the pack settings in the project file.
 
 **Out of scope:**
-- Making Import Sheet undoable. It stays outside the undo stack, as now.
-- An Image row when no sheet image is loaded. The Sheet window still shows its "Use File > Import Sheet" hint.
-- Export Sheet, and the project file format.
+- A preview of the packing result in the dialog (T-031).
+- Cells from other images, and opening the pack dialog from Export (T-025).
+- Trimming transparent borders. moth_packer 2.0.0 does not trim.
+- Sharing one packed rectangle between cells with the same source and rectangle. Each cell is packed separately.
+- Changes to moth_packer or other moth repositories.
 
 **Open questions:**
-- Q: What happens to the existing cells and clips when a different image is loaded? A: They are kept, as Import
-  Sheet does.
-- Q: Does the button open a file dialog, and where does it start? A: It does exactly what File > Import Sheet
-  does, including the dialog folder.
+- Q: Is packing part of export? A: No. Pack is its own operation (File > Pack...). Packing changes the project: it
+  uses the packed image as its sheet from then on, and stops using external images.
+- Q: Which packing parameters does the dialog expose? A: Padding and padding type (with colour), minimum and
+  maximum size, and output format (with JPEG quality). Plus the packed image path with a browse button.
+- Q: Is moth_packer available to this project? A: Yes, `moth_packer` 2.x from the moth Artifactory remote, as
+  moth_editor uses it. The dependency is written into Requirements.
+- Q: How is the packed image written, when `PackToMemory` returns only pixels? A: With a vendored
+  `stb_image_write.h`.
+- Q: Can the packed image path be one of the project's current source images? A: No, the dialog refuses it.
+  Writing over the sheet would break undo, because the old rectangles would point at new pixels.
+- Q: What is the path the first time? A: `<project name>_packed.<ext>` beside the project.
+- Q: Is packing allowed without external images? A: Yes, whenever the project has cells.
+- Q: Is the pack one undo step? A: Yes. It restores the sheet image, cell rectangles and pack settings.
+- Q: Is the task small enough for one session? A: It was split: the preview is T-031.
 
 **Notes:**
-- The dialog code of File > Import Sheet moved, unchanged, into `ImportSheetWithDialog()`. The menu item and the new
-  "..." button both call it, so they share one code path.
-- The button is to the right of the path field, which now fills the row minus the button's width. It has the
-  tooltip "Import a different sheet image (File > Import Sheet)".
-- After the button runs an import, `DrawPreview` returns for that frame. An import replaces `m_spriteSheet`, and the
-  image reference used by the rest of `DrawPreview` would otherwise point at the old sheet.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
-- Changed after the session, at the user's request, in e9b9838. The Requirements above are kept as reviewed, so they
-  still say that Import Sheet clears the undo stack.
-  - Import Sheet, from the menu or the "..." button, is one undoable action. Undo gives back the previous sheet image
-    and path, and Redo the imported one. Both sides keep their sheet (and texture) alive on the undo stack. The undo
-    history is no longer cleared, and `m_unsavedOutsideUndo` is removed, because no change is outside the undo stack
-    now. The import still clears the selection and resets clip playback. Undo and Redo re-fit the zoom.
+- Rewritten 2026-09-17 by `/task-planning` from T-026 (deferred 2026-09-16 to finish smaller tasks first).
+- Frame pivots are relative to the frame's top-left corner (`FrameEntry` in moth_graphics' `spritesheet.h`), so
+  moving rectangles keeps pivots correct.
+- `PackToMemory` in `PackType::Flipbook` mode sorts images by name, and in `PackType::Atlas` mode it can return
+  more than one atlas. Either name the images so that their sorted order is the cell order (for example
+  zero-padded indices), or use Atlas mode, refuse when more than one atlas is returned, and match results by name.
+- `PackOptions::minWidth`/`maxWidth` are rounded up to the next power of two by the packer.
+- moth_packer requires Conan's `stb` package itself; that does not give moth_sprite `stb_image_write.h`, so the
+  header is vendored.
+- Adding the dependency needs a new `conan install`. A session cannot run it; if the build directory lacks
+  moth_packer, the session blocks. Run `conan install . --build=missing -s build_type=Debug` after the
+  `conanfile.py` change is in, or before the session.
+- The local `~/Development/moth/moth_packer` checkout (1.0.0) is out of date. Read
+  `moth_toolkit/modules/packer/include/moth/packer/packer.h` (2.0.0).
 
 **Commits:**
-- f1744fc feat(T-019): browse button on the Sheet window's image path
-- e9b9838 feat: Import Sheet is undoable (after the session)
 
 **Manual verification:**
-1. Start with no sheet image. The Sheet window shows the "Use File > Import Sheet" hint and no Image row.
-2. Import a sheet with File > Import Sheet, add two cells and a clip with steps. The Sheet window's Image row shows
-   the path, with a "..." button at its right end. Resize the window. The field fills the row up to the button.
-3. Click "...". The image dialog opens in the folder of the last image dialog. Cancel. Nothing changes.
-4. Click "..." and choose a different image. The Sheet shows the new image, fitted to the window. The cells and the
-   clip are kept, the selection is cleared, and the title gets " *". Edit > Undo gives back the previous image, with
-   the path and the title's " *" as before the import. Edit > Redo shows the imported image again. Do the same with
-   File > Import Sheet. Earlier edits can still be undone after an import.
-5. Click "..." again. The dialog starts in the folder of the image chosen in step 4. Cancel.
-6. Choose a file that is not a valid image (for example, a renamed text file with a .png extension). The log shows
-   "failed to load image", and the sheet does not change.
 
-### [done] T-017 New clip and +step use all selected cells
+### [todo] T-031 Preview in the pack dialog
 
-**Review:** reviewed 2026-09-16
+**Review:** reviewed 2026-09-17
 
-**Depends on:** none
+**Depends on:** T-030
 
 **Goal:**
-When creating a new clip, or pressing the +step button, with multiple cells selected (more than 1), all the
-selected cells get inserted to the new clip. With only one cell selected, the new clip button still creates an
-empty clip and the +step button still adds the single selected cell.
+The pack dialog shows a preview of the packing result, so the user can see the layout and size before packing.
+
+(Split from T-026, together with T-030, on 2026-09-17.)
 
 **Requirements:**
-- [x] With more than one cell selected, "+ Clip" creates a clip with one step for each selected cell.
-- [x] With more than one cell selected, "+ Step" adds one step for each selected cell at the end of that clip's
-  timeline.
-- [x] Steps are added in selection order: the order in which the cells were added to the selection
-  (`m_selection`), so the prime cell's step is last.
-- [x] With zero or one cell selected, "+ Clip" still creates an empty clip.
-- [x] With one cell selected, "+ Step" still adds one step for that cell. With no cell selected it still adds a
-  step for cell 0, as now.
-- [x] Each step added by "+ Step" gets the duration in that clip's Set all box (the value it shows, 100 until it
-  is changed), for one cell and for several. This replaces "the last step's duration, or 100".
-- [x] Each step of a new clip gets 100 ms, the Set all box's starting value.
-- [x] "+ Clip" with an empty name creates the clip with the name `clip_N`, where N is the lowest number from 1 up
-  that no other clip uses as `clip_N`. This is true with any selection. A typed name is used as now.
-- [x] Each "+ Clip" or "+ Step" click is one undo step, however many steps it adds.
-- [x] A new clip is selected, as now.
+- [ ] The pack dialog shows the packed image the current settings would produce, fitted to a preview area, on the
+  preview background (`DrawImageBackground`).
+- [ ] The dialog shows the packed image's width and height.
+- [ ] The preview updates when a setting changes. When the cells do not fit, or a source cannot be read, the
+  preview area shows the reason instead.
+- [ ] The preview writes no files and does not change the project.
 
 **Out of scope:**
-- The Set all button and box, other than reading the box's value.
-- How the selection is made or ordered.
-- Unique names for typed clip names. Only auto-names avoid clashes.
-- The project file format.
+- Changes to how Pack works (T-030).
 
 **Open questions:**
-- Q: In what order are the steps added when several cells are selected? A: Selection order.
-- Q: What duration does each added step get? A: The value in the clip's Set all box. A new clip has no box yet,
-  so its steps get 100, the box's starting value. A single-cell "+ Step" also uses the box.
-- Q: "+ Clip" needs a typed name. What happens with no name? A: The clip is auto-named `clip_N`, with any
-  selection.
+- Q: Does the preview update on every setting change, or with a button? A: On every change.
 
 **Notes:**
-- "+ Clip" with more than one cell selected adds a step for each selected cell, in `m_selection` order, with 100 ms
-  each (`kDefaultStepDurationMs`, also the Set all box's starting value).
-- "+ Step" reads the clip's Set all value (clamped to at least 0, as Set all does) in the frame of the click, and
-  adds a step for each selected cell, or the prime cell (or cell 0) as before.
-- "+ Clip" no longer needs a name. An empty name becomes `clip_N`, the lowest N from 1 that no clip has as its name.
-- Assumption: the "No clips" hint said to enter a name first. It now reads "No clips. Click + Clip to add one.",
-  because a name is no longer needed.
-- Each click still adds one `PushClipAction`. Selection and playback handling did not change.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
-- Changed after the session, at the user's request, in d9fd5d1. The Requirements above are kept as reviewed, so they
-  still say that "+ Step" always uses the Set all value.
-  - "+ Step" gives each added step the clip's last step's duration. Only a clip with no steps uses its Set all value.
-    A new clip's steps still get 100 ms, the Set all box's starting value.
+- Rewritten 2026-09-17 by `/task-planning` from T-026.
+- `PackToMemory` does not write files, so the preview can use it with the same inputs as Pack.
 
 **Commits:**
-- 8cc8bdd feat(T-017): + Clip and + Step add a step for each selected cell
-- d9fd5d1 feat: + Step uses the last step's duration, or Set all for an empty clip (after the session)
 
 **Manual verification:**
-1. Import a sheet and add at least four cells. With no clip name typed and no cell selected, click "+ Clip". A clip
-   named `clip_1` is created with no steps, and is selected. Click "+ Clip" again: `clip_2`.
-2. Rename `clip_1` to `walk`. Click "+ Clip" with an empty name. The new clip is `clip_1`.
-3. Select one cell and click "+ Clip". The clip has no steps.
-4. Click cell 3, then Ctrl+click cell 1, then Ctrl+click cell 2. Type `run` and click "+ Clip". The clip `run` has
-   three steps, for cells 3, 1, 2 in that order, each 100 ms. Edit > Undo removes the whole clip in one step.
-5. Set `run`'s last step to 150 ms. In its header, set the Set all box to 250 (without clicking Set all). Select
-   cells 0 and 2 (Ctrl+click) and click `run`'s "+ Step". Two steps are added at the end, for cells 0 and 2, each
-   150 ms (the last step's duration). One Undo removes both.
-6. Select only cell 1 and click "+ Step". One step for cell 1, 150 ms.
-7. Clear the selection (Esc) and click "+ Step". One step for cell 0, with the last step's duration.
-8. On `clip_2`, which has no steps, set the Set all box to 300 and click "+ Step". The step gets 300 ms.
 
-### [done] T-018 Cell list with thumbnails
+### [todo] T-025 Import cells from off-sheet images
 
-**Review:** reviewed 2026-09-16
+**Review:** reviewed 2026-09-17
 
-**Depends on:** none
-
-**Goal:**
-The cell list should change from a text only list to a list with thumbnails of each cell on the left, and on the
-right a listing of the cell index, cell offset and cell size. Keep the x button for deletion.
-
-**Requirements:**
-- [x] Each row of the Cells list has a 48 x 48 px thumbnail box on the left.
-- [x] The box shows the preview background (`DrawImageBackground`, with 8 px checker squares) and the cell's image,
-  scaled to fit the box, keeping its aspect ratio, and centered. Parts of a cell outside the sheet image are
-  clamped, as in the Clips thumbnails. With no sheet image, the box shows only the background.
-- [x] To the right of the box are two lines: line 1 is the index, as `#3`; line 2 is the offset and size, as
-  `(x, y)  w x h`.
-- [x] The x button that deletes the cell stays at the right end of the row.
-- [x] Clicking anywhere on the row (box or text) selects as now: click, Ctrl+click, Shift+click, and picking a cell
-  for a clip step. The selected and prime highlights cover the whole row.
-- [x] The Cells form below the list still fits, and the list still scrolls.
-
-**Out of scope:**
-- The Cells form, the selection rules and the delete behaviour.
-- Thumbnails anywhere else.
-
-**Open questions:**
-- Q: How large is the thumbnail, and what happens to cells that are not square? A: A 48 px box; the cell is fitted
-  inside, keeping its aspect ratio.
-- Q: How are the index, offset and size laid out and labelled in the row? A: Two lines: `#3`, then
-  `(x, y)  w x h`.
-
-**Notes:**
-- Each row is one 48 px high `Selectable` (label `##cell_row`) over the whole row, so the click handling did not
-  change. The thumbnail and the two text lines are drawn over it: the background with `DrawImageBackground` (8 px
-  squares), the image with `DrawImage`, and the text with the window draw list in the style's text color.
-- The selected and prime highlights fill the whole row behind the thumbnail. The thumbnail's background covers the
-  highlight inside its 48 px box.
-- The x button is centred on the row's height. After the thumbnail, the cursor goes back to where it was after the
-  x button, so the rows lay out as before. This ImGui build (1.90.4) does not define
-  `IMGUI_DISABLE_OBSOLETE_FUNCTIONS`, so moving the cursor this way does not assert.
-- Assumption: text that is wider than the row (a narrow window, or large numbers) is drawn under the x button, and
-  is clipped by the list. It is not shortened.
-- The Cells form's height estimate did not change. The list keeps its minimum height of three frame heights, which is
-  now less than one row, and it scrolls.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed (it has no cells, so the rows were not drawn).
-
-**Commits:**
-- da59349 feat(T-018): thumbnails in the Cells list
-
-**Manual verification:**
-1. Import a sheet image with transparent areas, and add cells of different shapes: one wide, one tall, one square,
-   and one that extends past the right edge of the image.
-2. Each Cells row has a 48 px box on the left with an 8 px checkerboard. The cell's image is fitted in it, centred,
-   keeping its aspect ratio. The cell that extends past the image shows only the part inside the image, stretched as
-   in the Clips thumbnails.
-3. To the right of the box, line 1 is `#0`, `#1`, and so on, and line 2 is `(x, y)  w x h`, matching the Cells form.
-4. Click the thumbnail, then the text, of different rows. Each selects its cell. Ctrl+click and Shift+click work as
-   before. The prime row has the prime color across the whole row.
-5. The x button is at the right end of each row, vertically centred, and deletes that cell.
-6. Double-click a clip step, then click a row. The cell is picked for the step.
-7. Add many cells (Tools > Grid Cells). The list scrolls, and the Cells form below it is still fully visible.
-8. File > New. The list is empty.
-
-### [done] T-023 Help menu with About dialog
-
-**Review:** reviewed 2026-09-16
-
-**Depends on:** T-022
-
-**Goal:**
-Add a "Help" menu with one option "About" for now. It should open a small dialog with the tool name, its version,
-a short description of what it is for, and the author (eventually the GitHub repo too when we have a remote).
-
-**Requirements:**
-- [x] The menu bar has a Help menu, last: File, Edit, Tools, Window, Help.
-- [x] The Help menu has one item, "About...".
-- [x] About opens a modal "About Moth Sprite" dialog, centered, sized to its content, with a Close button. Esc also
-  closes it.
-- [x] The dialog shows: "Moth Sprite"; "Version 0.1.0", from `version.txt`; the description from the CMake
-  `project(... DESCRIPTION ...)`; "Author: Matthew Cotton"; and `https://github.com/instinkt900/moth_sprite` as
-  text.
-- [x] The version and the description come from CMake at build time (for example, compile definitions from
-  `MOTH_SPRITE_VERSION_FULL` and `PROJECT_DESCRIPTION`), so changing `version.txt` changes the dialog. They are
-  not typed into the source.
-- [x] Keyboard shortcuts do not fire while the dialog is open, as with the other modal popups.
-
-**Out of scope:**
-- A clickable link, or opening a browser.
-- Other Help items (documentation, shortcuts list).
-- Changes to how the version is set in `version.txt` or `conanfile.py`.
-
-**Open questions:**
-- Q: Where does the version come from, and what is it for the first release? A: `version.txt`, now 0.1.0, passed
-  in by CMake.
-- Q: What text is used for the description and the author? A: The CMake project description; "Matthew Cotton".
-- Q: Is the GitHub repo link part of this task? A: Yes. The remote exists: `github.com/instinkt900/moth_sprite`.
-
-**Notes:**
-- `CMakeLists.txt` passes `MOTH_SPRITE_VERSION_STRING` (from `MOTH_SPRITE_VERSION_FULL`, the stripped contents of
-  `version.txt`, including any `-` or `+` suffix) and `MOTH_SPRITE_DESCRIPTION` (`PROJECT_DESCRIPTION`) as compile
-  definitions. `version.txt` is added to `CMAKE_CONFIGURE_DEPENDS`, so a change to it runs CMake again and the dialog
-  gets the new version on the next build. The definitions apply to every source file, so a version change rebuilds
-  all of them.
-- The dialog is a modal popup like the unsaved changes prompt: centred, sized to its content, `NoSavedSettings`. It is
-  opened with a flag set by the menu item, and drawn at the end of `Draw()`.
-- The popup title is "About Moth Sprite". Close and Esc close it. `HandleShortcuts` already does nothing while a modal
-  popup is open.
-- Build and clang-tidy: no findings, no NOLINT. Smoke launch passed.
-
-**Commits:**
-- a5ba938 feat(T-023): Help > About dialog
-
-**Manual verification:**
-1. The menu bar reads File, Edit, Tools, Window, Help. Help has one item, "About...".
-2. Choose Help > About. A dialog titled "About Moth Sprite" opens in the middle of the window. It shows "Moth Sprite",
-   "Version 0.1.0", "A sprite sheet and animation clip editor for moth", "Author: Matthew Cotton" and
-   `https://github.com/instinkt900/moth_sprite`.
-3. Click Close. The dialog closes. Open it again and press Esc. It closes.
-4. With the dialog open, press Ctrl+N, Ctrl+Z and Delete. Nothing happens.
-5. Optional: change `version.txt` to `0.1.1`, build, and open About. It shows 0.1.1. Change it back.
-
-### [done] T-024 Add a README.md
-
-**Review:** reviewed 2026-09-16
-
-**Depends on:** T-017, T-018, T-019, T-020, T-021, T-022, T-023
-
-**Goal:**
-Add a `README.md`.
-
-**Requirements:**
-- [x] The repository root has a `README.md`, for users of the tool, in the style of moth_packer's README
-  (`~/Development/moth/moth_packer/README.md`), with a table of contents.
-- [x] It covers: what the tool is and what it is for (a sprite sheet and clip editor whose projects moth_graphics
-  loads as a `SpriteSheet`); features; usage: the windows (Sheet, Selected Cell, Cells, Clips), making cells
-  (New Cell, Tools > Grid Cells, Tools > Detect Cells), selection, pivots, clips and playback, undo, and the
-  keyboard shortcuts; the project file format (`image`, `frames`, `clips`, as in `CLAUDE.md`); editor settings
-  (`moth_sprite.json` and `imgui.ini` in the current folder); building with Conan and CMake; related moth
-  projects; and the license (MIT, as in `conanfile.py`).
-- [x] Everything it says matches the app at the commit that adds it: menu names, window names, shortcuts and
-  file fields. Check each against the source.
-- [x] No screenshots and no badges for CI that does not exist.
-
-**Out of scope:**
-- A `LICENSE` file, CI, and changes to `CLAUDE.md` or `docs/`.
-- Developer workflow docs beyond a pointer to `docs/workflow.md`.
-
-**Open questions:**
-- Q: What does the README cover? A: What the tool is, features, usage, project file format, building, related
-  projects, license. No screenshots.
-- Q: Who is it for? A: Users of the tool, with build steps.
-
-**Notes:**
-- Each statement was checked against the source at this commit: menu items, window names, toolbar buttons, the Grid
-  Cells and Detect Cells options and their "Add Frames" button, the selection rules in `sprite_editor_preview.cpp`
-  and `sprite_editor_frames.cpp`, the clip controls, `HandleShortcuts`, `SpriteEditorConfig`, `SaveSpriteSheet` and
-  moth_graphics' `SpriteSheetFactory` (for what a game loads).
-- Assumption: the Conan remote is given as in moth_packer's README
-  (`https://artifactory.matthewcotton.net/artifactory/api/conan/conan-local`, named `moth`). The local Conan setup
-  names this remote `artifactory` and uses `http://`.
-- Assumption: the related projects table links moth_ui, moth_graphics, moth_editor and moth_packer on GitHub, as
-  moth_packer's README does. moth_core and moth_bridge are named in the prerequisites without links, because their
-  URLs were not found.
-- The license is given as MIT, from `conanfile.py`. The repository has no `LICENSE` file (out of scope).
-- The README says that moth_graphics does not load a project with no cells, and skips empty clips and steps with a
-  0 ms duration. The editor allows all three. Recorded under `## Discovered`.
-- No code changed. Build and smoke launch passed.
-
-**Commits:**
-- 0cbdfbb docs(T-024): add README.md
-
-**Manual verification:**
-1. Read `README.md` on GitHub, or in a Markdown viewer. The table of contents links work, and the tables and code
-   blocks render.
-2. Check the Artifactory remote URL and name, and the related project links, against what you publish.
-3. Follow "Build and run" in a fresh clone.
-
-### [deferred] T-025 Import cells from off-sheet images
-
-**Review:** unreviewed
-
-**Depends on:** none
+**Depends on:** T-030
 
 **Goal:**
 Add support for importing cells from off-sheet images. The cell list window should get a new "import" button so
 the user can import an image to use as a new cell.
 
-**Requirements:**
-- [ ] The cell list window has an "import" button.
-- [ ] The button lets the user choose an image that is not the sprite sheet, and adds it as a new cell.
-
-**Open questions:**
-- Q: Where do the imported pixels live: composited into the sheet image, or kept as a separate image?
-- Q: How is such a cell saved in the project file, which stores cells as a rectangle in the sheet image?
-- Q: Can moth_graphics load a sprite sheet whose cells come from more than one image?
-- Q: Where is the imported cell placed in the sheet, and what happens if there is no room?
-
-**Notes:**
-- Deferred on 2026-09-16 by `/task-planning`, to finish the smaller tasks first. The open questions above are
-  still open.
-- moth_graphics (`SpriteSheetFactory`) reads one `image` and each frame as a rectangle in it. A cell from another
-  image needs a new project file field that moth_graphics would ignore, so such a cell would draw the wrong pixels
-  in game until the sheet is re-packed (T-026, T-027). Decide the file format before this task is reviewed.
-
-**Commits:**
-
-**Manual verification:**
-
-### [deferred] T-026 Re-pack the sprite sheet
-
-**Review:** unreviewed
-
-**Depends on:** T-025
-
-**Goal:**
-Add support for re-packing the sprite sheet (sheet cells and external cells). This will mirror features from
-moth_packer (`~/Development/moth/moth_packer`) and can probably use its library. A dialog should pop up allowing
-the user to specify the packing parameters with a preview.
+The imported image stays a separate file, and the project file (T-028) refers to it. A project with cells from
+other images is "unpacked": it must be packed (T-030) before it can be exported for games (T-029).
 
 **Requirements:**
-- [ ] The sprite sheet can be re-packed, covering both sheet cells and external cells imported by T-025.
-- [ ] A dialog lets the user specify the packing parameters.
-- [ ] The dialog shows a preview of the packing result.
+- [ ] The Cells window has an "Import..." button. It opens an image dialog (same filter and `LastImageDir` as
+  Import Sheet) that allows several files to be chosen (`NFD_OpenDialogMultiple`).
+- [ ] Each chosen image is added as a new cell at the end of the cell list, in the dialog's order. The cell is the
+  whole image, with pivot (0, 0). The whole import is one undo action. An image that fails to load is skipped
+  with a logged error; if none load, nothing changes.
+- [ ] Import works in a project with no sheet image.
+- [ ] The project file stores such a cell as its image path, relative to the project file, and its pivot. It has
+  no x/y/w/h. A project whose cell image is missing still loads; the cell shows only the preview background, and
+  a warning is logged.
+- [ ] The Cells thumbnails, the Selected Cell window and the Clips preview draw the cell from its own image. In
+  the Selected Cell window its pivot can be edited, and its x/y/w/h fields are read-only (showing 0, 0 and the
+  image size).
+- [ ] The Sheet window does not show cells from other images. Tools that work on the sheet (Grid Cells, Detect
+  Cells, drawing and dragging cells on the sheet) do not change them.
+- [ ] Pack (T-030) packs cells from other images like sheet cells. After a pack, they are sheet cells with the
+  packed rectangles, and the project no longer refers to their images. Undo of the pack restores them.
+- [ ] Export of a project with cells from other images opens the pack dialog. When the pack succeeds, the export
+  continues as File > Export would. Cancelling the dialog, or a failed pack, cancels the export.
+- [ ] `README.md` and `CLAUDE.md` describe importing cells, unpacked projects, and the cell's image path in the
+  project file.
+
+**Out of scope:**
+- Changes to moth_graphics.
+- Editing the rectangle of a cell from another image, or taking part of an image.
+- Showing cells from other images in the Sheet window.
+- Reloading a cell image that changed on disk while the project is open.
 
 **Open questions:**
-- Q: Which moth_packer features are mirrored, and which packing parameters does the dialog expose?
-- Q: Is moth_packer's library available as a Conan package or another dependency this project can use?
-- Q: Where does the re-packed image get written, and what happens to the original sheet image?
-- Q: How is the re-pack undone: one undo step for the whole operation?
+- Q: Where do the imported pixels live: composited into the sheet image, or kept as a separate image? A: Kept as a
+  separate image. Pack (T-030) puts them on the sheet.
+- Q: How is such a cell saved in the project file? A: In the T-028 format, as its image path (relative to the
+  project file) and pivot.
+- Q: Can moth_graphics load a sprite sheet whose cells come from more than one image? A: No, and it will not.
+  Pack puts all cells on one sheet before export.
+- Q: Where is the imported cell placed in the sheet, and what happens if there is no room? A: It is not placed in
+  the sheet image until the user packs.
+- Q: Is the cell the whole image, or a rectangle in it? A: The whole image.
+- Q: Can the user import more than one image at once? A: Yes, one cell per image, as one undo action.
+- Q: What does the Sheet window show when a cell from another image is selected? A: Nothing. The Sheet window
+  shows only the sheet and its cells.
+- Q: What does Export do with cells from other images? A: It opens the pack dialog, and continues with the export
+  after a successful pack.
+- Q: Is the task small enough for one session? A: Kept as one task. The drawing changes cannot be checked without
+  the import.
 
 **Notes:**
-- Deferred on 2026-09-16 by `/task-planning`, to finish the smaller tasks first. The open questions above are
-  still open.
-- The packer library is now part of the moth toolkit, and links like the other modules. moth_editor uses it:
-  `self.requires("moth_packer/[>=2 <3]")` in `conanfile.py`, and `find_package(moth_packer REQUIRED)` with
-  `target_link_libraries(... moth::packer)` in `CMakeLists.txt`. moth_editor also sets
-  `self.options["moth_packer"].with_ui = True`, which re-packing sheet cells probably does not need. The local
-  `~/Development/moth/moth_packer` checkout (1.0.0, moth_ui 1.x) is out of date. Read the 2.x API, not that one.
-- Adding the dependency is a change to `conanfile.py` and `CMakeLists.txt`, and needs a new `conan install`. When
-  this task is reviewed, write the dependency into `Requirements`, so that a session does not block on it.
-
-**Commits:**
-
-**Manual verification:**
-
-### [deferred] T-027 Notice when saving a project with external cells
-
-**Review:** unreviewed
-
-**Depends on:** T-025
-
-**Goal:**
-When saving a project with external cells, pop up a notice dialog that notifies the user that external cells are
-only supported by the tool and will not work in game until the sheet is repacked.
-
-**Requirements:**
-- [ ] Saving a project that has external cells (from T-025) opens a notice dialog.
-- [ ] The notice says that external cells are only supported by the tool and will not work in game until the sheet
-  is repacked.
-- [ ] Saving a project with no external cells does not show the notice.
-
-**Open questions:**
-- Q: Does the notice appear before or after the file is written, and can the user cancel the save from it?
-- Q: Does it appear on every save, or is there a way to stop it showing again?
-
-**Notes:**
-- Deferred on 2026-09-16 by `/task-planning`, to finish the smaller tasks first. The open questions above are
-  still open.
-- Depends on the external cells design in T-025.
+- Deferred on 2026-09-16 by `/task-planning`, to finish the smaller tasks first. Rewritten on 2026-09-17 by
+  `/task-planning` after the project format decision (T-028, T-029, T-030). T-027 (a notice on save that external
+  cells do not work in game) was removed, because games load only exported data.
+- The editor draws every cell from `m_spriteSheet` (a moth_graphics `SpriteSheet` built from the sheet image,
+  about 26 uses in `src/sprite_editor/`). Cells from other images need their own textures, loaded with
+  `AssetContext::TextureFromFile` and kept alive by the project data (and by undo actions that remove them).
+- `m_frames` holds `moth::gfx::SpriteSheet::FrameEntry`, which has no image reference. The cell type needs a
+  source image reference beside it.
 
 **Commits:**
 
@@ -536,7 +337,3 @@ Problems noticed during sessions that are outside the current tasks. Candidates 
   the end of the edit. If the widget is not drawn in that frame (the edited cell or clip is deleted by a button in
   the same frame, or the window is closed), the edit stays pending until the next field is activated. Its undo step
   then also covers changes made in between.
-- Found in T-024: the editor can save projects that moth_graphics' `SpriteSheetFactory` does not load as saved. A
-  project with no cells fails to load ("frames array is empty"), in the editor too. A clip with no steps, and a clip
-  with a step whose duration is 0 ms (the duration fields allow 0), are skipped with a warning, so they are lost
-  when the project is loaded again.
