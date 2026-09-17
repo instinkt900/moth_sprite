@@ -268,9 +268,9 @@ python3 -m venv .venv
 pip install conan
 ```
 
-**C++17 is required.** A `.conan/profile` is provided that sets `compiler.cppstd=17` and configures Conan to install
-system packages automatically (`tools.system.package_manager:mode=install`). This profile is used in CI and can be used
-directly or as a reference when building locally. The app renders with Vulkan, so it also needs a Vulkan driver.
+**C++17 is required.** The recipe checks for it. On Linux, Conan's detected profile already uses `gnu17`. On
+Windows, MSVC's detected profile defaults to C++14, so pass `-s compiler.cppstd=17` or set it in your Conan profile.
+The app renders with Vulkan, so it also needs a Vulkan driver.
 
 moth_sprite depends on the [moth_toolkit](https://github.com/instinkt900/moth_toolkit) module `moth_bridge`, which
 brings in `moth_core`, `moth_graphics` and `moth_ui`. These are published to an Artifactory remote rather than Conan
@@ -294,10 +294,11 @@ Several system packages are required on Linux. GTK3 is needed by nativefiledialo
 pulled in transitively via `moth_graphics` (see the [moth_toolkit README](https://github.com/instinkt900/moth_toolkit)
 for background on why these must come from the system).
 
-Using `.conan/profile`, Conan will install these automatically via `apt`:
+Conan installs these through `apt` when you allow it to manage system packages:
 
 ```bash
-conan install . -pr .conan/profile -s build_type=Release --build=missing
+conan install . -s build_type=Release --build=missing \
+    -c tools.system.package_manager:mode=install -c tools.system.package_manager:sudo=True
 cmake --preset conan-release
 cmake --build --preset conan-release
 ```
@@ -314,7 +315,7 @@ and runs clang-tidy when it is installed.
 ### Windows
 
 ```bash
-conan install . -pr .conan/profile -s build_type=Release --build=missing
+conan install . -s compiler.cppstd=17 -s build_type=Release --build=missing
 cmake --preset conan-default
 cmake --build --preset conan-release
 ```

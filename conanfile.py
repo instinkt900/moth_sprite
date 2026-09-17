@@ -1,4 +1,5 @@
 from conan import ConanFile
+from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import cmake_layout, CMake
 from conan.tools.files import load
 from conan.tools.system.package_manager import Apt
@@ -16,6 +17,10 @@ class MothSprite(ConanFile):
     def set_version(self):
         if not self.version:
             self.version = load(self, "version.txt").strip()
+
+    def validate(self):
+        # C++17 is the floor for every moth project.
+        check_min_cppstd(self, 17)
 
     def requirements(self):
         # moth_bridge brings in moth_core, moth_graphics and moth_ui from the toolkit.

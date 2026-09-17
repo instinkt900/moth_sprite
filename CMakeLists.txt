@@ -8,8 +8,6 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_
 
 project(moth_sprite VERSION ${MOTH_SPRITE_VERSION} DESCRIPTION "A sprite sheet and animation clip editor for moth")
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(external/nativefiledialog nativefiledialog)
@@ -32,6 +30,7 @@ set(SOURCES
 find_package(moth_bridge REQUIRED)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 # SYSTEM silences -Wall/-Werror noise from the vendored single-header library.
