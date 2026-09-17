@@ -330,7 +330,7 @@ a project that has only sheet cells is also allowed, and lays them out again tig
 10. Pack to a folder that does not exist: the dialog shows "Could not write the packed image".
 11. Windows build: check that `packed_image_write.c` compiles with `/W3 /WX`.
 
-### [todo] T-031 Preview in the pack dialog
+### [done] T-031 Preview in the pack dialog
 
 **Review:** reviewed 2026-09-17
 
@@ -342,12 +342,12 @@ The pack dialog shows a preview of the packing result, so the user can see the l
 (Split from T-026, together with T-030, on 2026-09-17.)
 
 **Requirements:**
-- [ ] The pack dialog shows the packed image the current settings would produce, fitted to a preview area, on the
+- [x] The pack dialog shows the packed image the current settings would produce, fitted to a preview area, on the
   preview background (`DrawImageBackground`).
-- [ ] The dialog shows the packed image's width and height.
-- [ ] The preview updates when a setting changes. When the cells do not fit, or a source cannot be read, the
+- [x] The dialog shows the packed image's width and height.
+- [x] The preview updates when a setting changes. When the cells do not fit, or a source cannot be read, the
   preview area shows the reason instead.
-- [ ] The preview writes no files and does not change the project.
+- [x] The preview writes no files and does not change the project.
 
 **Out of scope:**
 - Changes to how Pack works (T-030).
@@ -359,9 +359,30 @@ The pack dialog shows a preview of the packing result, so the user can see the l
 - Rewritten 2026-09-17 by `/task-planning` from T-026.
 - `PackToMemory` does not write files, so the preview can use it with the same inputs as Pack.
 
+- Session 2026-09-17: the preview is packed with `PackCells` (the same code as Pack, with the same cells) and
+  uploaded with `AssetContext::TextureFromPixels`. It is packed again at the start of the dialog's draw when a
+  setting that changes the pixels changed (padding, padding type and colour, sizes), so an edit shows one frame
+  later. Changing the path, format or JPEG quality does not pack again: they do not change the pixels.
+- Source images are read once while the dialog is open. The preview texture and the images are released when the
+  dialog closes.
+- The preview area is 400 x 400 pixels, to the right of the settings. The image is fitted and centred, on the
+  preview background with 16 px checker squares. When there is no preview, the area shows the reason in the
+  warning colour.
+- The old preview texture is released during the editor's draw, as textures are when a project is loaded. This was
+  not run in the session (the launch check does not open the dialog).
+
 **Commits:**
+- 2d8c986 feat(T-031): preview the packed image in the pack dialog
 
 **Manual verification:**
+1. Open File > Pack... on a project with cells: the preview shows the packed image, fitted and centred, on the
+   preview background, with "Packed image: W x H" above it.
+2. Change padding, padding type, padding colour and the sizes: the preview and its size update at once. Change the
+   format or path: the preview stays.
+3. Set the maximum size smaller than the cells: the preview area shows "The cells do not fit into one image of
+   W x H". Set it back: the preview returns.
+4. Close with Cancel: no files are written and the project has no ` *`.
+5. While changing settings quickly, the log has no Vulkan validation errors.
 
 ### [todo] T-025 Import cells from off-sheet images
 
