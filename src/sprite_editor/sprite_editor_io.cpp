@@ -458,17 +458,19 @@ void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
     m_clipElapsedMs   = 0.0f;
 }
 
-std::vector<std::string> SpriteEditor::ExportProblems() const {
+std::vector<std::string> SpriteEditor::ExportProblems(bool beforePack) const {
     // Everything that SpriteSheetFactory rejects or skips, so the game data never differs from the project.
     std::vector<std::string> problems;
-    if (m_imagePathBuffer[0] == '\0') {
+    // Before a pack, the sheet image and the cell sizes are left to the pack: it makes the sheet image, and it
+    // refuses cells it cannot pack without changing the project.
+    if (!beforePack && m_imagePathBuffer[0] == '\0') {
         problems.emplace_back("The project has no sheet image.");
     }
     if (m_frames.empty()) {
         problems.emplace_back("The project has no cells.");
     }
     int const frameCount = static_cast<int>(m_frames.size());
-    for (int i = 0; i < frameCount; ++i) {
+    for (int i = 0; i < frameCount && !beforePack; ++i) {
         auto const& rect = m_frames[static_cast<size_t>(i)].rect;
         if (rect.w() <= 0 || rect.h() <= 0) {
             problems.push_back(fmt::format("Cell #{} has a size of {} x {}.", i, rect.w(), rect.h()));
@@ -499,17 +501,16 @@ void SpriteEditor::ShowExportMessage(std::string heading, std::vector<std::strin
 }
 
 void SpriteEditor::ExportProject(bool choosePath) {
-    // Cells from other images must be packed onto the sheet first, so the problems are checked after the pack.
+    // Cells from other images must be packed onto the sheet first.
     bool const needsPack =
         std::any_of(m_frames.begin(), m_frames.end(), [](CellEntry const& cell) { return cell.source != nullptr; });
 
-    // Refuse before asking for a path, and write no files.
-    if (!needsPack) {
-        std::vector<std::string> problems = ExportProblems();
-        if (!problems.empty()) {
-            ShowExportMessage("The project cannot be exported:", std::move(problems));
-            return;
-        }
+    // Refuse before asking for a path, and write no files. When a pack comes first, the problems a pack cannot fix
+    // are checked now, so a pack never changes the project for an export that will be refused.
+    std::vector<std::string> problems = ExportProblems(needsPack);
+    if (!problems.empty()) {
+        ShowExportMessage("The project cannot be exported:", std::move(problems));
+        return;
     }
 
     std::filesystem::path exportPath = m_exportPath;
@@ -556,7 +557,7 @@ void SpriteEditor::ExportProject(bool choosePath) {
 }
 
 void SpriteEditor::ExportToPath(std::filesystem::path const& exportPath) {
-    std::vector<std::string> problems = ExportProblems();
+    std::vector<std::string> problems = ExportProblems(false);
     if (!problems.empty()) {
         ShowExportMessage("The project cannot be exported:", std::move(problems));
         return;
@@ -651,25 +652,13 @@ bool SpriteEditor::SaveSpriteSheet(std::filesystem::path const& path) {
     // with no cells.
     WriteFramesAndClips(json, m_frames, m_clips, path);
 
-    // Write to file
-    std::ofstream ofile(path);
-    if (!ofile.is_open()) {
-        moth::core::log::error("SpriteEditor: failed to open '{}' for writing", path.string());
+    // WriteJsonFile serializes before it opens the file, so a failed save never empties an existing project file.
+    // Callers go on (for example, quit) only after a successful save, so it also checks that the write worked.
+    if (!WriteJsonFile(path, json)) {
+        moth::core::log::error("SpriteEditor: failed to write '{}'", path.string());
         return false;
     }
-    try {
-        ofile << json.dump(2);
-        // Callers go on (for example, quit) only after a successful save, so check that the write worked.
-        ofile.flush();
-        if (!ofile) {
-            moth::core::log::error("SpriteEditor: failed to write '{}'", path.string());
-            return false;
-        }
-        moth::core::log::info("SpriteEditor: saved '{}'", path.string());
-    } catch (std::exception const& e) {
-        moth::core::log::error("SpriteEditor: failed to write '{}': {}", path.string(), e.what());
-        return false;
-    }
+    moth::core::log::info("SpriteEditor: saved '{}'", path.string());
     // The file was written, so the project uses it from now on.
     std::string const pathStr = path.string();
     strncpy(m_pathBuffer, pathStr.c_str(), sizeof(m_pathBuffer) - 1);

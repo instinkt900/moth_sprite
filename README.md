@@ -156,7 +156,8 @@ As...** always asks. Setting a new export path is an undo step; undo does not re
 A project with cells from other images is **unpacked**: games need every cell on one sheet. Exporting it asks for the
 descriptor path first (on the first Export, and on Export As), then opens the pack dialog with the packed image named
 after the descriptor: `hero.json` packs to `hero.png`. Nothing is written until **Pack** succeeds; the export then
-continues. Cancelling either dialog cancels the export.
+continues. Cancelling either dialog cancels the export. Problems that a pack cannot fix, such as a clip with no steps,
+are reported before the file dialog opens, so a pack never runs for an export that would be refused.
 
 Export refuses, writes no files, and lists the problems when the project has no sheet image, has no cells, has a cell
 with no width or height, has a clip with no steps, or has a step with a duration of 0 ms or with no cell. These are the
@@ -193,7 +194,8 @@ The image stays a separate file, and the project refers to it. Such a cell:
 - has a pivot that can be edited, and X, Y, W and H fields that are read-only (0, 0 and the image size).
 
 If the image is missing when the project is loaded, the project still loads with a warning, and the cell shows only
-the preview background. [Tools > Pack](#packing) puts these cells on the sheet.
+the preview background. [Tools > Pack](#packing) puts these cells on the sheet, but it cannot read a missing image:
+it shows an error and leaves the project unchanged. Restore the image, or delete the cell, before packing.
 
 ### Selecting and editing cells
 

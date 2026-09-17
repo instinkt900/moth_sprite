@@ -137,7 +137,8 @@ private:
     // Write the descriptor to exportPath (absolute) and copy the sheet image beside it, then set the export path.
     void ExportToPath(std::filesystem::path const& exportPath);
     // What stops the project from being exported as game data, one message each. Empty when it can be exported.
-    std::vector<std::string> ExportProblems() const;
+    // beforePack leaves out the problems a pack fixes or refuses by itself (no sheet image, cell sizes).
+    std::vector<std::string> ExportProblems(bool beforePack) const;
     // Show the export message popup on the next draw.
     void ShowExportMessage(std::string heading, std::vector<std::string> lines);
     void DrawExportMessage();
