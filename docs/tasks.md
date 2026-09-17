@@ -112,7 +112,7 @@ that the project does not work in game (T-027, now removed).
    changes, and an error is logged.
 7. With `.json` entries in Open Recent from an older version, start the editor: only `.mothsprite` entries remain.
 
-### [todo] T-029 Export to the game format
+### [done] T-029 Export to the game format
 
 **Review:** reviewed 2026-09-17
 
@@ -124,21 +124,21 @@ saving saves only the project. The project remembers where it was last exported,
 for a path.
 
 **Requirements:**
-- [ ] File > Export... writes the descriptor to the project's export path. When the project has no export path, it
+- [x] File > Export... writes the descriptor to the project's export path. When the project has no export path, it
   opens a save dialog (filter `json`) first. File > Export As... always opens the dialog.
-- [ ] The descriptor has `image`, `frames` and `clips`, and `SpriteSheetFactory` loads it.
-- [ ] Export copies the sheet image next to the descriptor, named after the descriptor with the sheet image's
+- [x] The descriptor has `image`, `frames` and `clips`, and `SpriteSheetFactory` loads it.
+- [x] Export copies the sheet image next to the descriptor, named after the descriptor with the sheet image's
   extension (`hero.json` gets `hero.png`). An existing file is overwritten. The descriptor's `image` is that file
   name.
-- [ ] Frame indices in the descriptor follow the project's cell order, so clip steps keep their frame indices.
-- [ ] Export refuses, writes no files, and shows a message popup that lists the problems, when the project has no
+- [x] Frame indices in the descriptor follow the project's cell order, so clip steps keep their frame indices.
+- [x] Export refuses, writes no files, and shows a message popup that lists the problems, when the project has no
   sheet image, has no cells, has a clip with no steps, or has a step with a 0 ms duration.
-- [ ] If writing the descriptor or copying the image fails, an error is logged and shown in the same popup.
-- [ ] The project stores the export path, relative to the project file. A successful export to a different path
+- [x] If writing the descriptor or copying the image fails, an error is logged and shown in the same popup.
+- [x] The project stores the export path, relative to the project file. A successful export to a different path
   sets it as one undoable action. Undo does not remove exported files.
-- [ ] Saving the project does not export.
-- [ ] File > Export Sheet (T-004) is removed. The Sheet window's image path text no longer mentions it.
-- [ ] `README.md` and `CLAUDE.md` describe Export and Export As, and no longer describe Export Sheet.
+- [x] Saving the project does not export.
+- [x] File > Export Sheet (T-004) is removed. The Sheet window's image path text no longer mentions it.
+- [x] `README.md` and `CLAUDE.md` describe Export and Export As, and no longer describe Export Sheet.
 
 **Out of scope:**
 - Packing cells into a new image (T-030). Without packing, the export copies the sheet image as it is.
@@ -165,9 +165,38 @@ for a path.
 - `ExportSheet` (`sprite_editor_io.cpp`) and its menu item (`sprite_editor.cpp`) are removed. The tooltip text in
   `sprite_editor_preview.cpp` mentions Export Sheet.
 
+- Session 2026-09-17: Export also refuses a cell with a width or height of 0 or less, a step with a negative
+  duration, and a step whose cell does not exist. `SpriteSheetFactory` rejects or skips these too, and the goal is
+  that game data never differs from the project without the user knowing.
+- Export and Export As are always enabled. The problems are checked before the save dialog opens, so a refused
+  export asks for no path.
+- The export dialog starts in the folder of the last export, else the project file's folder, else the last project
+  dialog folder. It does not change the remembered folders. A name with another extension gets `.json` appended.
+- The image is copied first, then the descriptor is written. If the copy fails, no descriptor is written. If the
+  descriptor write fails, the copied image stays. When the target image is the sheet image itself, nothing is
+  copied.
+- The export path is kept absolute in memory and saved relative to the project file (absolute when there is no
+  relative path), so an untitled project can export before it is saved.
+- Descriptors and project files share one writer for cells and clips (`WriteFramesAndClips`).
+- No automated tests exist; the descriptor was checked against `SpriteSheetFactory`'s parser by reading the code.
+
 **Commits:**
+- 32ba1b5 feat(T-029): export the sprite sheet descriptor for games
 
 **Manual verification:**
+1. The File menu has Export... and Export As..., and no Export Sheet.
+2. On a new project, File > Export: a popup lists "no sheet image" and "no cells", and no dialog opens.
+3. Import a sheet, add cells and a clip with two steps, set one step to 0 ms, and add an empty clip. Export: the
+   popup lists the 0 ms step and the empty clip. No files are written.
+4. Fix the clips. Export: a save dialog filtered on `json` opens. Choose `out/hero.json`. `out/hero.json` and
+   `out/hero.png` (the sheet's extension) exist, and the descriptor's `image` is `hero.png`.
+5. Load `out/hero.json` with File > Load: it imports with the same cells, pivots and clips, in the same order.
+6. Change a cell and Export again: no dialog; both files are overwritten.
+7. Export As to `out2/hero2.json`, then Ctrl+Z: the export path goes back; the `out2` files stay. Ctrl+Y sets it
+   again. Save the project and open the `.mothsprite` file: `export_path` is relative to the project file.
+8. Save the project, then close and reload it: Export uses the saved path without a dialog.
+9. Make the target folder read-only and Export: the popup shows the copy or write error, and it is logged.
+10. Saving the project writes no descriptor.
 
 ### [todo] T-030 Pack the sprite sheet
 
