@@ -52,9 +52,17 @@ private:
     // The dock space fills the application window below the main menu bar.
     void DrawDockSpace();
     void NewSpriteSheet();
+    // The extension of project files.
+    static constexpr char const* kProjectExtension = ".mothsprite";
+    // Open a file from File > Load or Open Recent: a sprite sheet descriptor (.json) is imported with
+    // ImportDescriptor, and any other file is loaded as a project file with LoadProjectFile.
+    void LoadSpriteSheet(std::filesystem::path const& path);
     // Load a project file. On success it replaces the open project, and path becomes the project path (the window
     // title, Save and Open Recent). A failed load changes nothing.
-    void LoadSpriteSheet(std::filesystem::path const& path);
+    void LoadProjectFile(std::filesystem::path const& path);
+    // Make a new project from a sprite sheet descriptor, the format games load. The project has no path and has
+    // unsaved changes. A descriptor that SpriteSheetFactory does not load changes nothing.
+    void ImportDescriptor(std::filesystem::path const& path);
     // File > Open Recent: move a loaded or saved project to the front of the list, which keeps 10 projects.
     void AddRecentProject(std::filesystem::path const& path);
     // Load a project chosen from Open Recent. A project file that no longer exists is removed from the list instead.
@@ -63,6 +71,8 @@ private:
     // Unsaved changes. The project differs from its last save when the undo position is not the one it had then.
     bool HasUnsavedChanges() const;
     void MarkSaved();
+    // The project differs from its last save until it is saved, even with nothing to undo.
+    void MarkUnsaved();
     uint64_t CurrentUndoId() const;
     // Actions that replace or close the project. With unsaved changes they wait for the unsaved changes prompt.
     enum class ProjectActionKind {
@@ -94,7 +104,7 @@ private:
     // Copy the sheet image file, unchanged, to exportPath (given the sheet's extension), then point the project at
     // the copy as one undoable action.
     void ExportSheet(std::filesystem::path exportPath);
-    // Write the project file to path. Returns true when it was written. Only then path becomes the project path (the
+    // Write the project file (the .mothsprite format) to path. Returns true when it was written. Only then path becomes the project path (the
     // window title, Save and Open Recent).
     bool SaveSpriteSheet(std::filesystem::path const& path);
     void DrawPreview();
@@ -155,6 +165,11 @@ private:
     using ClipVec  = std::vector<moth::gfx::SpriteSheet::ClipEntry>;
     // Selected cell indices in the order they were added. The last one is the prime cell.
     using Selection = std::vector<int>;
+
+    // Replace the open project with a sheet, its image path, cells and clips. Clears the undo history, the selection
+    // and clip playback, and fits the views. The caller sets the project path and the saved state.
+    void ReplaceProject(std::shared_ptr<moth::gfx::SpriteSheet> sheet, std::string const& imagePath,
+                        FrameVec frames, ClipVec clips);
 
     // Undo/redo stack
     void AddSpriteAction(std::unique_ptr<IEditorAction> action);

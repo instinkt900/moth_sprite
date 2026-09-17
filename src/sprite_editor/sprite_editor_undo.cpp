@@ -1,6 +1,8 @@
 #include "common.h"
 #include "sprite_editor.h"
 
+#include <limits>
+
 void SpriteEditor::AddSpriteAction(std::unique_ptr<IEditorAction> action) {
     while (static_cast<int>(m_undoStack.size()) - 1 > m_undoIndex) {
         m_undoStack.pop_back();
@@ -56,6 +58,11 @@ bool SpriteEditor::HasUnsavedChanges() const {
 
 void SpriteEditor::MarkSaved() {
     m_savedUndoId = CurrentUndoId();
+}
+
+void SpriteEditor::MarkUnsaved() {
+    // Undo ids count up from 1 and are never reused, so no undo position reaches this one.
+    m_savedUndoId = std::numeric_limits<uint64_t>::max();
 }
 
 void SpriteEditor::PushFrameAction(FrameVec before, Selection selBefore, Selection selAfter) {

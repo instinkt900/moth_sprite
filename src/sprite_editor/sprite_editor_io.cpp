@@ -10,23 +10,98 @@
 namespace {
     // File > Open Recent keeps this many projects.
     constexpr size_t kMaxRecentProjects = 10;
+    // The project file format version this editor writes. A file with a higher version is not loaded.
+    constexpr int kProjectFormatVersion = 1;
+
+    char const* LoopTypeName(moth::gfx::SpriteSheet::LoopType loop) {
+        switch (loop) {
+        case moth::gfx::SpriteSheet::LoopType::Reset: return "reset";
+        case moth::gfx::SpriteSheet::LoopType::Loop:  return "loop";
+        case moth::gfx::SpriteSheet::LoopType::Stop:
+        default:                                      return "stop";
+        }
+    }
+
+    moth::gfx::SpriteSheet::LoopType ParseLoopType(std::string const& name) {
+        if (name == "reset") {
+            return moth::gfx::SpriteSheet::LoopType::Reset;
+        }
+        if (name == "loop") {
+            return moth::gfx::SpriteSheet::LoopType::Loop;
+        }
+        return moth::gfx::SpriteSheet::LoopType::Stop;
+    }
+
+    // The contents of a project file, read before any editor state changes.
+    struct ProjectFileData {
+        std::string imagePath; // absolute, or empty when the project has no sheet image
+        std::vector<moth::gfx::SpriteSheet::FrameEntry> frames;
+        std::vector<moth::gfx::SpriteSheet::ClipEntry> clips;
+    };
+
+    // Read a project file. The project is the editing source, so cells, clips and steps are read as they were saved,
+    // with no checks for what games reject. Returns nothing, with a logged error, when the file cannot be read.
+    std::optional<ProjectFileData> ReadProjectFile(std::filesystem::path const& path) {
+        std::ifstream ifile(path);
+        if (!ifile.is_open()) {
+            moth::core::log::error("SpriteEditor: failed to open project '{}'", path.string());
+            return std::nullopt;
+        }
+        try {
+            nlohmann::json json;
+            ifile >> json;
+            int const version = json.at("version").get<int>();
+            if (version < 1 || version > kProjectFormatVersion) {
+                moth::core::log::error("SpriteEditor: project '{}' has format version {}, this editor reads version {}",
+                    path.string(), version, kProjectFormatVersion);
+                return std::nullopt;
+            }
+
+            ProjectFileData data;
+            if (json.contains("image")) {
+                data.imagePath = std::filesystem::absolute(path.parent_path() / json.at("image").get<std::string>())
+                                     .lexically_normal()
+                                     .string();
+            }
+            for (auto const& frameJson : json.value("frames", nlohmann::json::array())) {
+                moth::gfx::SpriteSheet::FrameEntry frame;
+                frame.rect = moth::gfx::MakeRect(frameJson.at("x").get<int>(), frameJson.at("y").get<int>(),
+                                                 frameJson.at("w").get<int>(), frameJson.at("h").get<int>());
+                frame.pivot.x = frameJson.value("pivot_x", 0);
+                frame.pivot.y = frameJson.value("pivot_y", 0);
+                data.frames.push_back(frame);
+            }
+            for (auto const& clipJson : json.value("clips", nlohmann::json::array())) {
+                moth::gfx::SpriteSheet::ClipEntry clip;
+                clip.name = clipJson.at("name").get<std::string>();
+                clip.desc.loop = ParseLoopType(clipJson.value("loop", std::string{ "stop" }));
+                for (auto const& stepJson : clipJson.value("frames", nlohmann::json::array())) {
+                    moth::gfx::SpriteSheet::ClipFrame step;
+                    step.frameIndex = stepJson.at("frame").get<int>();
+                    step.durationMs = stepJson.at("duration_ms").get<int>();
+                    clip.desc.frames.push_back(step);
+                }
+                data.clips.push_back(std::move(clip));
+            }
+            return data;
+        } catch (std::exception const& e) {
+            moth::core::log::error("SpriteEditor: failed to read project '{}': {}", path.string(), e.what());
+            return std::nullopt;
+        }
+    }
 } // namespace
 
 void SpriteEditor::LoadSpriteSheet(std::filesystem::path const& path) {
-    // Load and validate before touching any editor state so a failed load
-    // leaves the current document intact.
-    auto& assetContext = m_assetContext;
-    auto newSheet = assetContext.GetSpriteSheetFactory().GetSpriteSheet(path);
-    if (!newSheet) {
-        moth::core::log::error("Failed to load sprite sheet: {}", path.string());
-        return;
+    if (path.extension() == ".json") {
+        ImportDescriptor(path);
+    } else {
+        LoadProjectFile(path);
     }
+}
 
+void SpriteEditor::ReplaceProject(std::shared_ptr<moth::gfx::SpriteSheet> sheet, std::string const& imagePath,
+                                  FrameVec frames, ClipVec clips) {
     ClearSpriteActions();
-    MarkSaved();
-    std::string const pathStr = path.string();
-    strncpy(m_pathBuffer, pathStr.c_str(), sizeof(m_pathBuffer) - 1);
-    m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
     m_selection.clear();
     m_selectedClip = -1;
     m_clipPlaying = false;
@@ -34,48 +109,95 @@ void SpriteEditor::LoadSpriteSheet(std::filesystem::path const& path) {
     m_clipElapsedMs = 0.0f;
     m_zoom = -1.0f; // trigger auto-fit on next draw
     m_cellZoom = -1.0f;
-    m_frames.clear();
-    m_imagePathBuffer[0] = '\0';
-    m_spriteSheet = std::move(newSheet);
+    strncpy(m_imagePathBuffer, imagePath.c_str(), sizeof(m_imagePathBuffer) - 1);
+    m_imagePathBuffer[sizeof(m_imagePathBuffer) - 1] = '\0';
+    m_spriteSheet = std::move(sheet);
+    m_frames = std::move(frames);
+    m_clips = std::move(clips);
+}
+
+void SpriteEditor::LoadProjectFile(std::filesystem::path const& path) {
+    // Read the whole file before touching any editor state, so a failed load leaves the open project intact.
+    std::optional<ProjectFileData> data = ReadProjectFile(path);
+    if (!data.has_value()) {
+        return;
+    }
+
+    // A sheet image that does not load does not stop the project from loading. The project keeps the image path, so
+    // saving does not lose it.
+    moth::gfx::Image image;
+    if (!data->imagePath.empty()) {
+        std::shared_ptr<moth::gfx::ITexture> texture(m_assetContext.TextureFromFile(data->imagePath));
+        if (texture) {
+            image = moth::gfx::Image{ texture };
+        } else {
+            moth::core::log::warn("SpriteEditor: project '{}' sheet image '{}' could not be loaded",
+                path.string(), data->imagePath);
+        }
+    }
+    auto sheet = std::make_shared<moth::gfx::SpriteSheet>(std::move(image), data->frames, data->clips);
+
+    ReplaceProject(std::move(sheet), data->imagePath, std::move(data->frames), std::move(data->clips));
+    std::string const pathStr = path.string();
+    strncpy(m_pathBuffer, pathStr.c_str(), sizeof(m_pathBuffer) - 1);
+    m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
+    MarkSaved();
+    AddRecentProject(path);
+}
+
+void SpriteEditor::ImportDescriptor(std::filesystem::path const& path) {
+    // Load and validate before touching any editor state so a failed load
+    // leaves the current document intact. The cache is flushed so the file is read as it is now.
+    auto& spriteSheetFactory = m_assetContext.GetSpriteSheetFactory();
+    spriteSheetFactory.FlushCache();
+    auto newSheet = spriteSheetFactory.GetSpriteSheet(path);
+    if (!newSheet) {
+        moth::core::log::error("Failed to load sprite sheet: {}", path.string());
+        return;
+    }
 
     // Read the image path from the JSON so Import Sheet and Save know it
+    std::string imagePath;
     try {
         std::ifstream ifile(path);
         if (ifile.is_open()) {
             nlohmann::json json;
             ifile >> json;
             if (json.contains("image") && json["image"].is_string()) {
-                auto const imageAbsPath = std::filesystem::absolute(
-                    path.parent_path() / json["image"].get<std::string>()).lexically_normal();
-                auto const imageStr = imageAbsPath.string();
-                strncpy(m_imagePathBuffer, imageStr.c_str(), sizeof(m_imagePathBuffer) - 1);
-                m_imagePathBuffer[sizeof(m_imagePathBuffer) - 1] = '\0';
+                imagePath = std::filesystem::absolute(path.parent_path() / json["image"].get<std::string>())
+                                .lexically_normal()
+                                .string();
             }
         }
     } catch (std::exception const& e) {
         moth::core::log::warn("SpriteEditor: could not read image path from '{}': {}", path.string(), e.what());
     }
 
-    m_frames.reserve(static_cast<size_t>(m_spriteSheet->GetFrameCount()));
-    for (int i = 0; i < m_spriteSheet->GetFrameCount(); ++i) {
-        if (auto entry = m_spriteSheet->GetFrameDesc(i)) {
-            m_frames.push_back(*entry);
+    FrameVec frames;
+    frames.reserve(static_cast<size_t>(newSheet->GetFrameCount()));
+    for (int i = 0; i < newSheet->GetFrameCount(); ++i) {
+        if (auto entry = newSheet->GetFrameDesc(i)) {
+            frames.push_back(*entry);
         }
     }
 
-    m_clips.clear();
-    int const clipCount = m_spriteSheet->GetClipCount();
-    m_clips.reserve(static_cast<size_t>(clipCount));
+    ClipVec clips;
+    int const clipCount = newSheet->GetClipCount();
+    clips.reserve(static_cast<size_t>(clipCount));
     for (int i = 0; i < clipCount; ++i) {
         moth::gfx::SpriteSheet::ClipEntry entry;
-        entry.name = m_spriteSheet->GetClipName(i);
-        if (auto desc = m_spriteSheet->GetClipDesc(entry.name)) {
+        entry.name = newSheet->GetClipName(i);
+        if (auto desc = newSheet->GetClipDesc(entry.name)) {
             entry.desc = *desc;
         }
-        m_clips.push_back(std::move(entry));
+        clips.push_back(std::move(entry));
     }
 
-    AddRecentProject(path);
+    // The import is a new project with no path, so the first save opens Save As and never writes over the
+    // descriptor. It is not added to Open Recent, which lists project files only.
+    ReplaceProject(std::move(newSheet), imagePath, std::move(frames), std::move(clips));
+    m_pathBuffer[0] = '\0';
+    MarkUnsaved();
 }
 
 void SpriteEditor::AddRecentProject(std::filesystem::path const& path) {
@@ -184,29 +306,20 @@ void SpriteEditor::ExportSheet(std::filesystem::path exportPath) {
 }
 
 bool SpriteEditor::SaveSpriteSheet(std::filesystem::path const& path) {
-    if (path.empty() || !m_spriteSheet) {
+    if (path.empty()) {
         return false;
     }
 
-    // Read existing JSON to preserve unknown fields; start fresh if the file doesn't exist yet.
+    // The project file is written from scratch with the current format.
     nlohmann::json json = nlohmann::json::object();
-    {
-        std::ifstream ifile(path);
-        if (ifile.is_open()) {
-            try {
-                ifile >> json;
-            } catch (std::exception const& e) {
-                moth::core::log::warn("SpriteEditor: could not parse existing '{}', overwriting: {}", path.string(), e.what());
-                json = nlohmann::json::object();
-            }
-        }
-    }
+    json["version"] = kProjectFormatVersion;
 
-    // Update the image field if we have a known image path
+    // The sheet image is optional.
     if (m_imagePathBuffer[0] != '\0') {
         std::filesystem::path const imagePath = m_imagePathBuffer;
         std::filesystem::path const relImage  = imagePath.lexically_relative(path.parent_path());
-        json["image"] = relImage.empty() ? imagePath.filename().string() : relImage.string();
+        // A relative path cannot reach an image on another drive, so that image keeps its absolute path.
+        json["image"] = relImage.empty() ? imagePath.string() : relImage.string();
     }
 
     // Write frames
@@ -223,33 +336,18 @@ bool SpriteEditor::SaveSpriteSheet(std::filesystem::path const& path) {
     }
     json["frames"] = std::move(framesJson);
 
-    // Write clips
+    // Write clips. Steps are written as they are, so a project keeps clips with no steps, 0 ms steps, and the steps
+    // of a project with no cells.
     nlohmann::json clipsJson = nlohmann::json::array();
     for (auto const& entry : m_clips) {
         nlohmann::json clipObj;
         clipObj["name"] = entry.name;
-
-        char const* loopStr = nullptr;
-        switch (entry.desc.loop) {
-        case moth::gfx::SpriteSheet::LoopType::Stop:  loopStr = "stop";  break;
-        case moth::gfx::SpriteSheet::LoopType::Reset: loopStr = "reset"; break;
-        case moth::gfx::SpriteSheet::LoopType::Loop:  loopStr = "loop";  break;
-        default:                                                     loopStr = "stop";  break;
-        }
-        clipObj["loop"] = loopStr;
+        clipObj["loop"] = LoopTypeName(entry.desc.loop);
 
         nlohmann::json stepsJson = nlohmann::json::array();
-        int const frameCount = static_cast<int>(m_frames.size());
         for (auto const& step : entry.desc.frames) {
             nlohmann::json stepObj;
-            int const safeFrameIdx = (frameCount > 0)
-                ? std::clamp(step.frameIndex, 0, frameCount - 1)
-                : 0;
-            if (safeFrameIdx != step.frameIndex) {
-                moth::core::log::warn("SpriteEditor: clip '{}' step has out-of-range frameIndex {}, saving as {}",
-                    entry.name, step.frameIndex, safeFrameIdx);
-            }
-            stepObj["frame"]       = safeFrameIdx;
+            stepObj["frame"]       = step.frameIndex;
             stepObj["duration_ms"] = step.durationMs;
             stepsJson.push_back(std::move(stepObj));
         }
@@ -284,9 +382,5 @@ bool SpriteEditor::SaveSpriteSheet(std::filesystem::path const& path) {
     m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
     AddRecentProject(path);
     MarkSaved();
-
-    // Flush the factory cache so a subsequent load picks up the new data
-    auto& assetContext = m_assetContext;
-    assetContext.GetSpriteSheetFactory().FlushCache();
     return true;
 }

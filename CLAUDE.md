@@ -1,8 +1,8 @@
 # moth_sprite
 
 A standalone sprite sheet and animation clip editor built on the moth toolkit. The user loads or imports a sprite
-sheet image, defines cells with pivots, builds animation clips from those cells, and saves a JSON project that
-moth_graphics loads as a `SpriteSheet`.
+sheet image, defines cells with pivots, builds animation clips from those cells, and saves a `.mothsprite` project.
+Games do not load project files: moth_graphics loads a sprite sheet descriptor as a `SpriteSheet`.
 
 **Naming:** The UI and the tasks say "cell". The code says "frame" (`FrameEntry`, `m_frames`). A clip is a list of
 steps, and each step refers to a frame and has a duration.
@@ -31,7 +31,7 @@ steps, and each step refers to a frame and has a duration.
 | `src/editor_action.h`                         | Undo interface: `IEditorAction`, `BasicAction`.                |
 | `src/common.h`                                | Precompiled header.                                            |
 | `src/sprite_editor/sprite_editor.*`           | `SpriteEditor` ImGui layer: state, main draw, menus.           |
-| `src/sprite_editor/sprite_editor_io.cpp`      | New, load, import image, save project.                         |
+| `src/sprite_editor/sprite_editor_io.cpp`      | Load and save project files, import descriptors and images.    |
 | `src/sprite_editor/sprite_editor_preview.cpp` | Sheet canvas: zoom, cell drag and resize, New Cell mode.       |
 | `src/sprite_editor/sprite_editor_frames.cpp`  | Cell list, cell properties, pivot editing.                     |
 | `src/sprite_editor/sprite_editor_clips.cpp`   | Clips pane and clip playback.                                  |
@@ -45,13 +45,22 @@ New `.cpp` files must be added to `SOURCES` in `CMakeLists.txt`.
 
 ## Project file
 
-A project is a JSON file:
+A project is a `.mothsprite` file with JSON content, read and written by the editor's own code in
+`sprite_editor_io.cpp` (not by `SpriteSheetFactory`):
 
-- `image`: path to the sheet image, relative to the project file.
+- `version`: the format version (`kProjectFormatVersion`). A newer version is not loaded.
+- `image`: optional path to the sheet image, relative to the project file.
 - `frames`: cells, each `{ x, y, w, h, pivot_x, pivot_y }`.
 - `clips`: each `{ name, loop, frames: [ { frame, duration_ms } ] }`, where `frame` is an index into `frames`.
 
-Project files saved by older versions must still load.
+The project is the editing source. It keeps data that games reject (no cells, clips with no steps, 0 ms steps)
+through save and load unchanged.
+
+Games load sprite sheet descriptors, not project files. A descriptor has `image`, `frames` and `clips` and no
+`version`; `SpriteSheetFactory` loads it. File > Load imports a `.json` descriptor as a new project with no path and
+unsaved changes, so the first save opens Save As. Imported descriptors are not added to Open Recent.
+
+`.json` project files saved before the `.mothsprite` format still open, as a descriptor import.
 
 ## Rules
 

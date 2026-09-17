@@ -5,8 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A sprite sheet and animation clip editor for [moth::gfx](https://github.com/instinkt900/moth_toolkit). Load or import
-a sprite sheet image, mark out its cells and their pivots, build animation clips from those cells, and save a JSON
-project that moth::gfx loads at runtime as a `SpriteSheet`.
+a sprite sheet image, mark out its cells and their pivots, build animation clips from those cells, and save them as
+a `.mothsprite` project. Games do not load project files: moth::gfx loads a sprite sheet descriptor as a
+`SpriteSheet`.
 
 The editor is a separate application, not a toolkit one: it depends on the toolkit's modules but is not built as part
 of it.
@@ -95,7 +96,7 @@ The **File** menu has:
 | Item | Action |
 |---|---|
 | **New** | Start an empty, untitled project. |
-| **Load...** | Open a project file (`.json`). |
+| **Load...** | Open a project file (`.mothsprite`), or import a sprite sheet descriptor (`.json`). |
 | **Open Recent** | Open one of the last 10 projects. **Clear Recent** empties the list. |
 | **Save** | Save the project. An untitled project asks for a file name first. |
 | **Save As...** | Save the project to a new file. |
@@ -105,8 +106,8 @@ The **File** menu has:
 
 The **...** button next to the image path in the Sheet window does the same as **File > Import Sheet**.
 
-A project can only be saved when it has a sheet image. The window title shows the project's file name, and ` *` when
-it has unsaved changes. New, Load, Open Recent and quitting ask whether to save unsaved changes first.
+A project can be saved without a sheet image. The window title shows the project's file name, and ` *` when it has
+unsaved changes. New, Load, Open Recent and quitting ask whether to save unsaved changes first.
 
 ### Making cells
 
@@ -212,10 +213,12 @@ started from.
 
 ## Project file format
 
-A project is a JSON file:
+A project is a `.mothsprite` file with JSON content. It is the source for editing, and it keeps data that games do
+not load. Games load sprite sheet descriptors, not project files.
 
 ```json
 {
+  "version": 1,
   "image": "hero.png",
   "frames": [
     { "x": 0,  "y": 0, "w": 32, "h": 48, "pivot_x": 16, "pivot_y": 48 },
@@ -236,14 +239,25 @@ A project is a JSON file:
 
 | Field | Content |
 |---|---|
-| `image` | Path to the sheet image, relative to the project file. |
+| `version` | The format version. The editor does not load a file with a version newer than it knows. |
+| `image` | Path to the sheet image, relative to the project file. Optional: a project can have no sheet image. |
 | `frames` | The cells. Each has `x`, `y`, `w` and `h` in pixels, and `pivot_x` and `pivot_y` relative to the cell's top-left corner. |
 | `clips` | Each clip has a `name`, a `loop` type (`stop`, `reset` or `loop`), and `frames`: its steps. |
 | `clips[].frames` | Each step has `frame`, an index into `frames`, and `duration_ms`. |
 
-Other fields already in a project file are kept when the editor saves over it.
+The editor writes the whole file when it saves. A project keeps what games reject: no cells, clips with no steps, and
+steps with a 0 ms duration are saved and loaded unchanged.
 
-moth::gfx loads a project with at least one cell. It skips a clip that has no steps, or a step whose duration is
+### Sprite sheet descriptors
+
+A sprite sheet descriptor is the JSON file that moth::gfx loads as a `SpriteSheet`. It has the `image`, `frames` and
+`clips` fields above, with no `version`. Projects saved before the `.mothsprite` format are descriptors.
+
+**File > Load** opens a descriptor (`.json`) as a new project: the project has no file name and has unsaved changes,
+so the first save asks for a `.mothsprite` file name and never writes over the descriptor. A descriptor that
+moth::gfx does not load is not opened. Opened descriptors are not added to Open Recent.
+
+moth::gfx loads a descriptor with at least one cell. It skips a clip that has no steps, or a step whose duration is
 0 or whose cell does not exist.
 
 ---
@@ -332,7 +346,7 @@ the folder it is started from, so start it from a folder where those files belon
 | Project | Description |
 |---|---|
 | [moth_toolkit](https://github.com/instinkt900/moth_toolkit) | The modular 2D engine toolkit this editor builds against |
-| `moth::gfx` | Vulkan-backed 2D renderer, window management, and the platform bootstrap. Loads the projects this editor saves as a `SpriteSheet` |
+| `moth::gfx` | Vulkan-backed 2D renderer, window management, and the platform bootstrap. Loads sprite sheet descriptors as a `SpriteSheet` |
 | `moth::ui` | Core UI library: node graph, keyframe animation, and event system |
 | `moth::bridge` | Adapts `moth::ui` onto `moth::gfx` and provides the application loop |
 | [moth_editor](https://github.com/instinkt900/moth_editor) | Visual layout and animation editor for `moth::ui` layout files |
