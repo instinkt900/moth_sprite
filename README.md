@@ -84,7 +84,7 @@ restores the default layout and opens every window.
 
 | Window | Content |
 |---|---|
-| **Sheet** | The sheet image with every cell drawn over it. The sheet image path, New Cell, Fit and 1:1 are above it. |
+| **Sheet** | The sheet image with every cell drawn over it. The sheet image path with **Import Sheet...**, New Cell, Fit and 1:1 are above it. |
 | **Selected Cell** | Clip playback buttons, and the prime cell (see [Selecting and editing cells](#selecting-and-editing-cells)) with its pivot. With a clip selected, it previews the clip. |
 | **Cells** | **Import...** (see [Cells from other images](#cells-from-other-images)), the list of cells, each with a thumbnail, its index, offset and size, and a form for the prime cell below. |
 | **Clips** | Clip playback buttons, a new clip row, and each clip as a timeline of steps. |
@@ -109,7 +109,8 @@ The **File** menu has:
 | **Export As...** | Export to a new file name, which becomes the project's export path. |
 | **Exit** | Quit. |
 
-The **...** button next to the image path in the Sheet window does the same as **File > Import Sheet**.
+The **Import Sheet...** button in the Sheet window does the same as **File > Import Sheet**. Without a sheet image it is
+the only thing in the window; with one, it is next to the image path.
 
 A project can be saved without a sheet image. The window title shows the project's file name, and ` *` when it has
 unsaved changes. New, Load, Open Recent and quitting ask whether to save unsaved changes first.
@@ -125,7 +126,7 @@ The pack dialog has:
 
 | Setting | Content |
 |---|---|
-| **Packed image** | The file to write. **...** chooses it in a dialog. The first time, it is `<project name>_packed.png` beside the project (in the last image folder for an untitled project). It cannot be the sheet image or the image of a cell. |
+| **Packed image** | The file to write. **...** chooses it in a dialog. The first time, it is `<project name>_packed.png` beside the project (in the last image folder for an untitled project). When the file exists, the dialog warns that it will be overwritten, and Pack still writes it. This includes the sheet image or the image of a cell: undo then restores the project but not the file on disk. |
 | **Padding (px)** | Space around each cell. |
 | **Padding type** | How the padding is filled: **Color** (with **Padding color**, which is also the background), **Extend**, **Mirror** or **Wrap**. |
 | **Min width**, **Min height**, **Max width**, **Max height** | The size limits of the packed image, in powers of two. |
@@ -149,8 +150,10 @@ exporting `hero.json` writes `hero.png`. Files already there are overwritten. Sa
 The project remembers its export path, relative to the project file, so **Export...** does not ask again. **Export
 As...** always asks. Setting a new export path is an undo step; undo does not remove exported files.
 
-A project with cells from other images is **unpacked**: games need every cell on one sheet. Exporting it opens the pack
-dialog first. When the pack succeeds, the export continues; cancelling the dialog cancels the export.
+A project with cells from other images is **unpacked**: games need every cell on one sheet. Exporting it asks for the
+descriptor path first (on the first Export, and on Export As), then opens the pack dialog with the packed image named
+after the descriptor: `hero.json` packs to `hero.png`. Nothing is written until **Pack** succeeds; the export then
+continues. Cancelling either dialog cancels the export.
 
 Export refuses, writes no files, and lists the problems when the project has no sheet image, has no cells, has a cell
 with no width or height, has a clip with no steps, or has a step with a duration of 0 ms or with no cell. These are the

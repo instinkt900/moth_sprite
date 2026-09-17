@@ -497,19 +497,17 @@ void SpriteEditor::ShowExportMessage(std::string heading, std::vector<std::strin
 }
 
 void SpriteEditor::ExportProject(bool choosePath) {
-    // Cells from other images must be packed onto the sheet first. The pack dialog continues the export after a
-    // successful pack.
-    if (std::any_of(m_frames.begin(), m_frames.end(), [](CellEntry const& cell) { return cell.source != nullptr; })) {
-        m_exportAfterPack = choosePath;
-        m_openPackDialog = true;
-        return;
-    }
+    // Cells from other images must be packed onto the sheet first, so the problems are checked after the pack.
+    bool const needsPack =
+        std::any_of(m_frames.begin(), m_frames.end(), [](CellEntry const& cell) { return cell.source != nullptr; });
 
     // Refuse before asking for a path, and write no files.
-    std::vector<std::string> problems = ExportProblems();
-    if (!problems.empty()) {
-        ShowExportMessage("The project cannot be exported:", std::move(problems));
-        return;
+    if (!needsPack) {
+        std::vector<std::string> problems = ExportProblems();
+        if (!problems.empty()) {
+            ShowExportMessage("The project cannot be exported:", std::move(problems));
+            return;
+        }
     }
 
     std::filesystem::path exportPath = m_exportPath;
@@ -545,12 +543,29 @@ void SpriteEditor::ExportProject(bool choosePath) {
     }
     exportPath = absolutePath.lexically_normal();
 
+    // Nothing is written yet. The pack dialog opens with the packed image named after the descriptor, and the export
+    // continues after a successful pack.
+    if (needsPack) {
+        m_exportAfterPack = exportPath;
+        m_openPackDialog = true;
+        return;
+    }
+    ExportToPath(exportPath);
+}
+
+void SpriteEditor::ExportToPath(std::filesystem::path const& exportPath) {
+    std::vector<std::string> problems = ExportProblems();
+    if (!problems.empty()) {
+        ShowExportMessage("The project cannot be exported:", std::move(problems));
+        return;
+    }
+
     // The sheet image is copied beside the descriptor, named after it with the image's extension.
     std::filesystem::path const sheetPath = m_imagePathBuffer;
     std::filesystem::path imageTarget = exportPath;
     imageTarget.replace_extension(sheetPath.extension());
     // Exporting beside the sheet image with its own name needs no copy.
-    ec.clear();
+    std::error_code ec;
     if (!std::filesystem::equivalent(sheetPath, imageTarget, ec)) {
         ec.clear();
         std::filesystem::copy_file(sheetPath, imageTarget, std::filesystem::copy_options::overwrite_existing, ec);

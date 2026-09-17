@@ -49,9 +49,10 @@ enum class PivotAnchor {
 
 class SpriteEditor : public moth::ui::Layer {
 public:
-    // setWindowTitle sets the application window's title.
+    // setWindowTitle sets the application window's title. waitForGpu blocks until the GPU has finished every submitted
+    // frame, so a texture that recent frames drew can be freed.
     SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::platform::ImGuiContext& imgui, SpriteEditorConfig& config,
-                 std::function<void(std::string_view)> setWindowTitle);
+                 std::function<void(std::string_view)> setWindowTitle, std::function<void()> waitForGpu);
     ~SpriteEditor() override = default;
 
     SpriteEditor(SpriteEditor const&) = delete;
@@ -120,7 +121,7 @@ private:
     bool SaveProjectAs();
     // Replace the sheet image, keeping the cells and clips, as one undoable action.
     void ImportSheet(std::filesystem::path const& imagePath);
-    // File > Import Sheet and the Sheet window's "..." button: choose an image in a dialog, then import it.
+    // File > Import Sheet and the Sheet window's Import Sheet button: choose an image in a dialog, then import it.
     void ImportSheetWithDialog();
     // Add one cell for each image, at the end of the cell list, as one undoable action. Each cell is the whole image
     // with its pivot at (0, 0). An image that does not load is skipped; when none load, nothing changes.
@@ -130,8 +131,11 @@ private:
     // File > Export (choosePath false) and File > Export As (choosePath true): write the sprite sheet descriptor
     // that games load, and copy the sheet image beside it. Export uses the project's export path, and chooses one in
     // a dialog when there is none. A new export path is set as one undoable action after a successful export.
-    // Refuses, writing no files, when ExportProblems finds any.
+    // Refuses, writing no files, when ExportProblems finds any. A project with cells from other images gets its path
+    // first, then the pack dialog, and is exported after a successful pack.
     void ExportProject(bool choosePath);
+    // Write the descriptor to exportPath (absolute) and copy the sheet image beside it, then set the export path.
+    void ExportToPath(std::filesystem::path const& exportPath);
     // What stops the project from being exported as game data, one message each. Empty when it can be exported.
     std::vector<std::string> ExportProblems() const;
     // Show the export message popup on the next draw.
@@ -141,6 +145,8 @@ private:
     void DrawPackDialog();
     // The pack dialog's preview of the packed image for its current settings. Writes no files.
     void UpdatePackPreview();
+    // Free the preview texture. Frames still in flight may use it, so this waits for the GPU first.
+    void ReleasePackPreviewImage();
     void DrawPackPreview();
     // The settings the pack dialog opens with: the project's, or defaults with the path <project name>_packed.<ext>.
     PackSettings InitialPackSettings() const;
@@ -237,6 +243,7 @@ private:
     moth::gfx::platform::ImGuiContext& m_imgui;
     SpriteEditorConfig& m_config;
     std::function<void(std::string_view)> m_setWindowTitle;
+    std::function<void()> m_waitForGpu;
     std::string m_windowTitle; // the title last set, so that it is only set again when it changes
     bool m_resetLayout = false; // set by Window > Reset Layout; applied before the dock space is drawn
     char m_pathBuffer[1024] = {};
@@ -291,9 +298,10 @@ private:
     };
     PackDialogState m_packDialog;
     bool m_openPackDialog = false; // set by the menu; the popup is opened outside the menu's ID scope
-    // Set when Export opened the pack dialog because the project has cells from other images: after a successful
-    // pack, the export continues (the value is ExportProject's choosePath). Cleared when the dialog closes.
-    std::optional<bool> m_exportAfterPack;
+    // Set when Export opened the pack dialog because the project has cells from other images: the descriptor path
+    // chosen for the export. The dialog's packed image is named after it, and the export continues after a successful
+    // pack. Cleared when the dialog closes.
+    std::optional<std::filesystem::path> m_exportAfterPack;
 
     // A Cells form input being edited. id is the widget's ImGuiID, so that focus moving straight from one field to
     // another commits the first edit before the second snapshot is taken.

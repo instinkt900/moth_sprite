@@ -160,21 +160,26 @@ void SpriteEditor::DrawPreview() {
         return;
     }
 
+    // Import Sheet... does the same as File > Import Sheet.
+    char const* const kImportSheetLabel = "Import Sheet...";
     auto const& image = m_spriteSheet->GetImage();
     if (!image) {
-        ImGui::TextDisabled("Use File > Import Sheet to add a sheet image.");
+        if (ImGui::Button(kImportSheetLabel)) {
+            ImportSheetWithDialog();
+        }
+        ImGui::SetItemTooltip("Choose a sheet image (File > Import Sheet)");
         return;
     }
 
-    // The sheet image file the project uses. Read-only; "..." imports another image, as File > Import Sheet does.
+    // The sheet image file the project uses. Read-only; Import Sheet... beside it imports another image.
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Image");
     ImGui::SameLine();
-    float const browseW = ImGui::CalcTextSize("...").x + (ImGui::GetStyle().FramePadding.x * 2.0f);
-    ImGui::SetNextItemWidth(-(browseW + ImGui::GetStyle().ItemSpacing.x));
+    float const importW = ImGui::CalcTextSize(kImportSheetLabel).x + (ImGui::GetStyle().FramePadding.x * 2.0f);
+    ImGui::SetNextItemWidth(-(importW + ImGui::GetStyle().ItemSpacing.x));
     ImGui::InputText("##sheet_image_path", m_imagePathBuffer, sizeof(m_imagePathBuffer), ImGuiInputTextFlags_ReadOnly);
     ImGui::SameLine();
-    if (ImGui::Button("...##sheet_image_browse")) {
+    if (ImGui::Button(kImportSheetLabel)) {
         // An import replaces the sheet, and with it the image drawn below, so stop drawing for this frame.
         ImportSheetWithDialog();
         return;

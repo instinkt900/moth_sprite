@@ -94,6 +94,12 @@ void SpriteEditor::DrawPackDialog() {
         m_openPackDialog = false;
         // Every opening starts from the project's settings. Changes stay in the dialog until Pack succeeds.
         dialog.settings = InitialPackSettings();
+        // For an export, the packed image goes beside the descriptor, with its name: hero.json packs to hero.png.
+        if (m_exportAfterPack.has_value()) {
+            std::filesystem::path packPath = *m_exportAfterPack;
+            packPath.replace_extension(PackFormatExtension(dialog.settings.format));
+            dialog.settings.imagePath = packPath.string();
+        }
         strncpy(dialog.pathBuffer, dialog.settings.imagePath.c_str(), sizeof(dialog.pathBuffer) - 1);
         dialog.pathBuffer[sizeof(dialog.pathBuffer) - 1] = '\0';
         dialog.error.clear();
@@ -103,15 +109,14 @@ void SpriteEditor::DrawPackDialog() {
     ImGuiViewport const* const viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2{ 0.5f, 0.5f });
     if (!ImGui::BeginPopupModal(kPackPopupId, nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-        // The preview and its source images are held only while the dialog is open. The last frame that drew the
-        // preview has been rendered, so its texture can go.
+        // The preview and its source images are held only while the dialog is open.
         dialog.previewImages.clear();
         dialog.previewSettings.reset();
-        dialog.previewImage = moth::gfx::Image{};
+        ReleasePackPreviewImage();
         return;
     }
     auto& settings = dialog.settings;
-    // Pack the preview before anything is drawn this frame, so a replaced texture is not used by this frame.
+    // Pack the preview before anything is drawn this frame, so this frame never draws a texture that is replaced.
     UpdatePackPreview();
 
     ImGui::BeginGroup();
@@ -209,31 +214,44 @@ void SpriteEditor::DrawPackDialog() {
         settings.jpegQuality = std::clamp(settings.jpegQuality, 1, 100);
     }
 
-    // Refuse a path that would write over a source image: undo would point the old rectangles at new pixels.
+    // Only an empty path is refused. Writing over an existing file, even a source image of the project, is allowed
+    // with a warning.
     std::string refusal;
+    std::string warning;
     std::filesystem::path const packPath = dialog.pathBuffer;
+    std::error_code existsError;
     if (packPath.empty()) {
         refusal = "Choose a path for the packed image.";
-    } else if (m_imagePathBuffer[0] != '\0' && SameFile(packPath, m_imagePathBuffer)) {
-        refusal = "The packed image cannot be written over the sheet image. Choose another path.";
-    } else {
-        // Each cell image file is checked once, however many cells use it.
-        std::set<std::string> cellImagePaths;
+    } else if (std::filesystem::exists(packPath, existsError)) {
+        // Each source image file is checked once, however many cells use it.
+        std::set<std::string> sourcePaths;
+        if (m_imagePathBuffer[0] != '\0') {
+            sourcePaths.insert(m_imagePathBuffer);
+        }
         for (auto const& cell : m_frames) {
             if (cell.source) {
-                cellImagePaths.insert(cell.source->path);
+                sourcePaths.insert(cell.source->path);
             }
         }
-        if (std::any_of(cellImagePaths.begin(), cellImagePaths.end(),
-                        [&packPath](std::string const& cellImagePath) { return SameFile(packPath, cellImagePath); })) {
-            refusal = "The packed image cannot be written over the image of a cell. Choose another path.";
-        }
+        bool const isSource = std::any_of(sourcePaths.begin(), sourcePaths.end(),
+                                          [&packPath](std::string const& sourcePath) { return SameFile(packPath, sourcePath); });
+        // The source pixels are read before the file is written, so the pack itself is correct. Undo restores the
+        // project, but not the file on disk.
+        warning = isSource ? "This file is a source image of the project and will be overwritten. Undo does not restore "
+                             "the file, so the project will not match it after an undo."
+                           : "This file already exists and will be overwritten.";
     }
-    std::string const& message = refusal.empty() ? dialog.error : refusal;
-    if (!message.empty()) {
+    // A refusal, else the last Pack error, else the overwrite warning.
+    std::string const* message = &warning;
+    if (!refusal.empty()) {
+        message = &refusal;
+    } else if (!dialog.error.empty()) {
+        message = &dialog.error;
+    }
+    if (!message->empty()) {
         ImGui::Spacing();
         ImGui::PushTextWrapPos(kPackLabelWidth + kPackFieldWidth);
-        ImGui::TextColored(kPackWarningColor, "%s", message.c_str());
+        ImGui::TextColored(kPackWarningColor, "%s", message->c_str());
         ImGui::PopTextWrapPos();
     }
 
@@ -266,10 +284,10 @@ void SpriteEditor::DrawPackDialog() {
 
     // An export that needed a pack continues after a successful pack. Cancelling the dialog cancels the export.
     if (close) {
-        std::optional<bool> const exportAfterPack = m_exportAfterPack;
+        std::optional<std::filesystem::path> const exportAfterPack = m_exportAfterPack;
         m_exportAfterPack.reset();
         if (packed && exportAfterPack.has_value()) {
-            ExportProject(*exportAfterPack);
+            ExportToPath(*exportAfterPack);
         }
     }
 }
@@ -302,7 +320,7 @@ void SpriteEditor::UpdatePackPreview() {
         return;
     }
     dialog.previewSettings = dialog.settings;
-    dialog.previewImage = moth::gfx::Image{};
+    ReleasePackPreviewImage();
     dialog.previewWidth = 0;
     dialog.previewHeight = 0;
     dialog.previewError.clear();
@@ -324,6 +342,18 @@ void SpriteEditor::UpdatePackPreview() {
     dialog.previewImage = moth::gfx::Image{ texture };
     dialog.previewWidth = packed->width;
     dialog.previewHeight = packed->height;
+}
+
+void SpriteEditor::ReleasePackPreviewImage() {
+    auto& dialog = m_packDialog;
+    if (!dialog.previewImage) {
+        return;
+    }
+    // The swapchain keeps a submitted frame per image, and those frames may still sample the preview.
+    if (m_waitForGpu) {
+        m_waitForGpu();
+    }
+    dialog.previewImage = moth::gfx::Image{};
 }
 
 void SpriteEditor::DrawPackPreview() {

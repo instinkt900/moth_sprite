@@ -60,11 +60,12 @@ namespace {
 } // namespace
 
 SpriteEditor::SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::platform::ImGuiContext& imgui, SpriteEditorConfig& config,
-                           std::function<void(std::string_view)> setWindowTitle)
+                           std::function<void(std::string_view)> setWindowTitle, std::function<void()> waitForGpu)
     : m_assetContext(assetContext)
     , m_imgui(imgui)
     , m_config(config)
-    , m_setWindowTitle(std::move(setWindowTitle)) {
+    , m_setWindowTitle(std::move(setWindowTitle))
+    , m_waitForGpu(std::move(waitForGpu)) {
     // Open Recent lists project files only. Versions before the .mothsprite format listed .json projects.
     auto& recent = m_config.RecentProjects;
     recent.erase(std::remove_if(recent.begin(), recent.end(),

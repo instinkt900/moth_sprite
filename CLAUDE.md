@@ -70,7 +70,8 @@ through save and load unchanged.
 In memory a cell is a `CellEntry`: a `FrameEntry` plus an optional `source` (`CellImage`: path and texture). A cell
 with a source is the whole image; its rectangle is (0, 0) and the image size, and does not change. The Sheet window
 and the sheet tools skip such cells, and `GetCellDrawSource` gives the image to draw any cell with. A project with
-such cells is unpacked: File > Pack makes them sheet cells, and Export opens the pack dialog first
+such cells is unpacked: File > Pack makes them sheet cells. Export chooses the descriptor path first, then opens the
+pack dialog with the packed image named after the descriptor, and exports after a successful pack
 (`m_exportAfterPack`).
 
 Games load sprite sheet descriptors, not project files. A descriptor has `image`, `frames` and `clips` and no
