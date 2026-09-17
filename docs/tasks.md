@@ -198,7 +198,7 @@ for a path.
 9. Make the target folder read-only and Export: the popup shows the copy or write error, and it is logged.
 10. Saving the project writes no descriptor.
 
-### [todo] T-030 Pack the sprite sheet
+### [done] T-030 Pack the sprite sheet
 
 **Review:** reviewed 2026-09-17
 
@@ -213,33 +213,33 @@ a project that has only sheet cells is also allowed, and lays them out again tig
 (Split from T-026, together with T-031, on 2026-09-17.)
 
 **Requirements:**
-- [ ] moth_sprite depends on moth_packer: `self.requires("moth_packer/[>=2 <3]")` in `conanfile.py` (the default
+- [x] moth_sprite depends on moth_packer: `self.requires("moth_packer/[>=2 <3]")` in `conanfile.py` (the default
   `with_ui=False`), and `find_package(moth_packer REQUIRED)` with `moth::packer` added to
   `target_link_libraries` in `CMakeLists.txt`. The README's dependency list names it.
-- [ ] `stb_image_write.h` is vendored in `external/stb` beside `stb_image.h`, and compiled with
+- [x] `stb_image_write.h` is vendored in `external/stb` beside `stb_image.h`, and compiled with
   `STB_IMAGE_WRITE_STATIC`, as `frame_detection.cpp` does for `stb_image`.
-- [ ] File > Pack... opens a pack dialog. It is enabled when the project has cells.
-- [ ] The dialog has: the packed image path, with a "..." browse button that opens an image save dialog; padding
+- [x] File > Pack... opens a pack dialog. It is enabled when the project has cells.
+- [x] The dialog has: the packed image path, with a "..." browse button that opens an image save dialog; padding
   (px); padding type (Color, Extend, Mirror, Wrap) and a padding colour for Color; minimum and maximum width and
   height (powers of two); output format (PNG, BMP, TGA, JPEG) and JPEG quality for JPEG. It has Pack and Cancel
   buttons.
-- [ ] The first time the dialog opens for a project, the path is `<project name>_packed.<format extension>` in the
+- [x] The first time the dialog opens for a project, the path is `<project name>_packed.<format extension>` in the
   project's folder, or in the last image folder for a project with no path (`Untitled_packed` then). After that
   it shows the settings from the project.
-- [ ] The dialog refuses to pack, with a message in the dialog, when the path is one of the project's current
+- [x] The dialog refuses to pack, with a message in the dialog, when the path is one of the project's current
   source images (the sheet image, or later an image used by a cell from T-025).
-- [ ] Pack reads each cell's pixels from its source image and packs every cell as its own image, in one image, with
+- [x] Pack reads each cell's pixels from its source image and packs every cell as its own image, in one image, with
   the dialog's settings. Parts of a cell outside its source image are transparent in the packed image. The cell
   order, sizes, pivots and clips do not change.
-- [ ] If the cells do not fit into one image of the maximum size, or a source image cannot be read, or the image
+- [x] If the cells do not fit into one image of the maximum size, or a source image cannot be read, or the image
   cannot be written, nothing in the project changes, and the dialog shows the reason.
-- [ ] A successful pack writes the image file, then, as one undoable action: sets the project's sheet image to the
+- [x] A successful pack writes the image file, then, as one undoable action: sets the project's sheet image to the
   packed image, sets each cell's rectangle to its packed rectangle, and stores the pack settings and path in the
   project file. Undo restores the previous sheet image, rectangles and settings. The packed file stays on disk.
-- [ ] After a pack, the Sheet window shows the packed image, fitted to the window. Selection and clip playback are
+- [x] After a pack, the Sheet window shows the packed image, fitted to the window. Selection and clip playback are
   reset, as for Import Sheet.
-- [ ] Changing a setting in the dialog does not change the project until Pack succeeds.
-- [ ] `README.md` and `CLAUDE.md` describe File > Pack and the pack settings in the project file.
+- [x] Changing a setting in the dialog does not change the project until Pack succeeds.
+- [x] `README.md` and `CLAUDE.md` describe File > Pack and the pack settings in the project file.
 
 **Out of scope:**
 - A preview of the packing result in the dialog (T-031).
@@ -280,9 +280,55 @@ a project that has only sheet cells is also allowed, and lays them out again tig
 - The local `~/Development/moth/moth_packer` checkout (1.0.0) is out of date. Read
   `moth_toolkit/modules/packer/include/moth/packer/packer.h` (2.0.0).
 
+- Session 2026-09-17: the moth_packer dependency (`conanfile.py`, `CMakeLists.txt`) was already in `main` (7f1e13d,
+  "build: depend on moth_packer"). The session added the README dependency text.
+- `stb_image_write.h` (v1.16) was copied from the local Conan `stb` package, the same stb release as the vendored
+  `stb_image.h`. It is compiled with `STB_IMAGE_WRITE_STATIC`, but in a C file, `packed_image_write.c`, behind one
+  function. In a C++ file, clang-tidy's `clang-analyzer-optin.portability.UnixAPI` reported a zero-size `malloc`
+  inside stb's PNG encoder, which a width/height guard in the caller did not silence. The Debug build runs
+  clang-tidy only on C++. No NOLINT was added.
+- Because of the C file, `target_precompile_headers` now applies `src/common.h` to C++ sources only. The Windows
+  (MSVC `/W3 /WX`) build of the C file was not checked; the session builds on Linux only.
+- Packing uses `PackType::Flipbook` with cells named by zero-padded index, so the packer's name sort keeps cell
+  order. A cell whose size plus padding is larger than the maximum size is refused with its own message; other
+  failures to fit give "The cells do not fit into one image of W x H".
+- A cell with a width or height of 0 or less is refused (moth_packer rejects it).
+- The padding colour is also the background of the whole packed image (moth_packer fills the image with it).
+- The dialog offers sizes 1 to 16384. Changing a minimum above the maximum raises the maximum, and the other way
+  round. Changing the format changes the path's extension. The browse dialog filters on the format's extension and
+  appends it when missing.
+- The refusal for a source-image path is shown live in the dialog, with Pack disabled. An empty path is refused
+  the same way.
+- If the packed image is written but cannot be loaded as a texture, the pack fails and the project does not change;
+  the file stays on disk.
+- `padding_color` is saved as an `RRGGBBAA` hex string.
+- `PackCells` (no UI, `sheet_packing.*`) was run in a scratch program outside the repository: three cells from one
+  image, including one partly outside it, with padding 2, in all four formats. Cell order, rectangles and the
+  transparency outside the source were correct, the files were valid images, and "does not fit", "cannot read" and
+  "cannot write" returned their messages. The dialog itself was not run.
+
 **Commits:**
+- 7dade2e feat(T-030): pack the cells into a new sheet image
 
 **Manual verification:**
+1. With no cells, File > Pack... is disabled.
+2. Load a project with a sheet and several cells, including clips and pivots. File > Pack...: the path is
+   `<project name>_packed.png` in the project's folder. For an untitled project it is `Untitled_packed.png` in the
+   last image folder.
+3. Change padding, padding type (the colour shows only for Color), sizes (min never above max) and format (the
+   extension follows; JPEG shows quality). Cancel and reopen: the defaults are back, and the project is unchanged
+   (no ` *` in the title).
+4. Type the sheet image's path: the dialog shows the refusal and Pack is disabled.
+5. Set max width and height to 16 with cells larger than that: Pack shows the reason in the dialog, and nothing
+   changes.
+6. Pack with valid settings: the file is written, the Sheet window shows the packed image fitted, the selection
+   and playback are reset, and cell order, sizes, pivots and clips are unchanged. Clips play the same.
+7. Ctrl+Z: the old sheet image and rectangles are back; the packed file is still on disk. Ctrl+Y: the pack is back.
+8. Reopen the dialog: it shows the settings used. Save, reload the project: the `pack` settings are in the file and
+   the dialog shows them.
+9. Make a cell extend past the sheet image edge, pack: the part outside is transparent.
+10. Pack to a folder that does not exist: the dialog shows "Could not write the packed image".
+11. Windows build: check that `packed_image_write.c` compiles with `/W3 /WX`.
 
 ### [todo] T-031 Preview in the pack dialog
 
