@@ -11,7 +11,8 @@ steps, and each step refers to a frame and has a duration.
 
 - C++17, CMake, Conan 2.
 - `moth_bridge` (Conan) brings in moth_core, moth_graphics and moth_ui: a GLFW + Vulkan platform, and ImGui.
-- `external/nativefiledialog` (git submodule) for file dialogs, `external/stb` for image loading.
+- `moth_packer` (Conan) packs cells into a new sheet image (File > Pack).
+- `external/nativefiledialog` (git submodule) for file dialogs, `external/stb` for image loading and writing.
 
 ## Build and run
 
@@ -23,25 +24,29 @@ steps, and each step refers to a frame and has a duration.
 
 ## Layout
 
-| Path                                          | Content                                                        |
-| --------------------------------------------- | -------------------------------------------------------------- |
-| `src/main.cpp`                                | Entry point. Starts the platform and runs the application.     |
-| `src/sprite_application.*`                    | Application. Loads and saves editor settings, adds the editor. |
-| `src/sprite_editor_config.h`                  | Editor settings saved to `moth_sprite.json`.                   |
-| `src/editor_action.h`                         | Undo interface: `IEditorAction`, `BasicAction`.                |
-| `src/common.h`                                | Precompiled header.                                            |
-| `src/sprite_editor/sprite_editor.*`           | `SpriteEditor` ImGui layer: state, main draw, menus.           |
-| `src/sprite_editor/sprite_editor_io.cpp`      | Load and save project files, import descriptors and images.    |
-| `src/sprite_editor/sprite_editor_preview.cpp` | Sheet canvas: zoom, cell drag and resize, New Cell mode.       |
-| `src/sprite_editor/sprite_editor_frames.cpp`  | Cell list, cell properties, pivot editing.                     |
-| `src/sprite_editor/sprite_editor_clips.cpp`   | Clips pane and clip playback.                                  |
-| `src/sprite_editor/sprite_editor_tools.cpp`   | Tools menu: grid generator, detect frames.                     |
-| `src/sprite_editor/sprite_editor_undo.cpp`    | Undo stack and snapshot helpers.                               |
-| `src/sprite_editor/frame_detection.*`         | Frame detection from image pixels. No UI.                      |
-| `tools/`                                      | Development scripts.                                           |
-| `docs/`                                       | Task list, task profile and session logs.                      |
+| Path                                          | Content                                                          |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| `src/main.cpp`                                | Entry point. Starts the platform and runs the application.       |
+| `src/sprite_application.*`                    | Application. Loads and saves editor settings, adds the editor.   |
+| `src/sprite_editor_config.h`                  | Editor settings saved to `moth_sprite.json`.                     |
+| `src/editor_action.h`                         | Undo interface: `IEditorAction`, `BasicAction`.                  |
+| `src/common.h`                                | Precompiled header.                                              |
+| `src/sprite_editor/sprite_editor.*`           | `SpriteEditor` ImGui layer: state, main draw, menus.             |
+| `src/sprite_editor/sprite_editor_io.cpp`      | Load and save project files, import descriptors and images.      |
+| `src/sprite_editor/sprite_editor_preview.cpp` | Sheet canvas: zoom, cell drag and resize, New Cell mode.         |
+| `src/sprite_editor/sprite_editor_frames.cpp`  | Cell list, cell properties, pivot editing.                       |
+| `src/sprite_editor/sprite_editor_clips.cpp`   | Clips pane and clip playback.                                    |
+| `src/sprite_editor/sprite_editor_tools.cpp`   | Tools menu: grid generator, detect frames.                       |
+| `src/sprite_editor/sprite_editor_undo.cpp`    | Undo stack and snapshot helpers.                                 |
+| `src/sprite_editor/sprite_editor_pack.cpp`    | File > Pack dialog, and applying a pack as one undo action.      |
+| `src/sprite_editor/frame_detection.*`         | Frame detection from image pixels. No UI.                        |
+| `src/sprite_editor/sheet_packing.*`           | Packing cells with moth_packer, writing the packed image. No UI. |
+| `src/sprite_editor/packed_image_write.*`      | stb_image_write, compiled as C (outside clang-tidy).             |
+| `tools/`                                      | Development scripts.                                             |
+| `docs/`                                       | Task list, task profile and session logs.                        |
 
-New `.cpp` files must be added to `SOURCES` in `CMakeLists.txt`.
+New `.cpp` files must be added to `SOURCES` in `CMakeLists.txt`. The precompiled header `src/common.h` applies to
+C++ sources only.
 
 ## Project file
 
@@ -52,6 +57,9 @@ A project is a `.mothsprite` file with JSON content, read and written by the edi
 - `image`: optional path to the sheet image, relative to the project file.
 - `export_path`: optional path of the last exported descriptor, relative to the project file. Changing it is
   undoable.
+- `pack`: optional settings of the last File > Pack (`PackSettings`): the packed image path, padding, padding type
+  and colour, minimum and maximum size, format and JPEG quality. A pack sets the sheet image, the cell rectangles
+  and these settings as one undo action.
 - `frames`: cells, each `{ x, y, w, h, pivot_x, pivot_y }`.
 - `clips`: each `{ name, loop, frames: [ { frame, duration_ms } ] }`, where `frame` is an index into `frames`.
 

@@ -21,6 +21,7 @@ of it.
 - [Usage](#usage)
   - [Editor windows](#editor-windows)
   - [Projects and sheet images](#projects-and-sheet-images)
+  - [Packing](#packing)
   - [Exporting](#exporting)
   - [Making cells](#making-cells)
   - [Selecting and editing cells](#selecting-and-editing-cells)
@@ -102,6 +103,7 @@ The **File** menu has:
 | **Save** | Save the project. An untitled project asks for a file name first. |
 | **Save As...** | Save the project to a new file. |
 | **Import Sheet...** | Use a different sheet image (`png`, `jpg`, `jpeg` or `bmp`). Cells and clips are kept. |
+| **Pack...** | Pack every cell into a new sheet image (see [Packing](#packing)). Enabled when the project has cells. |
 | **Export...** | Export the sprite sheet descriptor that games load (see [Exporting](#exporting)) to the project's export path. The first export asks for a file name. |
 | **Export As...** | Export to a new file name, which becomes the project's export path. |
 | **Exit** | Quit. |
@@ -110,6 +112,27 @@ The **...** button next to the image path in the Sheet window does the same as *
 
 A project can be saved without a sheet image. The window title shows the project's file name, and ` *` when it has
 unsaved changes. New, Load, Open Recent and quitting ask whether to save unsaved changes first.
+
+### Packing
+
+**File > Pack...** packs every cell, as its own image, into one new image, and makes the project use it: the new
+image becomes the sheet image, and each cell's rectangle becomes its place in it. Cell order, sizes, pivots and clips
+do not change. Parts of a cell outside the sheet image are transparent in the packed image.
+
+The pack dialog has:
+
+| Setting | Content |
+|---|---|
+| **Packed image** | The file to write. **...** chooses it in a dialog. The first time, it is `<project name>_packed.png` beside the project (in the last image folder for an untitled project). It cannot be the sheet image. |
+| **Padding (px)** | Space around each cell. |
+| **Padding type** | How the padding is filled: **Color** (with **Padding color**, which is also the background), **Extend**, **Mirror** or **Wrap**. |
+| **Min width**, **Min height**, **Max width**, **Max height** | The size limits of the packed image, in powers of two. |
+| **Format** | PNG, BMP, TGA or JPEG (with **JPEG quality**). Changing it changes the path's extension. |
+
+**Pack** writes the image and changes the project as one undo step. Undo restores the previous sheet image, cell
+rectangles and pack settings; the packed file stays on disk. If the cells do not fit into one image of the maximum
+size, or an image cannot be read or written, the dialog shows why and nothing changes. The dialog changes nothing
+until **Pack** succeeds, and the project saves the settings of its last pack.
 
 ### Exporting
 
@@ -195,7 +218,7 @@ step's cell as it plays. The Selected Cell window places each step's cell on its
 ### Undo
 
 **Edit > Undo** (Ctrl+Z) and **Edit > Redo** (Ctrl+Y) cover every change to cells, pivots, clips and steps, and
-**Import Sheet**, and a change of the export path. Typing in a field, or a drag, is one undo step. New, Load and Open Recent clear
+**Import Sheet**, **Pack**, and a change of the export path. Typing in a field, or a drag, is one undo step. New, Load and Open Recent clear
 the undo history.
 
 ### Keyboard shortcuts
@@ -258,6 +281,7 @@ not load. Games load sprite sheet descriptors, not project files.
 | `version` | The format version. The editor does not load a file with a version newer than it knows. |
 | `image` | Path to the sheet image, relative to the project file. Optional: a project can have no sheet image. |
 | `export_path` | Path of the last exported descriptor, relative to the project file. Optional. |
+| `pack` | The settings of the last pack. Optional. `image` (the packed image, relative to the project file), `padding`, `padding_type` (`color`, `extend`, `mirror` or `wrap`), `padding_color` (`RRGGBBAA` hex), `min_width`, `min_height`, `max_width`, `max_height`, `format` (`png`, `bmp`, `tga` or `jpeg`) and `jpeg_quality`. |
 | `frames` | The cells. Each has `x`, `y`, `w` and `h` in pixels, and `pivot_x` and `pivot_y` relative to the cell's top-left corner. |
 | `clips` | Each clip has a `name`, a `loop` type (`stop`, `reset` or `loop`), and `frames`: its steps. |
 | `clips[].frames` | Each step has `frame`, an index into `frames`, and `duration_ms`. |
@@ -304,8 +328,8 @@ pip install conan
 Windows, MSVC's detected profile defaults to C++14, so pass `-s compiler.cppstd=17` or set it in your Conan profile.
 The app renders with Vulkan, so it also needs a Vulkan driver.
 
-moth_sprite depends on the [moth_toolkit](https://github.com/instinkt900/moth_toolkit) module `moth_bridge`, which
-brings in `moth_core`, `moth_graphics` and `moth_ui`. These are published to an Artifactory remote rather than Conan
+moth_sprite depends on the [moth_toolkit](https://github.com/instinkt900/moth_toolkit) modules `moth_bridge`, which
+brings in `moth_core`, `moth_graphics` and `moth_ui`, and `moth_packer`, which packs cells into a new sheet image. These are published to an Artifactory remote rather than Conan
 Center. Register the remote once before installing (it is publicly readable, so no login is required):
 
 ```bash

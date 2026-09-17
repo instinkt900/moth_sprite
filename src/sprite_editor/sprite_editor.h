@@ -2,6 +2,7 @@
 
 #include "editor_action.h"
 #include "frame_detection.h"
+#include "sheet_packing.h"
 
 #include <moth/graphics/graphics/asset_context.h>
 #include <moth/graphics/graphics/spritesheet.h>
@@ -111,6 +112,14 @@ private:
     // Show the export message popup on the next draw.
     void ShowExportMessage(std::string heading, std::vector<std::string> lines);
     void DrawExportMessage();
+    // File > Pack: the pack dialog. Pack runs PackProject with the dialog's settings.
+    void DrawPackDialog();
+    // The settings the pack dialog opens with: the project's, or defaults with the path <project name>_packed.<ext>.
+    PackSettings InitialPackSettings() const;
+    // Pack every cell into a new image with settings, write it, and use it as the sheet: the sheet image, the cell
+    // rectangles and the pack settings change as one undoable action. Returns false, sets error and changes nothing
+    // when the pack fails.
+    bool PackProject(PackSettings const& settings, std::string& error);
     // Write the project file (the .mothsprite format) to path. Returns true when it was written. Only then path becomes the project path (the
     // window title, Save and Open Recent).
     bool SaveSpriteSheet(std::filesystem::path const& path);
@@ -230,6 +239,16 @@ private:
         bool open = false; // open the popup on the next draw
     };
     ExportMessage m_exportMessage;
+
+    // File > Pack. The project's settings are set by a successful pack, and saved in the project file.
+    std::optional<PackSettings> m_packSettings;
+    struct PackDialogState {
+        PackSettings settings;     // being edited; the project changes only when Pack succeeds
+        char pathBuffer[1024] = {};
+        std::string error;         // why the last Pack failed
+    };
+    PackDialogState m_packDialog;
+    bool m_openPackDialog = false; // set by the menu; the popup is opened outside the menu's ID scope
 
     // A Cells form input being edited. id is the widget's ImGuiID, so that focus moving straight from one field to
     // another commits the first edit before the second snapshot is taken.

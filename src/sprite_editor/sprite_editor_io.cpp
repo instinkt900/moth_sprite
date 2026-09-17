@@ -102,10 +102,57 @@ namespace {
         }
     }
 
+    constexpr std::array<char const*, 4> kPaddingTypeNames{ "color", "extend", "mirror", "wrap" };
+    constexpr std::array<char const*, 4> kPackFormatNames{ "png", "bmp", "tga", "jpeg" };
+
+    // The index of name in names, or fallback when it is not there.
+    int NameIndex(std::array<char const*, 4> const& names, std::string const& name, int fallback) {
+        for (size_t i = 0; i < names.size(); ++i) {
+            if (name == names[i]) {
+                return static_cast<int>(i);
+            }
+        }
+        return fallback;
+    }
+
+    nlohmann::json PackSettingsToJson(PackSettings const& settings, std::filesystem::path const& projectPath) {
+        nlohmann::json json;
+        json["image"] = ProjectRelativePath(settings.imagePath, projectPath);
+        json["padding"] = settings.padding;
+        json["padding_type"] = kPaddingTypeNames[static_cast<size_t>(settings.paddingType)];
+        json["padding_color"] = fmt::format("{:08x}", settings.paddingColor);
+        json["min_width"] = settings.minWidth;
+        json["min_height"] = settings.minHeight;
+        json["max_width"] = settings.maxWidth;
+        json["max_height"] = settings.maxHeight;
+        json["format"] = kPackFormatNames[static_cast<size_t>(settings.format)];
+        json["jpeg_quality"] = settings.jpegQuality;
+        return json;
+    }
+
+    // Missing fields keep their defaults. Throws on fields of the wrong type.
+    PackSettings PackSettingsFromJson(nlohmann::json const& json, std::filesystem::path const& projectPath) {
+        PackSettings settings;
+        settings.imagePath = ResolveProjectPath(json.at("image").get<std::string>(), projectPath);
+        settings.padding = std::max(json.value("padding", settings.padding), 0);
+        settings.paddingType = static_cast<moth::packer::PaddingType>(
+            NameIndex(kPaddingTypeNames, json.value("padding_type", std::string{}), 0));
+        settings.paddingColor = static_cast<uint32_t>(std::stoul(json.value("padding_color", std::string{ "0" }), nullptr, 16));
+        settings.minWidth = std::max(json.value("min_width", settings.minWidth), 1);
+        settings.minHeight = std::max(json.value("min_height", settings.minHeight), 1);
+        settings.maxWidth = std::max(json.value("max_width", settings.maxWidth), settings.minWidth);
+        settings.maxHeight = std::max(json.value("max_height", settings.maxHeight), settings.minHeight);
+        settings.format = static_cast<moth::packer::AtlasFormat>(
+            NameIndex(kPackFormatNames, json.value("format", std::string{}), 0));
+        settings.jpegQuality = std::clamp(json.value("jpeg_quality", settings.jpegQuality), 1, 100);
+        return settings;
+    }
+
     // The contents of a project file, read before any editor state changes.
     struct ProjectFileData {
         std::string imagePath; // absolute, or empty when the project has no sheet image
         std::string exportPath; // absolute, or empty when the project has not been exported
+        std::optional<PackSettings> pack; // set when the project has been packed
         std::vector<moth::gfx::SpriteSheet::FrameEntry> frames;
         std::vector<moth::gfx::SpriteSheet::ClipEntry> clips;
     };
@@ -134,6 +181,9 @@ namespace {
             }
             if (json.contains("export_path")) {
                 data.exportPath = ResolveProjectPath(json.at("export_path").get<std::string>(), path);
+            }
+            if (json.contains("pack")) {
+                data.pack = PackSettingsFromJson(json.at("pack"), path);
             }
             for (auto const& frameJson : json.value("frames", nlohmann::json::array())) {
                 moth::gfx::SpriteSheet::FrameEntry frame;
@@ -187,6 +237,7 @@ void SpriteEditor::ReplaceProject(std::shared_ptr<moth::gfx::SpriteSheet> sheet,
     m_frames = std::move(frames);
     m_clips = std::move(clips);
     m_exportPath.clear();
+    m_packSettings.reset();
 }
 
 void SpriteEditor::LoadProjectFile(std::filesystem::path const& path) {
@@ -212,6 +263,7 @@ void SpriteEditor::LoadProjectFile(std::filesystem::path const& path) {
 
     ReplaceProject(std::move(sheet), data->imagePath, std::move(data->frames), std::move(data->clips));
     m_exportPath = data->exportPath;
+    m_packSettings = data->pack;
     std::string const pathStr = path.string();
     strncpy(m_pathBuffer, pathStr.c_str(), sizeof(m_pathBuffer) - 1);
     m_pathBuffer[sizeof(m_pathBuffer) - 1] = '\0';
@@ -497,6 +549,9 @@ bool SpriteEditor::SaveSpriteSheet(std::filesystem::path const& path) {
     }
     if (!m_exportPath.empty()) {
         json["export_path"] = ProjectRelativePath(m_exportPath, path);
+    }
+    if (m_packSettings.has_value()) {
+        json["pack"] = PackSettingsToJson(*m_packSettings, path);
     }
 
     // Steps are written as they are, so a project keeps clips with no steps, 0 ms steps, and the steps of a project

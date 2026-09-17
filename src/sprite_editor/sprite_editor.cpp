@@ -80,6 +80,7 @@ void SpriteEditor::NewSpriteSheet() {
     m_pathBuffer[0]      = '\0';
     m_imagePathBuffer[0] = '\0';
     m_exportPath.clear();
+    m_packSettings.reset();
     m_frames.clear();
     m_clips.clear();
     m_selection.clear();
@@ -263,6 +264,9 @@ void SpriteEditor::DrawMainMenuBar() {
         ImGui::Separator();
         if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
             ImportSheetWithDialog();
+        }
+        if (ImGui::MenuItem("Pack...", nullptr, false, !m_frames.empty())) {
+            m_openPackDialog = true;
         }
         if (ImGui::MenuItem("Export...")) {
             ExportProject(false);
@@ -598,6 +602,7 @@ void SpriteEditor::Draw() {
     // The tool popups are outside every window, so they work with every window closed.
     DrawGridTool();
     DrawDetectFramesTool();
+    DrawPackDialog();
 
     // Asks about unsaved changes before New, Load, Open Recent and quitting.
     DrawUnsavedChangesPrompt();
