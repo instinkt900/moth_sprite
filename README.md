@@ -183,6 +183,8 @@ is one undo step, and works in a project with no sheet image. An image that does
 The image stays a separate file, and the project refers to it. Such a cell:
 
 - is drawn from its own image in the Cells list, the Selected Cell window and the Clips window,
+- shows its size and its image path in the Cells list, in place of its offset (a long path is shortened from the
+  front),
 - is not shown on the Sheet, and the sheet tools (New Cell, Grid Cells, Detect Cells, dragging and resizing on the
   sheet) do not change it,
 - has a pivot that can be edited, and X, Y, W and H fields that are read-only (0, 0 and the image size).

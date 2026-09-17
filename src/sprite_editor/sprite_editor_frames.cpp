@@ -232,6 +232,7 @@ void SpriteEditor::DrawCellListWindow() {
                     ToggleCellSelection(i);
                 }
             }
+            float const rowRight = ImGui::GetItemRectMax().x;
             if (isPrime) {
                 ImGui::PopStyleColor(3);
             }
@@ -258,14 +259,41 @@ void SpriteEditor::DrawCellListWindow() {
                           drawSource.uv1);
             }
 
-            // Two lines to the right of the box: the index, then the offset and the size.
+            // Two lines to the right of the box: the index, then the offset and the size. A cell from another image
+            // has the index and the size, then its image path.
             float const lineH = ImGui::GetTextLineHeight();
             float const textX = rowMin.x + kListThumbSize + style.ItemSpacing.x;
             float const textY = rowMin.y + ((kListThumbSize - (lineH * 2.0f) - style.ItemSpacing.y) * 0.5f);
-            std::string const indexLabel = fmt::format("#{}", i);
-            std::string const rectLabel = fmt::format("({}, {})  {} x {}", fr.rect.x(), fr.rect.y(), fr.rect.w(), fr.rect.h());
+            std::string indexLabel = fmt::format("#{}", i);
+            std::string secondLabel;
+            if (fr.source) {
+                indexLabel += fmt::format("  {} x {}", fr.rect.w(), fr.rect.h());
+                // The path ends before the delete button. A path that does not fit keeps its end, which names the file.
+                float const availW = rowRight - deleteW - style.ItemSpacing.x - textX;
+                std::string const& path = fr.source->path;
+                secondLabel = path;
+                if (ImGui::CalcTextSize(path.c_str()).x > availW) {
+                    // Find the most characters to drop from the front, by halving, so long lists stay cheap to draw.
+                    auto const fits = [&path, availW](size_t drop) {
+                        return ImGui::CalcTextSize(fmt::format("...{}", path.substr(drop)).c_str()).x <= availW;
+                    };
+                    size_t low = 1;
+                    size_t high = path.size();
+                    while (low < high) {
+                        size_t const mid = low + ((high - low) / 2);
+                        if (fits(mid)) {
+                            high = mid;
+                        } else {
+                            low = mid + 1;
+                        }
+                    }
+                    secondLabel = fmt::format("...{}", path.substr(low));
+                }
+            } else {
+                secondLabel = fmt::format("({}, {})  {} x {}", fr.rect.x(), fr.rect.y(), fr.rect.w(), fr.rect.h());
+            }
             dl->AddText({ textX, textY }, textColor, indexLabel.c_str());
-            dl->AddText({ textX, textY + lineH + style.ItemSpacing.y }, textColor, rectLabel.c_str());
+            dl->AddText({ textX, textY + lineH + style.ItemSpacing.y }, textColor, secondLabel.c_str());
 
             ImGui::SetCursorScreenPos(nextRowPos);
             ImGui::PopID();
