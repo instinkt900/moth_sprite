@@ -1,7 +1,8 @@
 # Tasks
 
-The task list for moth_sprite. The process, the status values and the field definitions are in
-[workflow.md](workflow.md).
+The task list for moth_sprite. The process, the status values and the field definitions are in the
+shared workflow, `/home/mcotton/Development/moth/.claude/tasks/workflow.md`. Project-specific build and
+launch details are in [task-profile.md](task-profile.md).
 
 - `/task-new <description>` adds a task.
 - `/task-planning [IDs]` reviews tasks.

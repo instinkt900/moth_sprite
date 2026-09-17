@@ -1,7 +1,8 @@
 # Finished tasks
 
 Tasks moved from [tasks.md](tasks.md) by `/task-planning` once every commit in their `Commits` field is in the
-current branch. The process is in [workflow.md](workflow.md).
+current branch. The process is in the shared workflow,
+`/home/mcotton/Development/moth/.claude/tasks/workflow.md`.
 
 ## Tasks
 

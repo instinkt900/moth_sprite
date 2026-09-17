@@ -39,7 +39,7 @@ steps, and each step refers to a frame and has a duration.
 | `src/sprite_editor/sprite_editor_undo.cpp`    | Undo stack and snapshot helpers.                               |
 | `src/sprite_editor/frame_detection.*`         | Frame detection from image pixels. No UI.                      |
 | `tools/`                                      | Development scripts.                                           |
-| `docs/`                                       | Development workflow and task list.                            |
+| `docs/`                                       | Task list, task profile and session logs.                      |
 
 New `.cpp` files must be added to `SOURCES` in `CMakeLists.txt`.
 
@@ -79,5 +79,7 @@ or `m_clips` without adding an action.
 
 ## Workflow
 
-Work is planned and done as described in `docs/workflow.md`. The task list is `docs/tasks.md`. Use the
-`/task-new`, `/task-planning` and `/task-session` skills.
+Work is planned and done with the `/task-new`, `/task-planning` and `/task-session` skills, which are shared by
+all moth projects and live in the workspace (`/home/mcotton/Development/moth/.claude/`). The process is in
+`/home/mcotton/Development/moth/.claude/tasks/workflow.md`. The task list is `docs/tasks.md`, and the build and
+launch details a session uses are in `docs/task-profile.md`.
