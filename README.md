@@ -5,8 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A sprite sheet and animation clip editor for [moth::gfx](https://github.com/instinkt900/moth_toolkit). Load or import
-a sprite sheet image, mark out its cells and their pivots, build animation clips from those cells, and save a JSON
-project that moth::gfx loads at runtime as a `SpriteSheet`.
+a sprite sheet image, mark out its cells and their pivots, build animation clips from those cells, and save them as
+a `.mothsprite` project. Games do not load project files: moth::gfx loads a sprite sheet descriptor as a
+`SpriteSheet`.
 
 The editor is a separate application, not a toolkit one: it depends on the toolkit's modules but is not built as part
 of it.
@@ -20,6 +21,9 @@ of it.
 - [Usage](#usage)
   - [Editor windows](#editor-windows)
   - [Projects and sheet images](#projects-and-sheet-images)
+  - [Cells from other images](#cells-from-other-images)
+  - [Packing](#packing)
+  - [Exporting](#exporting)
   - [Making cells](#making-cells)
   - [Selecting and editing cells](#selecting-and-editing-cells)
   - [Pivots](#pivots)
@@ -80,9 +84,9 @@ restores the default layout and opens every window.
 
 | Window | Content |
 |---|---|
-| **Sheet** | The sheet image with every cell drawn over it. The sheet image path, New Cell, Fit and 1:1 are above it. |
+| **Sheet** | The sheet image with every cell drawn over it. The sheet image path with **Import Sheet...**, New Cell, Fit and 1:1 are above it. |
 | **Selected Cell** | Clip playback buttons, and the prime cell (see [Selecting and editing cells](#selecting-and-editing-cells)) with its pivot. With a clip selected, it previews the clip. |
-| **Cells** | The list of cells, each with a thumbnail, its index, offset and size, and a form for the prime cell below. |
+| **Cells** | **Import...** (see [Cells from other images](#cells-from-other-images)), the list of cells, each with a thumbnail, its index, offset and size, and a form for the prime cell below. |
 | **Clips** | Clip playback buttons, a new clip row, and each clip as a timeline of steps. |
 
 In the Sheet and Selected Cell windows, the mouse wheel zooms around the cursor, **Fit** fits the image in the
@@ -95,18 +99,70 @@ The **File** menu has:
 | Item | Action |
 |---|---|
 | **New** | Start an empty, untitled project. |
-| **Load...** | Open a project file (`.json`). |
+| **Open...** | Open a project file (`.mothsprite`), or import a sprite sheet descriptor (`.json`). |
 | **Open Recent** | Open one of the last 10 projects. **Clear Recent** empties the list. |
 | **Save** | Save the project. An untitled project asks for a file name first. |
 | **Save As...** | Save the project to a new file. |
-| **Import Sheet...** | Use a different sheet image (`png`, `jpg`, `jpeg` or `bmp`). Cells and clips are kept. |
-| **Export Sheet...** | Copy the sheet image to a new file, and make the project use the copy. |
+| **Export...** | Export the sprite sheet descriptor that games load (see [Exporting](#exporting)) to the project's export path. The first export asks for a file name. |
+| **Export As...** | Export to a new file name, which becomes the project's export path. |
 | **Exit** | Quit. |
 
-The **...** button next to the image path in the Sheet window does the same as **File > Import Sheet**.
+**Edit > Import Sheet...** uses a different sheet image (`png`, `jpg`, `jpeg` or `bmp`). Cells and clips are kept.
+**Tools > Pack...** packs every cell into a new sheet image (see [Packing](#packing)); it is enabled when the project
+has cells.
 
-A project can only be saved when it has a sheet image. The window title shows the project's file name, and ` *` when
-it has unsaved changes. New, Load, Open Recent and quitting ask whether to save unsaved changes first.
+The **Import Sheet...** button in the Sheet window does the same as **Edit > Import Sheet**. Without a sheet image it is
+the only thing in the window; with one, it is next to the image path.
+
+A project can be saved without a sheet image. The window title shows the project's file name, and ` *` when it has
+unsaved changes. New, Open, Open Recent and quitting ask whether to save unsaved changes first.
+
+### Packing
+
+**Tools > Pack...** packs every cell, as its own image, into one new image, and makes the project use it: the new
+image becomes the sheet image, and each cell's rectangle becomes its place in it. Cell order, sizes, pivots and clips
+do not change. Parts of a cell outside the sheet image are transparent in the packed image. Cells from other images
+are packed too, and become sheet cells.
+
+The pack dialog has:
+
+| Setting | Content |
+|---|---|
+| **Packed image** | The file to write. **...** chooses it in a dialog. The first time, it is `<project name>_packed.png` beside the project (in the last image folder for an untitled project). When the file exists, the dialog warns that it will be overwritten, and Pack still writes it. This includes the sheet image or the image of a cell: undo then restores the project but not the file on disk. |
+| **Padding (px)** | Space around each cell. |
+| **Padding type** | How the padding is filled: **Color** (with **Padding color**, which is also the background), **Extend**, **Mirror** or **Wrap**. |
+| **Best pack** | Pack into the smallest image the packer can find, from 1 x 1 up to 16384 x 16384. The size limits below are disabled and not used, but kept for when Best pack is turned off. |
+| **Min width**, **Min height**, **Max width**, **Max height** | The size limits of the packed image, in powers of two. |
+| **Format** | PNG, BMP, TGA or JPEG (with **JPEG quality**). Changing it changes the path's extension. |
+
+Beside the settings, the dialog previews the packed image that the settings would produce, with its width and
+height. The preview updates when a setting changes, and shows the reason instead when the cells do not fit or an
+image cannot be read. The preview writes no files.
+
+**Pack** writes the image and changes the project as one undo step. Undo restores the previous sheet image, cell
+rectangles, cells from other images and pack settings; the packed file stays on disk. If the cells do not fit into one image of the maximum
+size, or an image cannot be read or written, the dialog shows why and nothing changes. The dialog changes nothing
+until **Pack** succeeds, and the project saves the settings of its last pack.
+
+### Exporting
+
+Games do not load project files. **File > Export...** writes a sprite sheet descriptor (`.json`) that moth::gfx loads
+as a `SpriteSheet`, and copies the sheet image beside it, named after the descriptor with the image's extension:
+exporting `hero.json` writes `hero.png`. Files already there are overwritten. Saving the project does not export.
+
+The project remembers its export path, relative to the project file, so **Export...** does not ask again. **Export
+As...** always asks. Setting a new export path is an undo step; undo does not remove exported files.
+
+A project with cells from other images is **unpacked**: games need every cell on one sheet. Exporting it asks for the
+descriptor path first (on the first Export, and on Export As), then opens the pack dialog with the packed image named
+after the descriptor: `hero.json` packs to `hero.png`. Nothing is written until **Pack** succeeds; the export then
+continues. Cancelling either dialog cancels the export. Problems that a pack cannot fix, such as a clip with no steps,
+are reported before the file dialog opens, so a pack never runs for an export that would be refused.
+
+Export refuses, writes no files, and lists the problems when the project has no sheet image, has no cells, has a cell
+with no width or height, has a clip with no steps, or has a step with a duration of 0 ms or with no cell. These are the
+things moth::gfx rejects or skips, so the game data never differs from the project without a warning. The same
+message shows when the image cannot be copied or the descriptor cannot be written.
 
 ### Making cells
 
@@ -121,6 +177,25 @@ it has unsaved changes. New, Load, Open Recent and quitting ask whether to save 
   preview shows the cells found. **Add Frames** adds them.
 
 New cells have their pivot at the top-left corner.
+
+### Cells from other images
+
+**Import...** in the Cells window adds cells from image files other than the sheet (`png`, `jpg`, `jpeg` or `bmp`;
+several can be chosen at once). Each image becomes one cell, the whole image, at the end of the cell list. The import
+is one undo step, and works in a project with no sheet image. An image that does not load is skipped.
+
+The image stays a separate file, and the project refers to it. Such a cell:
+
+- is drawn from its own image in the Cells list, the Selected Cell window and the Clips window,
+- shows its size and its image path in the Cells list, in place of its offset (a long path is shortened from the
+  front),
+- is not shown on the Sheet, and the sheet tools (New Cell, Grid Cells, Detect Cells, dragging and resizing on the
+  sheet) do not change it,
+- has a pivot that can be edited, and X, Y, W and H fields that are read-only (0, 0 and the image size).
+
+If the image is missing when the project is loaded, the project still loads with a warning, and the cell shows only
+the preview background. [Tools > Pack](#packing) puts these cells on the sheet, but it cannot read a missing image:
+it shows an error and leaves the project unchanged. Restore the image, or delete the cell, before packing.
 
 ### Selecting and editing cells
 
@@ -178,7 +253,7 @@ step's cell as it plays. The Selected Cell window places each step's cell on its
 ### Undo
 
 **Edit > Undo** (Ctrl+Z) and **Edit > Redo** (Ctrl+Y) cover every change to cells, pivots, clips and steps, and
-**Import Sheet** and **Export Sheet**. Typing in a field, or a drag, is one undo step. New, Load and Open Recent clear
+**Import Sheet**, **Pack**, and a change of the export path. Typing in a field, or a drag, is one undo step. New, Open and Open Recent clear
 the undo history.
 
 ### Keyboard shortcuts
@@ -188,7 +263,7 @@ Shortcuts do not work while a text field is being edited or a dialog is open.
 | Shortcut | Action |
 |---|---|
 | Ctrl+N | New |
-| Ctrl+L | Load |
+| Ctrl+O | Open |
 | Ctrl+S | Save |
 | Ctrl+Shift+S | Save As |
 | Ctrl+X | Exit |
@@ -212,10 +287,12 @@ started from.
 
 ## Project file format
 
-A project is a JSON file:
+A project is a `.mothsprite` file with JSON content. It is the source for editing, and it keeps data that games do
+not load. Games load sprite sheet descriptors, not project files.
 
 ```json
 {
+  "version": 1,
   "image": "hero.png",
   "frames": [
     { "x": 0,  "y": 0, "w": 32, "h": 48, "pivot_x": 16, "pivot_y": 48 },
@@ -236,14 +313,28 @@ A project is a JSON file:
 
 | Field | Content |
 |---|---|
-| `image` | Path to the sheet image, relative to the project file. |
-| `frames` | The cells. Each has `x`, `y`, `w` and `h` in pixels, and `pivot_x` and `pivot_y` relative to the cell's top-left corner. |
+| `version` | The format version. The editor does not load a file with a version newer than it knows. |
+| `image` | Path to the sheet image, relative to the project file. Optional: a project can have no sheet image. |
+| `export_path` | Path of the last exported descriptor, relative to the project file. Optional. |
+| `pack` | The settings of the last pack. Optional. `image` (the packed image, relative to the project file), `padding`, `padding_type` (`color`, `extend`, `mirror` or `wrap`), `padding_color` (`RRGGBBAA` hex), `best_pack`, `min_width`, `min_height`, `max_width`, `max_height`, `format` (`png`, `bmp`, `tga` or `jpeg`) and `jpeg_quality`. |
+| `frames` | The cells. Each has `x`, `y`, `w` and `h` in pixels, and `pivot_x` and `pivot_y` relative to the cell's top-left corner. A cell from another image has `image`, its image path relative to the project file, instead of `x`, `y`, `w` and `h`. |
 | `clips` | Each clip has a `name`, a `loop` type (`stop`, `reset` or `loop`), and `frames`: its steps. |
 | `clips[].frames` | Each step has `frame`, an index into `frames`, and `duration_ms`. |
 
-Other fields already in a project file are kept when the editor saves over it.
+The editor writes the whole file when it saves. A project keeps what games reject: no cells, clips with no steps, and
+steps with a 0 ms duration are saved and loaded unchanged.
 
-moth::gfx loads a project with at least one cell. It skips a clip that has no steps, or a step whose duration is
+### Sprite sheet descriptors
+
+A sprite sheet descriptor is the JSON file that moth::gfx loads as a `SpriteSheet`, written by
+[File > Export](#exporting). It has the `image`, `frames` and `clips` fields above, with no `version` or
+`export_path`. Frame indices follow the project's cell order. Projects saved before the `.mothsprite` format are descriptors.
+
+**File > Open** opens a descriptor (`.json`) as a new project: the project has no file name and has unsaved changes,
+so the first save asks for a `.mothsprite` file name and never writes over the descriptor. A descriptor that
+moth::gfx does not load is not opened. Opened descriptors are not added to Open Recent.
+
+moth::gfx loads a descriptor with at least one cell. It skips a clip that has no steps, or a step whose duration is
 0 or whose cell does not exist.
 
 ---
@@ -272,8 +363,8 @@ pip install conan
 Windows, MSVC's detected profile defaults to C++14, so pass `-s compiler.cppstd=17` or set it in your Conan profile.
 The app renders with Vulkan, so it also needs a Vulkan driver.
 
-moth_sprite depends on the [moth_toolkit](https://github.com/instinkt900/moth_toolkit) module `moth_bridge`, which
-brings in `moth_core`, `moth_graphics` and `moth_ui`. These are published to an Artifactory remote rather than Conan
+moth_sprite depends on the [moth_toolkit](https://github.com/instinkt900/moth_toolkit) modules `moth_bridge`, which
+brings in `moth_core`, `moth_graphics` and `moth_ui`, and `moth_packer`, which packs cells into a new sheet image. These are published to an Artifactory remote rather than Conan
 Center. Register the remote once before installing (it is publicly readable, so no login is required):
 
 ```bash
@@ -332,7 +423,7 @@ the folder it is started from, so start it from a folder where those files belon
 | Project | Description |
 |---|---|
 | [moth_toolkit](https://github.com/instinkt900/moth_toolkit) | The modular 2D engine toolkit this editor builds against |
-| `moth::gfx` | Vulkan-backed 2D renderer, window management, and the platform bootstrap. Loads the projects this editor saves as a `SpriteSheet` |
+| `moth::gfx` | Vulkan-backed 2D renderer, window management, and the platform bootstrap. Loads sprite sheet descriptors as a `SpriteSheet` |
 | `moth::ui` | Core UI library: node graph, keyframe animation, and event system |
 | `moth::bridge` | Adapts `moth::ui` onto `moth::gfx` and provides the application loop |
 | [moth_editor](https://github.com/instinkt900/moth_editor) | Visual layout and animation editor for `moth::ui` layout files |

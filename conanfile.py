@@ -25,6 +25,8 @@ class MothSprite(ConanFile):
     def requirements(self):
         # moth_bridge brings in moth_core, moth_graphics and moth_ui from the toolkit.
         self.requires("moth_bridge/0.1.0")
+        # Packs cells into a new sheet image (File > Pack).
+        self.requires("moth_packer/[>=2 <3]")
 
     def system_requirements(self):
         if self.settings.os == "Linux":

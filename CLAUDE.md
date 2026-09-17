@@ -1,8 +1,8 @@
 # moth_sprite
 
 A standalone sprite sheet and animation clip editor built on the moth toolkit. The user loads or imports a sprite
-sheet image, defines cells with pivots, builds animation clips from those cells, and saves a JSON project that
-moth_graphics loads as a `SpriteSheet`.
+sheet image, defines cells with pivots, builds animation clips from those cells, and saves a `.mothsprite` project.
+Games do not load project files: moth_graphics loads a sprite sheet descriptor as a `SpriteSheet`.
 
 **Naming:** The UI and the tasks say "cell". The code says "frame" (`FrameEntry`, `m_frames`). A clip is a list of
 steps, and each step refers to a frame and has a duration.
@@ -11,7 +11,8 @@ steps, and each step refers to a frame and has a duration.
 
 - C++17, CMake, Conan 2.
 - `moth_bridge` (Conan) brings in moth_core, moth_graphics and moth_ui: a GLFW + Vulkan platform, and ImGui.
-- `external/nativefiledialog` (git submodule) for file dialogs, `external/stb` for image loading.
+- `moth_packer` (Conan) packs cells into a new sheet image (Tools > Pack).
+- `external/nativefiledialog` (git submodule) for file dialogs, `external/stb` for image loading and writing.
 
 ## Build and run
 
@@ -23,35 +24,63 @@ steps, and each step refers to a frame and has a duration.
 
 ## Layout
 
-| Path                                          | Content                                                        |
-| --------------------------------------------- | -------------------------------------------------------------- |
-| `src/main.cpp`                                | Entry point. Starts the platform and runs the application.     |
-| `src/sprite_application.*`                    | Application. Loads and saves editor settings, adds the editor. |
-| `src/sprite_editor_config.h`                  | Editor settings saved to `moth_sprite.json`.                   |
-| `src/editor_action.h`                         | Undo interface: `IEditorAction`, `BasicAction`.                |
-| `src/common.h`                                | Precompiled header.                                            |
-| `src/sprite_editor/sprite_editor.*`           | `SpriteEditor` ImGui layer: state, main draw, menus.           |
-| `src/sprite_editor/sprite_editor_io.cpp`      | New, load, import image, save project.                         |
-| `src/sprite_editor/sprite_editor_preview.cpp` | Sheet canvas: zoom, cell drag and resize, New Cell mode.       |
-| `src/sprite_editor/sprite_editor_frames.cpp`  | Cell list, cell properties, pivot editing.                     |
-| `src/sprite_editor/sprite_editor_clips.cpp`   | Clips pane and clip playback.                                  |
-| `src/sprite_editor/sprite_editor_tools.cpp`   | Tools menu: grid generator, detect frames.                     |
-| `src/sprite_editor/sprite_editor_undo.cpp`    | Undo stack and snapshot helpers.                               |
-| `src/sprite_editor/frame_detection.*`         | Frame detection from image pixels. No UI.                      |
-| `tools/`                                      | Development scripts.                                           |
-| `docs/`                                       | Task list, task profile and session logs.                      |
+| Path                                          | Content                                                          |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| `src/main.cpp`                                | Entry point. Starts the platform and runs the application.       |
+| `src/sprite_application.*`                    | Application. Loads and saves editor settings, adds the editor.   |
+| `src/sprite_editor_config.h`                  | Editor settings saved to `moth_sprite.json`.                     |
+| `src/editor_action.h`                         | Undo interface: `IEditorAction`, `BasicAction`.                  |
+| `src/common.h`                                | Precompiled header.                                              |
+| `src/sprite_editor/sprite_editor.*`           | `SpriteEditor` ImGui layer: state, main draw, menus.             |
+| `src/sprite_editor/sprite_editor_io.cpp`      | Load and save project files, import descriptors and images.      |
+| `src/sprite_editor/sprite_editor_preview.cpp` | Sheet canvas: zoom, cell drag and resize, New Cell mode.         |
+| `src/sprite_editor/sprite_editor_frames.cpp`  | Cell list, cell properties, pivot editing.                       |
+| `src/sprite_editor/sprite_editor_clips.cpp`   | Clips pane and clip playback.                                    |
+| `src/sprite_editor/sprite_editor_tools.cpp`   | Tools menu: grid generator, detect frames.                       |
+| `src/sprite_editor/sprite_editor_undo.cpp`    | Undo stack and snapshot helpers.                                 |
+| `src/sprite_editor/sprite_editor_pack.cpp`    | Tools > Pack dialog with preview; applying a pack as one undo.    |
+| `src/sprite_editor/frame_detection.*`         | Frame detection from image pixels. No UI.                        |
+| `src/sprite_editor/sheet_packing.*`           | Packing cells with moth_packer, writing the packed image. No UI. |
+| `src/sprite_editor/packed_image_write.*`      | stb_image_write, compiled as C (outside clang-tidy).             |
+| `tools/`                                      | Development scripts.                                             |
+| `docs/`                                       | Task list, task profile and session logs.                        |
 
-New `.cpp` files must be added to `SOURCES` in `CMakeLists.txt`.
+New `.cpp` files must be added to `SOURCES` in `CMakeLists.txt`. The precompiled header `src/common.h` applies to
+C++ sources only.
 
 ## Project file
 
-A project is a JSON file:
+A project is a `.mothsprite` file with JSON content, read and written by the editor's own code in
+`sprite_editor_io.cpp` (not by `SpriteSheetFactory`):
 
-- `image`: path to the sheet image, relative to the project file.
-- `frames`: cells, each `{ x, y, w, h, pivot_x, pivot_y }`.
+- `version`: the format version (`kProjectFormatVersion`). A newer version is not loaded.
+- `image`: optional path to the sheet image, relative to the project file.
+- `export_path`: optional path of the last exported descriptor, relative to the project file. Changing it is
+  undoable.
+- `pack`: optional settings of the last Tools > Pack (`PackSettings`): the packed image path, padding, padding type
+  and colour, minimum and maximum size, format and JPEG quality. A pack sets the sheet image, the cell rectangles
+  and these settings as one undo action.
+- `frames`: cells, each `{ x, y, w, h, pivot_x, pivot_y }`. A cell imported from another image (Cells window >
+  Import) is `{ image, pivot_x, pivot_y }`, with the image path relative to the project file.
 - `clips`: each `{ name, loop, frames: [ { frame, duration_ms } ] }`, where `frame` is an index into `frames`.
 
-Project files saved by older versions must still load.
+The project is the editing source. It keeps data that games reject (no cells, clips with no steps, 0 ms steps)
+through save and load unchanged.
+
+In memory a cell is a `CellEntry`: a `FrameEntry` plus an optional `source` (`CellImage`: path and texture). A cell
+with a source is the whole image; its rectangle is (0, 0) and the image size, and does not change. The Sheet window
+and the sheet tools skip such cells, and `GetCellDrawSource` gives the image to draw any cell with. A project with
+such cells is unpacked: Tools > Pack makes them sheet cells. Export chooses the descriptor path first, then opens the
+pack dialog with the packed image named after the descriptor, and exports after a successful pack
+(`m_exportAfterPack`).
+
+Games load sprite sheet descriptors, not project files. A descriptor has `image`, `frames` and `clips` and no
+`version`; `SpriteSheetFactory` loads it. File > Export writes one to the export path (File > Export As picks a new
+path) and copies the sheet image beside it, named after the descriptor. Export refuses, writing nothing, when the
+project has data that `SpriteSheetFactory` rejects or skips (`ExportProblems`). Saving does not export. File > Open imports a `.json` descriptor as a new project with no path and
+unsaved changes, so the first save opens Save As. Imported descriptors are not added to Open Recent.
+
+`.json` project files saved before the `.mothsprite` format still open, as a descriptor import.
 
 ## Rules
 

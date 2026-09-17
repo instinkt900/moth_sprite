@@ -18,16 +18,20 @@ set(SOURCES
 	src/main.cpp
 	src/sprite_application.cpp
 	src/sprite_editor/frame_detection.cpp
+	src/sprite_editor/packed_image_write.c
+	src/sprite_editor/sheet_packing.cpp
 	src/sprite_editor/sprite_editor.cpp
 	src/sprite_editor/sprite_editor_clips.cpp
 	src/sprite_editor/sprite_editor_frames.cpp
 	src/sprite_editor/sprite_editor_io.cpp
+	src/sprite_editor/sprite_editor_pack.cpp
 	src/sprite_editor/sprite_editor_preview.cpp
 	src/sprite_editor/sprite_editor_tools.cpp
 	src/sprite_editor/sprite_editor_undo.cpp
 )
 
 find_package(moth_bridge REQUIRED)
+find_package(moth_packer REQUIRED)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
@@ -36,8 +40,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE src)
 # SYSTEM silences -Wall/-Werror noise from the vendored single-header library.
 target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE external/stb)
 target_link_libraries(${PROJECT_NAME} moth::bridge)
+target_link_libraries(${PROJECT_NAME} moth::packer)
 target_link_libraries(${PROJECT_NAME} nativefiledialog)
-target_precompile_headers(${PROJECT_NAME} PRIVATE src/common.h)
+# The precompiled header is C++; packed_image_write.c is C.
+target_precompile_headers(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/common.h>)
 # Shown in Help > About.
 target_compile_definitions(${PROJECT_NAME} PRIVATE
 	MOTH_SPRITE_VERSION_STRING="${MOTH_SPRITE_VERSION_FULL}"

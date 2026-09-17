@@ -2,6 +2,7 @@
 
 #include "editor_action.h"
 #include "frame_detection.h"
+#include "sheet_packing.h"
 
 #include <moth/graphics/graphics/asset_context.h>
 #include <moth/graphics/graphics/spritesheet.h>
@@ -19,6 +20,26 @@
 
 struct SpriteEditorConfig;
 
+// The image file of a cell imported from an image other than the sheet.
+struct CellImage {
+    std::string path;        // absolute
+    moth::gfx::Image image;  // empty when the file could not be loaded
+};
+
+// A cell: a rectangle of the sheet image and a pivot. A cell imported from another image has a source, and is the
+// whole of that image: its rectangle is (0, 0) and the image size. The source is shared, so the cell list and undo
+// snapshots keep its texture alive.
+struct CellEntry : moth::gfx::SpriteSheet::FrameEntry {
+    std::shared_ptr<CellImage const> source;
+};
+
+// What a cell is drawn from: an image and the UVs of the cell in it. image is null when there is nothing to draw.
+struct CellDrawSource {
+    moth::gfx::Image const* image = nullptr;
+    moth::gfx::FloatVec2 uv0{ 0.0f, 0.0f };
+    moth::gfx::FloatVec2 uv1{ 1.0f, 1.0f };
+};
+
 // Where a pivot rule puts a cell's pivot on one axis: at 0, at half the cell's size (rounded down), or at its full size.
 enum class PivotAnchor {
     Start,
@@ -28,9 +49,10 @@ enum class PivotAnchor {
 
 class SpriteEditor : public moth::ui::Layer {
 public:
-    // setWindowTitle sets the application window's title.
+    // setWindowTitle sets the application window's title. waitForGpu blocks until the GPU has finished every submitted
+    // frame, so a texture that recent frames drew can be freed.
     SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::platform::ImGuiContext& imgui, SpriteEditorConfig& config,
-                 std::function<void(std::string_view)> setWindowTitle);
+                 std::function<void(std::string_view)> setWindowTitle, std::function<void()> waitForGpu);
     ~SpriteEditor() override = default;
 
     SpriteEditor(SpriteEditor const&) = delete;
@@ -46,15 +68,23 @@ public:
     bool HoldQuitForUnsavedChanges();
 
 private:
-    // Ctrl+S, Ctrl+Shift+S, Ctrl+N, Ctrl+L, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+A, Delete and Esc, in every window.
+    // Ctrl+S, Ctrl+Shift+S, Ctrl+N, Ctrl+O, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+A, Delete and Esc, in every window.
     void HandleShortcuts();
     void DrawMainMenuBar();
     // The dock space fills the application window below the main menu bar.
     void DrawDockSpace();
     void NewSpriteSheet();
+    // The extension of project files.
+    static constexpr char const* kProjectExtension = ".mothsprite";
+    // Open a file from File > Open or Open Recent: a sprite sheet descriptor (.json) is imported with
+    // ImportDescriptor, and any other file is loaded as a project file with LoadProjectFile.
+    void LoadSpriteSheet(std::filesystem::path const& path);
     // Load a project file. On success it replaces the open project, and path becomes the project path (the window
     // title, Save and Open Recent). A failed load changes nothing.
-    void LoadSpriteSheet(std::filesystem::path const& path);
+    void LoadProjectFile(std::filesystem::path const& path);
+    // Make a new project from a sprite sheet descriptor, the format games load. The project has no path and has
+    // unsaved changes. A descriptor that SpriteSheetFactory does not load changes nothing.
+    void ImportDescriptor(std::filesystem::path const& path);
     // File > Open Recent: move a loaded or saved project to the front of the list, which keeps 10 projects.
     void AddRecentProject(std::filesystem::path const& path);
     // Load a project chosen from Open Recent. A project file that no longer exists is removed from the list instead.
@@ -63,6 +93,8 @@ private:
     // Unsaved changes. The project differs from its last save when the undo position is not the one it had then.
     bool HasUnsavedChanges() const;
     void MarkSaved();
+    // The project differs from its last save until it is saved, even with nothing to undo.
+    void MarkUnsaved();
     uint64_t CurrentUndoId() const;
     // Actions that replace or close the project. With unsaved changes they wait for the unsaved changes prompt.
     enum class ProjectActionKind {
@@ -81,7 +113,7 @@ private:
     void DrawUnsavedChangesPrompt();
     // Help > About: the tool's name, version, description, author and repository.
     void DrawAboutDialog();
-    // File > Load: choose a project file in a dialog, then load it.
+    // File > Open: choose a project file in a dialog, then load it.
     void LoadWithDialog();
     // Save to the project path, or choose a path first when there is none. Returns true when the file was written.
     bool SaveProject();
@@ -89,12 +121,44 @@ private:
     bool SaveProjectAs();
     // Replace the sheet image, keeping the cells and clips, as one undoable action.
     void ImportSheet(std::filesystem::path const& imagePath);
-    // File > Import Sheet and the Sheet window's "..." button: choose an image in a dialog, then import it.
+    // Edit > Import Sheet and the Sheet window's Import Sheet button: choose an image in a dialog, then import it.
     void ImportSheetWithDialog();
-    // Copy the sheet image file, unchanged, to exportPath (given the sheet's extension), then point the project at
-    // the copy as one undoable action.
-    void ExportSheet(std::filesystem::path exportPath);
-    // Write the project file to path. Returns true when it was written. Only then path becomes the project path (the
+    // Add one cell for each image, at the end of the cell list, as one undoable action. Each cell is the whole image
+    // with its pivot at (0, 0). An image that does not load is skipped; when none load, nothing changes.
+    void ImportCells(std::vector<std::filesystem::path> const& imagePaths);
+    // The Cells window's Import button: choose images in a dialog, then import them as cells.
+    void ImportCellsWithDialog();
+    // File > Export (choosePath false) and File > Export As (choosePath true): write the sprite sheet descriptor
+    // that games load, and copy the sheet image beside it. Export uses the project's export path, and chooses one in
+    // a dialog when there is none. A new export path is set as one undoable action after a successful export.
+    // Refuses, writing no files, when ExportProblems finds any. A project with cells from other images gets its path
+    // first, then the pack dialog, and is exported after a successful pack.
+    void ExportProject(bool choosePath);
+    // Write the descriptor to exportPath (absolute) and copy the sheet image beside it, then set the export path.
+    void ExportToPath(std::filesystem::path const& exportPath);
+    // What stops the project from being exported as game data, one message each. Empty when it can be exported.
+    // beforePack leaves out the problems a pack fixes or refuses by itself (no sheet image, cell sizes).
+    std::vector<std::string> ExportProblems(bool beforePack) const;
+    // Show the export message popup on the next draw.
+    void ShowExportMessage(std::string heading, std::vector<std::string> lines);
+    void DrawExportMessage();
+    // Tools > Pack: the pack dialog. Pack runs PackProject with the dialog's settings.
+    void DrawPackDialog();
+    // The pack dialog's preview of the packed image for its current settings. Writes no files.
+    void UpdatePackPreview();
+    // Free the preview texture. Frames still in flight may use it, so this waits for the GPU first.
+    void ReleasePackPreviewImage();
+    void DrawPackPreview();
+    // The settings the pack dialog opens with: the project's, or defaults with the path <project name>_packed.<ext>.
+    PackSettings InitialPackSettings() const;
+    // The cells to pack: each cell's source image and rectangle. Returns nothing, and sets error, when a cell has no
+    // image to read.
+    std::optional<std::vector<PackCell>> ProjectPackCells(std::string& error) const;
+    // Pack every cell into a new image with settings, write it, and use it as the sheet: the sheet image, the cell
+    // rectangles and the pack settings change as one undoable action. Cells from other images become sheet cells. Returns false, sets error and changes nothing
+    // when the pack fails.
+    bool PackProject(PackSettings const& settings, std::string& error);
+    // Write the project file (the .mothsprite format) to path. Returns true when it was written. Only then path becomes the project path (the
     // window title, Save and Open Recent).
     bool SaveSpriteSheet(std::filesystem::path const& path);
     void DrawPreview();
@@ -151,10 +215,19 @@ private:
     void DrawImageBackground(moth::gfx::FloatVec2 const& pos, moth::gfx::FloatVec2 const& size,
                              float checkerSize = 32.0f) const;
 
-    using FrameVec = std::vector<moth::gfx::SpriteSheet::FrameEntry>;
+    using FrameVec = std::vector<CellEntry>;
+    // The cells as moth_graphics frame entries, without their sources, for building a SpriteSheet.
+    static std::vector<moth::gfx::SpriteSheet::FrameEntry> ToFrameEntries(FrameVec const& cells);
+    // The image and UVs to draw a cell with: its own image, or its rectangle of the sheet image.
+    CellDrawSource GetCellDrawSource(CellEntry const& cell) const;
     using ClipVec  = std::vector<moth::gfx::SpriteSheet::ClipEntry>;
     // Selected cell indices in the order they were added. The last one is the prime cell.
     using Selection = std::vector<int>;
+
+    // Replace the open project with a sheet, its image path, cells and clips. Clears the undo history, the selection
+    // and clip playback, and fits the views. The caller sets the project path and the saved state.
+    void ReplaceProject(std::shared_ptr<moth::gfx::SpriteSheet> sheet, std::string const& imagePath,
+                        FrameVec frames, ClipVec clips);
 
     // Undo/redo stack
     void AddSpriteAction(std::unique_ptr<IEditorAction> action);
@@ -171,12 +244,14 @@ private:
     moth::gfx::platform::ImGuiContext& m_imgui;
     SpriteEditorConfig& m_config;
     std::function<void(std::string_view)> m_setWindowTitle;
+    std::function<void()> m_waitForGpu;
     std::string m_windowTitle; // the title last set, so that it is only set again when it changes
     bool m_resetLayout = false; // set by Window > Reset Layout; applied before the dock space is drawn
     char m_pathBuffer[1024] = {};
     char m_imagePathBuffer[1024] = {};
+    std::string m_exportPath; // absolute path of the last export's descriptor, or empty; saved in the project file
     std::shared_ptr<moth::gfx::SpriteSheet> m_spriteSheet;
-    std::vector<moth::gfx::SpriteSheet::FrameEntry> m_frames;
+    FrameVec m_frames;
     std::vector<moth::gfx::SpriteSheet::ClipEntry> m_clips;
     Selection m_selection;
     float m_zoom = 1.0f; // -1 = auto-fit on next draw
@@ -199,6 +274,36 @@ private:
     bool m_openUnsavedPrompt = false;                    // open the prompt on the next draw
     bool m_quitApproved = false;                         // the user answered for a quit; let the next request through
     bool m_openAboutDialog = false;                      // set by Help > About; opened outside the menu's ID scope
+
+    // The export message popup: why an export was refused or failed.
+    struct ExportMessage {
+        std::string heading;
+        std::vector<std::string> lines;
+        bool open = false; // open the popup on the next draw
+    };
+    ExportMessage m_exportMessage;
+
+    // Tools > Pack. The project's settings are set by a successful pack, and saved in the project file.
+    std::optional<PackSettings> m_packSettings;
+    struct PackDialogState {
+        PackSettings settings;     // being edited; the project changes only when Pack succeeds
+        PackSettings bestPackSizes; // the sizes shown, disabled, while Best pack is on
+        char pathBuffer[1024] = {};
+        std::string error;         // why the last Pack failed
+        // The preview, packed in memory. Sources are read once while the dialog is open.
+        PackImageCache previewImages;
+        std::optional<PackSettings> previewSettings; // the settings the preview was packed with; unset = pack again
+        moth::gfx::Image previewImage;
+        int previewWidth = 0;
+        int previewHeight = 0;
+        std::string previewError; // why the preview could not be packed
+    };
+    PackDialogState m_packDialog;
+    bool m_openPackDialog = false; // set by the menu; the popup is opened outside the menu's ID scope
+    // Set when Export opened the pack dialog because the project has cells from other images: the descriptor path
+    // chosen for the export. The dialog's packed image is named after it, and the export continues after a successful
+    // pack. Cleared when the dialog closes.
+    std::optional<std::filesystem::path> m_exportAfterPack;
 
     // A Cells form input being edited. id is the widget's ImGuiID, so that focus moving straight from one field to
     // another commits the first edit before the second snapshot is taken.

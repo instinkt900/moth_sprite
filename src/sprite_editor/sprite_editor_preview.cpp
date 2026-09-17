@@ -160,27 +160,31 @@ void SpriteEditor::DrawPreview() {
         return;
     }
 
+    // Import Sheet... does the same as Edit > Import Sheet.
+    char const* const kImportSheetLabel = "Import Sheet...";
     auto const& image = m_spriteSheet->GetImage();
     if (!image) {
-        ImGui::TextDisabled("Use File > Import Sheet to add a sheet image.");
+        if (ImGui::Button(kImportSheetLabel)) {
+            ImportSheetWithDialog();
+        }
+        ImGui::SetItemTooltip("Choose a sheet image (Edit > Import Sheet)");
         return;
     }
 
-    // The sheet image file the project uses. Read-only; File > Export Sheet changes it, and "..." imports another
-    // image, as File > Import Sheet does.
+    // The sheet image file the project uses. Read-only; Import Sheet... beside it imports another image.
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Image");
     ImGui::SameLine();
-    float const browseW = ImGui::CalcTextSize("...").x + (ImGui::GetStyle().FramePadding.x * 2.0f);
-    ImGui::SetNextItemWidth(-(browseW + ImGui::GetStyle().ItemSpacing.x));
+    float const importW = ImGui::CalcTextSize(kImportSheetLabel).x + (ImGui::GetStyle().FramePadding.x * 2.0f);
+    ImGui::SetNextItemWidth(-(importW + ImGui::GetStyle().ItemSpacing.x));
     ImGui::InputText("##sheet_image_path", m_imagePathBuffer, sizeof(m_imagePathBuffer), ImGuiInputTextFlags_ReadOnly);
     ImGui::SameLine();
-    if (ImGui::Button("...##sheet_image_browse")) {
+    if (ImGui::Button(kImportSheetLabel)) {
         // An import replaces the sheet, and with it the image drawn below, so stop drawing for this frame.
         ImportSheetWithDialog();
         return;
     }
-    ImGui::SetItemTooltip("Import a different sheet image (File > Import Sheet)");
+    ImGui::SetItemTooltip("Import a different sheet image (Edit > Import Sheet)");
 
     float const imgW = static_cast<float>(image.GetWidth());
     float const imgH = static_cast<float>(image.GetHeight());
@@ -278,7 +282,9 @@ void SpriteEditor::DrawPreview() {
     bool const picking = m_cellPick.has_value();
     int const cellCount = static_cast<int>(m_frames.size());
     int const prime = PrimeCell();
-    bool const primeInRange = (prime >= 0 && prime < cellCount);
+    // Cells from other images are not on the sheet: the Sheet window does not show, select or change them.
+    auto const onSheet = [this](int index) { return !m_frames[index].source; };
+    bool const primeInRange = (prime >= 0 && prime < cellCount) && onSheet(prime);
     float const relX = (mouse.x - imagePos.x) / m_zoom;
     float const relY = (mouse.y - imagePos.y) / m_zoom;
     auto const containsMouse = [relX, relY](moth::gfx::IntRect const& r) {
@@ -288,7 +294,7 @@ void SpriteEditor::DrawPreview() {
     // The first cell under the mouse, or -1.
     auto const hitAnyCell = [&]() {
         for (int i = 0; i < cellCount; ++i) {
-            if (containsMouse(m_frames[i].rect)) {
+            if (onSheet(i) && containsMouse(m_frames[i].rect)) {
                 return i;
             }
         }
@@ -300,7 +306,7 @@ void SpriteEditor::DrawPreview() {
             return prime;
         }
         for (int const sel : m_selection) {
-            if (sel >= 0 && sel < cellCount && containsMouse(m_frames[sel].rect)) {
+            if (sel >= 0 && sel < cellCount && onSheet(sel) && containsMouse(m_frames[sel].rect)) {
                 return sel;
             }
         }
@@ -382,7 +388,7 @@ void SpriteEditor::DrawPreview() {
             int dyMin = -imgHi;
             int dyMax = imgHi;
             for (int const sel : m_selection) {
-                if (sel >= 0 && sel < snapshotCount) {
+                if (sel >= 0 && sel < snapshotCount && onSheet(sel)) {
                     auto const& r = snapshot[sel].rect;
                     dxMin = std::max(dxMin, -r.left());
                     dxMax = std::min(dxMax, imgWi - r.right());
@@ -397,7 +403,7 @@ void SpriteEditor::DrawPreview() {
                 dy = std::clamp(dy, dyMin, dyMax);
             }
             for (int const sel : m_selection) {
-                if (sel >= 0 && sel < snapshotCount) {
+                if (sel >= 0 && sel < snapshotCount && onSheet(sel)) {
                     moth::gfx::IntRect r = snapshot[sel].rect;
                     ApplyFrameDelta(r, op, dx, dy, imgWi, imgHi);
                     m_frames[sel].rect = r;
@@ -436,6 +442,9 @@ void SpriteEditor::DrawPreview() {
             m_selection.clear();
         }
         for (int i = 0; i < cellCount; ++i) {
+            if (!onSheet(i)) {
+                continue;
+            }
             auto const& r = m_frames[i].rect;
             bool const inside = static_cast<float>(r.left()) >= x0 && static_cast<float>(r.right()) <= x1 &&
                                 static_cast<float>(r.top()) >= y0 && static_cast<float>(r.bottom()) <= y1;
@@ -471,6 +480,9 @@ void SpriteEditor::DrawPreview() {
 
     for (int i = 0; i < static_cast<int>(m_frames.size()); ++i) {
         auto const& fr = m_frames[i];
+        if (fr.source) {
+            continue;
+        }
         ImU32 color = normalU32;
         if (i == primeCell) {
             color = primeU32;

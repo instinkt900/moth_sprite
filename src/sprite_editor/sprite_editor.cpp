@@ -60,11 +60,17 @@ namespace {
 } // namespace
 
 SpriteEditor::SpriteEditor(moth::gfx::AssetContext& assetContext, moth::gfx::platform::ImGuiContext& imgui, SpriteEditorConfig& config,
-                           std::function<void(std::string_view)> setWindowTitle)
+                           std::function<void(std::string_view)> setWindowTitle, std::function<void()> waitForGpu)
     : m_assetContext(assetContext)
     , m_imgui(imgui)
     , m_config(config)
-    , m_setWindowTitle(std::move(setWindowTitle)) {
+    , m_setWindowTitle(std::move(setWindowTitle))
+    , m_waitForGpu(std::move(waitForGpu)) {
+    // Open Recent lists project files only. Versions before the .mothsprite format listed .json projects.
+    auto& recent = m_config.RecentProjects;
+    recent.erase(std::remove_if(recent.begin(), recent.end(),
+                                [](std::string const& path) { return std::filesystem::path(path).extension() != kProjectExtension; }),
+                 recent.end());
     // Start with a blank project so the user can import a sheet straight away.
     NewSpriteSheet();
 }
@@ -74,6 +80,8 @@ void SpriteEditor::NewSpriteSheet() {
     MarkSaved();
     m_pathBuffer[0]      = '\0';
     m_imagePathBuffer[0] = '\0';
+    m_exportPath.clear();
+    m_packSettings.reset();
     m_frames.clear();
     m_clips.clear();
     m_selection.clear();
@@ -157,9 +165,7 @@ void SpriteEditor::HandleShortcuts() {
         return;
     }
     // File shortcuts. Ctrl+S on an untitled project chooses a path first, like Save in the unsaved changes prompt.
-    // Saving needs a sheet image, as in the File menu.
-    bool const hasImage = m_imagePathBuffer[0] != '\0';
-    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false) && hasImage) {
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
         if (io.KeyShift) {
             SaveProjectAs();
         } else {
@@ -169,7 +175,7 @@ void SpriteEditor::HandleShortcuts() {
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_N, false)) {
         RequestProjectAction({ ProjectActionKind::New, {} });
     }
-    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_L, false)) {
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O, false)) {
         RequestProjectAction({ ProjectActionKind::Load, {} });
     }
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_X, false)) {
@@ -217,17 +223,17 @@ void SpriteEditor::HandleShortcuts() {
 }
 
 void SpriteEditor::DrawMainMenuBar() {
-    // Image dialogs (Import Sheet, Export Sheet) start in the folder that an image dialog last used, and remember
-    // the folder of the file chosen. The project dialogs do the same in LoadWithDialog and SaveProjectAs.
+    // The Import Sheet dialog starts in the folder that an image dialog last used, and remembers the folder of the
+    // file chosen. The project dialogs do the same in LoadWithDialog and SaveProjectAs.
     if (!ImGui::BeginMainMenuBar()) {
         return;
     }
     if (ImGui::BeginMenu("File")) {
-        // New, Load and Open Recent replace the project, so with unsaved changes they ask first.
+        // New, Open and Open Recent replace the project, so with unsaved changes they ask first.
         if (ImGui::MenuItem("New", "Ctrl+N")) {
             RequestProjectAction({ ProjectActionKind::New, {} });
         }
-        if (ImGui::MenuItem("Load...", "Ctrl+L")) {
+        if (ImGui::MenuItem("Open...", "Ctrl+O")) {
             RequestProjectAction({ ProjectActionKind::Load, {} });
         }
         // The entry is opened after the submenu is drawn, because opening a project changes the list.
@@ -249,31 +255,19 @@ void SpriteEditor::DrawMainMenuBar() {
         if (recentToOpen.has_value()) {
             RequestProjectAction({ ProjectActionKind::OpenRecent, *recentToOpen });
         }
-        bool const hasImage = m_imagePathBuffer[0] != '\0';
         // Save on an untitled project chooses a path first, like Ctrl+S.
-        if (ImGui::MenuItem("Save", "Ctrl+S", false, hasImage)) {
+        if (ImGui::MenuItem("Save", "Ctrl+S")) {
             SaveProject();
         }
-        if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S", false, hasImage)) {
+        if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S")) {
             SaveProjectAs();
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
-            ImportSheetWithDialog();
+        if (ImGui::MenuItem("Export...")) {
+            ExportProject(false);
         }
-        if (ImGui::MenuItem("Export Sheet...", nullptr, false, hasImage)) {
-            // Filter on the sheet's own extension. Before any image dialog has been used, start in the sheet's folder.
-            std::filesystem::path const sheetPath = m_imagePathBuffer;
-            std::string const extension = sheetPath.extension().string();
-            std::string const filter = extension.empty() ? std::string{} : extension.substr(1);
-            std::string const startDir = DialogFolder(m_config.LastImageDir, sheetPath.parent_path());
-            nfdchar_t* outPath = nullptr;
-            if (NFD_SaveDialog(filter.empty() ? nullptr : filter.c_str(), startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
-                std::filesystem::path const exportPath = outPath;
-                NFD_Free(outPath);
-                m_config.LastImageDir = exportPath.parent_path().string();
-                ExportSheet(exportPath);
-            }
+        if (ImGui::MenuItem("Export As...")) {
+            ExportProject(true);
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Exit", "Ctrl+X")) {
@@ -289,6 +283,10 @@ void SpriteEditor::DrawMainMenuBar() {
         }
         if (ImGui::MenuItem("Redo", "Ctrl+Y", false, canRedo)) {
             RedoSpriteAction();
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
+            ImportSheetWithDialog();
         }
         ImGui::Separator();
         // Pivot rules apply to every selected cell, relative to each cell's own size.
@@ -346,6 +344,10 @@ void SpriteEditor::DrawMainMenuBar() {
         if (ImGui::MenuItem("Detect Cells...", nullptr, false, hasSheetImage && m_imagePathBuffer[0] != '\0')) {
             m_openDetectTool = true;
         }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Pack...", nullptr, false, !m_frames.empty())) {
+            m_openPackDialog = true;
+        }
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Window")) {
@@ -374,11 +376,12 @@ void SpriteEditor::DrawMainMenuBar() {
 }
 
 void SpriteEditor::LoadWithDialog() {
-    // Project dialogs (Load, Save As) start in the folder that a project dialog last used, and remember the folder
+    // Project dialogs (Open, Save As) start in the folder that a project dialog last used, and remember the folder
     // of the file chosen.
     nfdchar_t* outPath = nullptr;
     std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
-    if (NFD_OpenDialog("json", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
+    // Project files first; sprite sheet descriptors (.json) are imported as new projects.
+    if (NFD_OpenDialog("mothsprite;json", startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
         std::filesystem::path const path = outPath;
         NFD_Free(outPath);
         // The folder is remembered even when the load fails. The project path changes only when it succeeds.
@@ -398,14 +401,39 @@ void SpriteEditor::ImportSheetWithDialog() {
     }
 }
 
+void SpriteEditor::ImportCellsWithDialog() {
+    // The same image types and remembered folder as Import Sheet.
+    nfdpathset_t pathSet{};
+    std::string const startDir = DialogFolder(m_config.LastImageDir, std::filesystem::current_path());
+    if (NFD_OpenDialogMultiple("png,jpg,jpeg,bmp", startDir.c_str(), &pathSet) != NFD_OKAY) {
+        return;
+    }
+    std::vector<std::filesystem::path> imagePaths;
+    size_t const count = NFD_PathSet_GetCount(&pathSet);
+    imagePaths.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        imagePaths.emplace_back(NFD_PathSet_GetPath(&pathSet, i));
+    }
+    NFD_PathSet_Free(&pathSet);
+    if (imagePaths.empty()) {
+        return;
+    }
+    m_config.LastImageDir = imagePaths.front().parent_path().string();
+    ImportCells(imagePaths);
+}
+
 bool SpriteEditor::SaveProjectAs() {
     nfdchar_t* outPath = nullptr;
     std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
-    if (NFD_SaveDialog("json", startDir.c_str(), &outPath) != NFD_OKAY || outPath == nullptr) {
+    if (NFD_SaveDialog("mothsprite", startDir.c_str(), &outPath) != NFD_OKAY || outPath == nullptr) {
         return false;
     }
-    std::filesystem::path const path = outPath;
+    std::filesystem::path path = outPath;
     NFD_Free(outPath);
+    // Projects are always .mothsprite files. A name typed with another extension keeps it, before the project one.
+    if (path.extension() != kProjectExtension) {
+        path += kProjectExtension;
+    }
     // The folder is remembered even when the save fails. The project path changes only when the file is written.
     m_config.LastProjectDir = path.parent_path().string();
     return SaveSpriteSheet(path);
@@ -466,22 +494,15 @@ void SpriteEditor::DrawUnsavedChangesPrompt() {
     std::string const fileName = std::filesystem::path(m_pathBuffer).filename().string();
     ImGui::Text("\"%s\" has unsaved changes.", fileName.empty() ? "Untitled" : fileName.c_str());
     ImGui::TextUnformatted("Save them first?");
-    // A project without a sheet image cannot be saved.
-    bool const canSave = m_imagePathBuffer[0] != '\0';
-    if (!canSave) {
-        ImGui::TextDisabled("The project has no sheet image, so it cannot be saved.");
-    }
     ImGui::Spacing();
 
     // Set when the user answers: true to go on with the action, false to return to the editor.
     std::optional<bool> proceed;
     constexpr float kButtonW = 110.0f;
-    ImGui::BeginDisabled(!canSave);
     // Save runs Save, or Save As when the project has no path. If saving fails or is cancelled, the prompt stays.
     if (ImGui::Button("Save", ImVec2{ kButtonW, 0.0f }) && SaveProject()) {
         proceed = true;
     }
-    ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Don't Save", ImVec2{ kButtonW, 0.0f })) {
         proceed = true;
@@ -605,8 +626,10 @@ void SpriteEditor::Draw() {
     // The tool popups are outside every window, so they work with every window closed.
     DrawGridTool();
     DrawDetectFramesTool();
+    DrawPackDialog();
 
-    // Asks about unsaved changes before New, Load, Open Recent and quitting.
+    // Asks about unsaved changes before New, Open, Open Recent and quitting.
     DrawUnsavedChangesPrompt();
     DrawAboutDialog();
+    DrawExportMessage();
 }

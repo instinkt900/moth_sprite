@@ -45,4 +45,5 @@ missing tool). It needs an X11 display, `xdotool` and `python3`.
 
 ## Compatibility
 
-Project files saved by older versions still load.
+`.json` project files saved before the `.mothsprite` format (T-028) still open, as a
+descriptor import. `.mothsprite` project files saved by older versions still load.
