@@ -524,6 +524,34 @@ other images is "unpacked": it must be packed (T-030) before it can be exported 
    unpacked project also asks for the descriptor path before the pack dialog.
 10. With a missing imported image, Export > Pack shows "Could not read the image" in the dialog.
 
+### [todo] T-032 Unpack cells to their own images
+
+**Review:** unreviewed
+
+**Depends on:**
+
+**Goal:**
+Add an unpack step which can save cells out as their own images.
+
+**Requirements:**
+- [ ] An unpack step saves cells out as their own images.
+
+**Out of scope:**
+
+**Open questions:**
+- Q: Where is Unpack in the UI (File menu, Cells window), and does it have a dialog with settings?
+- Q: Which cells are saved: every cell, or the selected cells?
+- Q: How are the image files named, and in which folder and format are they written?
+- Q: Does Unpack change the project, for example turning the cells into cells from other images (T-025), or does it
+  only write files?
+- Q: What happens to existing files with the same names?
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
 ## Discovered
 
 Problems noticed during sessions that are outside the current tasks. Candidates for `/task-new`.
