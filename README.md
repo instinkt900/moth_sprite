@@ -21,6 +21,7 @@ of it.
 - [Usage](#usage)
   - [Editor windows](#editor-windows)
   - [Projects and sheet images](#projects-and-sheet-images)
+  - [Cells from other images](#cells-from-other-images)
   - [Packing](#packing)
   - [Exporting](#exporting)
   - [Making cells](#making-cells)
@@ -85,7 +86,7 @@ restores the default layout and opens every window.
 |---|---|
 | **Sheet** | The sheet image with every cell drawn over it. The sheet image path, New Cell, Fit and 1:1 are above it. |
 | **Selected Cell** | Clip playback buttons, and the prime cell (see [Selecting and editing cells](#selecting-and-editing-cells)) with its pivot. With a clip selected, it previews the clip. |
-| **Cells** | The list of cells, each with a thumbnail, its index, offset and size, and a form for the prime cell below. |
+| **Cells** | **Import...** (see [Cells from other images](#cells-from-other-images)), the list of cells, each with a thumbnail, its index, offset and size, and a form for the prime cell below. |
 | **Clips** | Clip playback buttons, a new clip row, and each clip as a timeline of steps. |
 
 In the Sheet and Selected Cell windows, the mouse wheel zooms around the cursor, **Fit** fits the image in the
@@ -117,13 +118,14 @@ unsaved changes. New, Load, Open Recent and quitting ask whether to save unsaved
 
 **File > Pack...** packs every cell, as its own image, into one new image, and makes the project use it: the new
 image becomes the sheet image, and each cell's rectangle becomes its place in it. Cell order, sizes, pivots and clips
-do not change. Parts of a cell outside the sheet image are transparent in the packed image.
+do not change. Parts of a cell outside the sheet image are transparent in the packed image. Cells from other images
+are packed too, and become sheet cells.
 
 The pack dialog has:
 
 | Setting | Content |
 |---|---|
-| **Packed image** | The file to write. **...** chooses it in a dialog. The first time, it is `<project name>_packed.png` beside the project (in the last image folder for an untitled project). It cannot be the sheet image. |
+| **Packed image** | The file to write. **...** chooses it in a dialog. The first time, it is `<project name>_packed.png` beside the project (in the last image folder for an untitled project). It cannot be the sheet image or the image of a cell. |
 | **Padding (px)** | Space around each cell. |
 | **Padding type** | How the padding is filled: **Color** (with **Padding color**, which is also the background), **Extend**, **Mirror** or **Wrap**. |
 | **Min width**, **Min height**, **Max width**, **Max height** | The size limits of the packed image, in powers of two. |
@@ -134,7 +136,7 @@ height. The preview updates when a setting changes, and shows the reason instead
 image cannot be read. The preview writes no files.
 
 **Pack** writes the image and changes the project as one undo step. Undo restores the previous sheet image, cell
-rectangles and pack settings; the packed file stays on disk. If the cells do not fit into one image of the maximum
+rectangles, cells from other images and pack settings; the packed file stays on disk. If the cells do not fit into one image of the maximum
 size, or an image cannot be read or written, the dialog shows why and nothing changes. The dialog changes nothing
 until **Pack** succeeds, and the project saves the settings of its last pack.
 
@@ -146,6 +148,9 @@ exporting `hero.json` writes `hero.png`. Files already there are overwritten. Sa
 
 The project remembers its export path, relative to the project file, so **Export...** does not ask again. **Export
 As...** always asks. Setting a new export path is an undo step; undo does not remove exported files.
+
+A project with cells from other images is **unpacked**: games need every cell on one sheet. Exporting it opens the pack
+dialog first. When the pack succeeds, the export continues; cancelling the dialog cancels the export.
 
 Export refuses, writes no files, and lists the problems when the project has no sheet image, has no cells, has a cell
 with no width or height, has a clip with no steps, or has a step with a duration of 0 ms or with no cell. These are the
@@ -165,6 +170,22 @@ message shows when the image cannot be copied or the descriptor cannot be writte
   preview shows the cells found. **Add Frames** adds them.
 
 New cells have their pivot at the top-left corner.
+
+### Cells from other images
+
+**Import...** in the Cells window adds cells from image files other than the sheet (`png`, `jpg`, `jpeg` or `bmp`;
+several can be chosen at once). Each image becomes one cell, the whole image, at the end of the cell list. The import
+is one undo step, and works in a project with no sheet image. An image that does not load is skipped.
+
+The image stays a separate file, and the project refers to it. Such a cell:
+
+- is drawn from its own image in the Cells list, the Selected Cell window and the Clips window,
+- is not shown on the Sheet, and the sheet tools (New Cell, Grid Cells, Detect Cells, dragging and resizing on the
+  sheet) do not change it,
+- has a pivot that can be edited, and X, Y, W and H fields that are read-only (0, 0 and the image size).
+
+If the image is missing when the project is loaded, the project still loads with a warning, and the cell shows only
+the preview background. [File > Pack](#packing) puts these cells on the sheet.
 
 ### Selecting and editing cells
 
@@ -286,7 +307,7 @@ not load. Games load sprite sheet descriptors, not project files.
 | `image` | Path to the sheet image, relative to the project file. Optional: a project can have no sheet image. |
 | `export_path` | Path of the last exported descriptor, relative to the project file. Optional. |
 | `pack` | The settings of the last pack. Optional. `image` (the packed image, relative to the project file), `padding`, `padding_type` (`color`, `extend`, `mirror` or `wrap`), `padding_color` (`RRGGBBAA` hex), `min_width`, `min_height`, `max_width`, `max_height`, `format` (`png`, `bmp`, `tga` or `jpeg`) and `jpeg_quality`. |
-| `frames` | The cells. Each has `x`, `y`, `w` and `h` in pixels, and `pivot_x` and `pivot_y` relative to the cell's top-left corner. |
+| `frames` | The cells. Each has `x`, `y`, `w` and `h` in pixels, and `pivot_x` and `pivot_y` relative to the cell's top-left corner. A cell from another image has `image`, its image path relative to the project file, instead of `x`, `y`, `w` and `h`. |
 | `clips` | Each clip has a `name`, a `loop` type (`stop`, `reset` or `loop`), and `frames`: its steps. |
 | `clips[].frames` | Each step has `frame`, an index into `frames`, and `duration_ms`. |
 

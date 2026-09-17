@@ -398,6 +398,27 @@ void SpriteEditor::ImportSheetWithDialog() {
     }
 }
 
+void SpriteEditor::ImportCellsWithDialog() {
+    // The same image types and remembered folder as Import Sheet.
+    nfdpathset_t pathSet{};
+    std::string const startDir = DialogFolder(m_config.LastImageDir, std::filesystem::current_path());
+    if (NFD_OpenDialogMultiple("png,jpg,jpeg,bmp", startDir.c_str(), &pathSet) != NFD_OKAY) {
+        return;
+    }
+    std::vector<std::filesystem::path> imagePaths;
+    size_t const count = NFD_PathSet_GetCount(&pathSet);
+    imagePaths.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        imagePaths.emplace_back(NFD_PathSet_GetPath(&pathSet, i));
+    }
+    NFD_PathSet_Free(&pathSet);
+    if (imagePaths.empty()) {
+        return;
+    }
+    m_config.LastImageDir = imagePaths.front().parent_path().string();
+    ImportCells(imagePaths);
+}
+
 bool SpriteEditor::SaveProjectAs() {
     nfdchar_t* outPath = nullptr;
     std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());

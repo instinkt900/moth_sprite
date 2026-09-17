@@ -35,17 +35,35 @@ namespace {
         return moth::gfx::SpriteSheet::LoopType::Stop;
     }
 
+    // A path stored in a project file: relative to the project file's folder, or absolute when there is no relative
+    // path (another drive).
+    std::string ProjectRelativePath(std::filesystem::path const& target, std::filesystem::path const& projectPath) {
+        std::filesystem::path const rel = target.lexically_relative(projectPath.parent_path());
+        return rel.empty() ? target.string() : rel.string();
+    }
+
+    // A path read from a project file, made absolute.
+    std::string ResolveProjectPath(std::string const& stored, std::filesystem::path const& projectPath) {
+        return std::filesystem::absolute(projectPath.parent_path() / stored).lexically_normal().string();
+    }
+
     // Write the cells and clips in the format that project files and sprite sheet descriptors share. Steps are
-    // written as they are.
-    void WriteFramesAndClips(nlohmann::json& json, std::vector<moth::gfx::SpriteSheet::FrameEntry> const& frames,
-                             std::vector<moth::gfx::SpriteSheet::ClipEntry> const& clips) {
+    // written as they are. A cell from another image is written as its image path, relative to filePath, and its
+    // pivot; descriptors never have such cells, because Export packs them first.
+    void WriteFramesAndClips(nlohmann::json& json, std::vector<CellEntry> const& frames,
+                             std::vector<moth::gfx::SpriteSheet::ClipEntry> const& clips,
+                             std::filesystem::path const& filePath) {
         nlohmann::json framesJson = nlohmann::json::array();
         for (auto const& fr : frames) {
             nlohmann::json obj;
-            obj["x"]       = fr.rect.x();
-            obj["y"]       = fr.rect.y();
-            obj["w"]       = fr.rect.w();
-            obj["h"]       = fr.rect.h();
+            if (fr.source) {
+                obj["image"] = ProjectRelativePath(fr.source->path, filePath);
+            } else {
+                obj["x"] = fr.rect.x();
+                obj["y"] = fr.rect.y();
+                obj["w"] = fr.rect.w();
+                obj["h"] = fr.rect.h();
+            }
             obj["pivot_x"] = fr.pivot.x;
             obj["pivot_y"] = fr.pivot.y;
             framesJson.push_back(std::move(obj));
@@ -70,18 +88,6 @@ namespace {
             clipsJson.push_back(std::move(clipObj));
         }
         json["clips"] = std::move(clipsJson);
-    }
-
-    // A path stored in a project file: relative to the project file's folder, or absolute when there is no relative
-    // path (another drive).
-    std::string ProjectRelativePath(std::filesystem::path const& target, std::filesystem::path const& projectPath) {
-        std::filesystem::path const rel = target.lexically_relative(projectPath.parent_path());
-        return rel.empty() ? target.string() : rel.string();
-    }
-
-    // A path read from a project file, made absolute.
-    std::string ResolveProjectPath(std::string const& stored, std::filesystem::path const& projectPath) {
-        return std::filesystem::absolute(projectPath.parent_path() / stored).lexically_normal().string();
     }
 
     // Write a JSON file. Returns false when it could not be written completely.
@@ -153,7 +159,7 @@ namespace {
         std::string imagePath; // absolute, or empty when the project has no sheet image
         std::string exportPath; // absolute, or empty when the project has not been exported
         std::optional<PackSettings> pack; // set when the project has been packed
-        std::vector<moth::gfx::SpriteSheet::FrameEntry> frames;
+        std::vector<CellEntry> frames; // a cell from another image has a source with its path and no image yet
         std::vector<moth::gfx::SpriteSheet::ClipEntry> clips;
     };
 
@@ -186,9 +192,14 @@ namespace {
                 data.pack = PackSettingsFromJson(json.at("pack"), path);
             }
             for (auto const& frameJson : json.value("frames", nlohmann::json::array())) {
-                moth::gfx::SpriteSheet::FrameEntry frame;
-                frame.rect = moth::gfx::MakeRect(frameJson.at("x").get<int>(), frameJson.at("y").get<int>(),
-                                                 frameJson.at("w").get<int>(), frameJson.at("h").get<int>());
+                CellEntry frame;
+                if (frameJson.contains("image")) {
+                    frame.source = std::make_shared<CellImage const>(
+                        CellImage{ ResolveProjectPath(frameJson.at("image").get<std::string>(), path), {} });
+                } else {
+                    frame.rect = moth::gfx::MakeRect(frameJson.at("x").get<int>(), frameJson.at("y").get<int>(),
+                                                     frameJson.at("w").get<int>(), frameJson.at("h").get<int>());
+                }
                 frame.pivot.x = frameJson.value("pivot_x", 0);
                 frame.pivot.y = frameJson.value("pivot_y", 0);
                 data.frames.push_back(frame);
@@ -259,7 +270,30 @@ void SpriteEditor::LoadProjectFile(std::filesystem::path const& path) {
                 path.string(), data->imagePath);
         }
     }
-    auto sheet = std::make_shared<moth::gfx::SpriteSheet>(std::move(image), data->frames, data->clips);
+    // Load the images of cells from other images, once per file. A missing image does not stop the project from
+    // loading: the cell keeps its path, and has no image and a size of 0.
+    std::map<std::string, std::shared_ptr<CellImage const>> cellImages;
+    for (auto& frame : data->frames) {
+        if (!frame.source) {
+            continue;
+        }
+        std::string const cellImagePath = frame.source->path;
+        auto found = cellImages.find(cellImagePath);
+        if (found == cellImages.end()) {
+            CellImage cellImage{ cellImagePath, {} };
+            std::shared_ptr<moth::gfx::ITexture> texture(m_assetContext.TextureFromFile(cellImagePath));
+            if (texture) {
+                cellImage.image = moth::gfx::Image{ texture };
+            } else {
+                moth::core::log::warn("SpriteEditor: project '{}' cell image '{}' could not be loaded",
+                    path.string(), cellImagePath);
+            }
+            found = cellImages.emplace(cellImagePath, std::make_shared<CellImage const>(std::move(cellImage))).first;
+        }
+        frame.source = found->second;
+        frame.rect = moth::gfx::MakeRect(0, 0, frame.source->image.GetWidth(), frame.source->image.GetHeight());
+    }
+    auto sheet = std::make_shared<moth::gfx::SpriteSheet>(std::move(image), ToFrameEntries(data->frames), data->clips);
 
     ReplaceProject(std::move(sheet), data->imagePath, std::move(data->frames), std::move(data->clips));
     m_exportPath = data->exportPath;
@@ -303,7 +337,7 @@ void SpriteEditor::ImportDescriptor(std::filesystem::path const& path) {
     frames.reserve(static_cast<size_t>(newSheet->GetFrameCount()));
     for (int i = 0; i < newSheet->GetFrameCount(); ++i) {
         if (auto entry = newSheet->GetFrameDesc(i)) {
-            frames.push_back(*entry);
+            frames.push_back(CellEntry{ *entry, nullptr });
         }
     }
 
@@ -354,6 +388,40 @@ void SpriteEditor::OpenRecentProject(std::string path) {
     LoadSpriteSheet(path);
 }
 
+std::vector<moth::gfx::SpriteSheet::FrameEntry> SpriteEditor::ToFrameEntries(FrameVec const& cells) {
+    return { cells.begin(), cells.end() };
+}
+
+void SpriteEditor::ImportCells(std::vector<std::filesystem::path> const& imagePaths) {
+    auto before = m_frames;
+    Selection const beforeSel = m_selection;
+    size_t const firstNew = m_frames.size();
+    for (auto const& imagePath : imagePaths) {
+        std::shared_ptr<moth::gfx::ITexture> texture(m_assetContext.TextureFromFile(imagePath));
+        if (!texture) {
+            moth::core::log::error("SpriteEditor: failed to load image '{}'", imagePath.string());
+            continue;
+        }
+        std::error_code ec;
+        std::filesystem::path absolutePath = std::filesystem::absolute(imagePath, ec);
+        if (ec) {
+            absolutePath = imagePath;
+        }
+        CellEntry cell;
+        cell.source = std::make_shared<CellImage const>(
+            CellImage{ absolutePath.lexically_normal().string(), moth::gfx::Image{ texture } });
+        cell.rect = moth::gfx::MakeRect(0, 0, cell.source->image.GetWidth(), cell.source->image.GetHeight());
+        cell.pivot = { 0, 0 };
+        m_frames.push_back(std::move(cell));
+    }
+    if (m_frames.size() == firstNew) {
+        return;
+    }
+    // Select the first new cell, as the other ways of adding cells do.
+    m_selection = { static_cast<int>(firstNew) };
+    PushFrameAction(std::move(before), beforeSel, m_selection);
+}
+
 void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
     auto& assetContext = m_assetContext;
     std::shared_ptr<moth::gfx::ITexture> texture(assetContext.TextureFromFile(imagePath));
@@ -373,7 +441,7 @@ void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
     };
     std::shared_ptr<moth::gfx::SpriteSheet> const previousSheet = m_spriteSheet;
     std::string const previousPath = m_imagePathBuffer;
-    auto const importedSheet = std::make_shared<moth::gfx::SpriteSheet>(std::move(image), m_frames, m_clips);
+    auto const importedSheet = std::make_shared<moth::gfx::SpriteSheet>(std::move(image), ToFrameEntries(m_frames), m_clips);
     std::string const importedPath = imagePath.string();
     setSheet(importedSheet, importedPath);
     AddSpriteAction(std::make_unique<BasicAction>(
@@ -429,6 +497,14 @@ void SpriteEditor::ShowExportMessage(std::string heading, std::vector<std::strin
 }
 
 void SpriteEditor::ExportProject(bool choosePath) {
+    // Cells from other images must be packed onto the sheet first. The pack dialog continues the export after a
+    // successful pack.
+    if (std::any_of(m_frames.begin(), m_frames.end(), [](CellEntry const& cell) { return cell.source != nullptr; })) {
+        m_exportAfterPack = choosePath;
+        m_openPackDialog = true;
+        return;
+    }
+
     // Refuse before asking for a path, and write no files.
     std::vector<std::string> problems = ExportProblems();
     if (!problems.empty()) {
@@ -489,7 +565,7 @@ void SpriteEditor::ExportProject(bool choosePath) {
 
     nlohmann::json json = nlohmann::json::object();
     json["image"] = imageTarget.filename().string();
-    WriteFramesAndClips(json, m_frames, m_clips);
+    WriteFramesAndClips(json, m_frames, m_clips, exportPath);
     if (!WriteJsonFile(exportPath, json)) {
         std::string message = fmt::format("Could not write '{}'.", exportPath.string());
         moth::core::log::error("SpriteEditor: {}", message);
@@ -556,7 +632,7 @@ bool SpriteEditor::SaveSpriteSheet(std::filesystem::path const& path) {
 
     // Steps are written as they are, so a project keeps clips with no steps, 0 ms steps, and the steps of a project
     // with no cells.
-    WriteFramesAndClips(json, m_frames, m_clips);
+    WriteFramesAndClips(json, m_frames, m_clips, path);
 
     // Write to file
     std::ofstream ofile(path);

@@ -273,8 +273,6 @@ void SpriteEditor::DrawClipEditorWindow() {
     float const blockH = ImGui::GetFrameHeightWithSpacing() + timelineH + (style.WindowPadding.y * 2.0f);
     float const removeW = ImGui::CalcTextSize("x").x + (style.FramePadding.x * 2.0f);
     int const maxFrameIdx = static_cast<int>(m_frames.size()) - 1;
-    auto const* image = (m_spriteSheet && m_spriteSheet->GetImage())
-                        ? &m_spriteSheet->GetImage() : nullptr;
     // The current step has the prime cell's colour, because playback makes the step's cell the prime cell.
     ImU32 const currentU32 = ImGui::ColorConvertFloat4ToU32(ImVec4{
         m_config.SpriteEditorPrimeColor.data[0], m_config.SpriteEditorPrimeColor.data[1],
@@ -389,24 +387,18 @@ void SpriteEditor::DrawClipEditorWindow() {
 
             // Thumbnail of the step's cell, fitted in the box.
             int const frameIdx = step.frameIndex;
-            if (image != nullptr && frameIdx >= 0 && frameIdx <= maxFrameIdx) {
+            if (frameIdx >= 0 && frameIdx <= maxFrameIdx) {
                 auto const& fr = m_frames[frameIdx];
-                if (fr.rect.w() > 0 && fr.rect.h() > 0) {
-                    float const imgW = static_cast<float>(image->GetWidth());
-                    float const imgH = static_cast<float>(image->GetHeight());
-                    moth::gfx::FloatVec2 const uv0{
-                        std::clamp(static_cast<float>(fr.rect.x())      / imgW, 0.0f, 1.0f),
-                        std::clamp(static_cast<float>(fr.rect.y())      / imgH, 0.0f, 1.0f) };
-                    moth::gfx::FloatVec2 const uv1{
-                        std::clamp(static_cast<float>(fr.rect.right())  / imgW, 0.0f, 1.0f),
-                        std::clamp(static_cast<float>(fr.rect.bottom()) / imgH, 0.0f, 1.0f) };
+                CellDrawSource const drawSource = GetCellDrawSource(fr);
+                if (drawSource.image != nullptr && fr.rect.w() > 0 && fr.rect.h() > 0) {
                     float const scale = std::min(kThumbSize / static_cast<float>(fr.rect.w()),
                                                  kThumbSize / static_cast<float>(fr.rect.h()));
                     float const thumbW = static_cast<float>(fr.rect.w()) * scale;
                     float const thumbH = static_cast<float>(fr.rect.h()) * scale;
                     ImGui::SetCursorScreenPos({ boxMin.x + ((kThumbSize - thumbW) * 0.5f),
                                                 boxMin.y + ((kThumbSize - thumbH) * 0.5f) });
-                    DrawImage(*image, { static_cast<int>(thumbW), static_cast<int>(thumbH) }, uv0, uv1);
+                    DrawImage(*drawSource.image, { static_cast<int>(thumbW), static_cast<int>(thumbH) }, drawSource.uv0,
+                              drawSource.uv1);
                 }
             }
 

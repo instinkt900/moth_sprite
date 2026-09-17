@@ -20,6 +20,26 @@
 
 struct SpriteEditorConfig;
 
+// The image file of a cell imported from an image other than the sheet.
+struct CellImage {
+    std::string path;        // absolute
+    moth::gfx::Image image;  // empty when the file could not be loaded
+};
+
+// A cell: a rectangle of the sheet image and a pivot. A cell imported from another image has a source, and is the
+// whole of that image: its rectangle is (0, 0) and the image size. The source is shared, so the cell list and undo
+// snapshots keep its texture alive.
+struct CellEntry : moth::gfx::SpriteSheet::FrameEntry {
+    std::shared_ptr<CellImage const> source;
+};
+
+// What a cell is drawn from: an image and the UVs of the cell in it. image is null when there is nothing to draw.
+struct CellDrawSource {
+    moth::gfx::Image const* image = nullptr;
+    moth::gfx::FloatVec2 uv0{ 0.0f, 0.0f };
+    moth::gfx::FloatVec2 uv1{ 1.0f, 1.0f };
+};
+
 // Where a pivot rule puts a cell's pivot on one axis: at 0, at half the cell's size (rounded down), or at its full size.
 enum class PivotAnchor {
     Start,
@@ -102,6 +122,11 @@ private:
     void ImportSheet(std::filesystem::path const& imagePath);
     // File > Import Sheet and the Sheet window's "..." button: choose an image in a dialog, then import it.
     void ImportSheetWithDialog();
+    // Add one cell for each image, at the end of the cell list, as one undoable action. Each cell is the whole image
+    // with its pivot at (0, 0). An image that does not load is skipped; when none load, nothing changes.
+    void ImportCells(std::vector<std::filesystem::path> const& imagePaths);
+    // The Cells window's Import button: choose images in a dialog, then import them as cells.
+    void ImportCellsWithDialog();
     // File > Export (choosePath false) and File > Export As (choosePath true): write the sprite sheet descriptor
     // that games load, and copy the sheet image beside it. Export uses the project's export path, and chooses one in
     // a dialog when there is none. A new export path is set as one undoable action after a successful export.
@@ -119,8 +144,11 @@ private:
     void DrawPackPreview();
     // The settings the pack dialog opens with: the project's, or defaults with the path <project name>_packed.<ext>.
     PackSettings InitialPackSettings() const;
+    // The cells to pack: each cell's source image and rectangle. Returns nothing, and sets error, when a cell has no
+    // image to read.
+    std::optional<std::vector<PackCell>> ProjectPackCells(std::string& error) const;
     // Pack every cell into a new image with settings, write it, and use it as the sheet: the sheet image, the cell
-    // rectangles and the pack settings change as one undoable action. Returns false, sets error and changes nothing
+    // rectangles and the pack settings change as one undoable action. Cells from other images become sheet cells. Returns false, sets error and changes nothing
     // when the pack fails.
     bool PackProject(PackSettings const& settings, std::string& error);
     // Write the project file (the .mothsprite format) to path. Returns true when it was written. Only then path becomes the project path (the
@@ -180,7 +208,11 @@ private:
     void DrawImageBackground(moth::gfx::FloatVec2 const& pos, moth::gfx::FloatVec2 const& size,
                              float checkerSize = 32.0f) const;
 
-    using FrameVec = std::vector<moth::gfx::SpriteSheet::FrameEntry>;
+    using FrameVec = std::vector<CellEntry>;
+    // The cells as moth_graphics frame entries, without their sources, for building a SpriteSheet.
+    static std::vector<moth::gfx::SpriteSheet::FrameEntry> ToFrameEntries(FrameVec const& cells);
+    // The image and UVs to draw a cell with: its own image, or its rectangle of the sheet image.
+    CellDrawSource GetCellDrawSource(CellEntry const& cell) const;
     using ClipVec  = std::vector<moth::gfx::SpriteSheet::ClipEntry>;
     // Selected cell indices in the order they were added. The last one is the prime cell.
     using Selection = std::vector<int>;
@@ -211,7 +243,7 @@ private:
     char m_imagePathBuffer[1024] = {};
     std::string m_exportPath; // absolute path of the last export's descriptor, or empty; saved in the project file
     std::shared_ptr<moth::gfx::SpriteSheet> m_spriteSheet;
-    std::vector<moth::gfx::SpriteSheet::FrameEntry> m_frames;
+    FrameVec m_frames;
     std::vector<moth::gfx::SpriteSheet::ClipEntry> m_clips;
     Selection m_selection;
     float m_zoom = 1.0f; // -1 = auto-fit on next draw
@@ -259,6 +291,9 @@ private:
     };
     PackDialogState m_packDialog;
     bool m_openPackDialog = false; // set by the menu; the popup is opened outside the menu's ID scope
+    // Set when Export opened the pack dialog because the project has cells from other images: after a successful
+    // pack, the export continues (the value is ExportProject's choosePath). Cleared when the dialog closes.
+    std::optional<bool> m_exportAfterPack;
 
     // A Cells form input being edited. id is the widget's ImGuiID, so that focus moving straight from one field to
     // another commits the first edit before the second snapshot is taken.

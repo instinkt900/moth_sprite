@@ -97,7 +97,7 @@ void SpriteEditor::AppendFrames(std::vector<moth::gfx::IntRect> const& rects) {
     int const firstNew = static_cast<int>(m_frames.size());
     m_frames.reserve(m_frames.size() + rects.size());
     for (auto const& rect : rects) {
-        moth::gfx::SpriteSheet::FrameEntry frame;
+        CellEntry frame;
         frame.rect  = rect;
         frame.pivot = { 0, 0 };
         m_frames.push_back(frame);

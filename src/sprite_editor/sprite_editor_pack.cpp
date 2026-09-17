@@ -4,6 +4,8 @@
 
 #include <nfd.h>
 
+#include <set>
+
 namespace {
     char const* const kPackPopupId = "Pack##pack_dialog";
     constexpr float kPackLabelWidth = 130.0f;
@@ -214,6 +216,18 @@ void SpriteEditor::DrawPackDialog() {
         refusal = "Choose a path for the packed image.";
     } else if (m_imagePathBuffer[0] != '\0' && SameFile(packPath, m_imagePathBuffer)) {
         refusal = "The packed image cannot be written over the sheet image. Choose another path.";
+    } else {
+        // Each cell image file is checked once, however many cells use it.
+        std::set<std::string> cellImagePaths;
+        for (auto const& cell : m_frames) {
+            if (cell.source) {
+                cellImagePaths.insert(cell.source->path);
+            }
+        }
+        if (std::any_of(cellImagePaths.begin(), cellImagePaths.end(),
+                        [&packPath](std::string const& cellImagePath) { return SameFile(packPath, cellImagePath); })) {
+            refusal = "The packed image cannot be written over the image of a cell. Choose another path.";
+        }
     }
     std::string const& message = refusal.empty() ? dialog.error : refusal;
     if (!message.empty()) {
@@ -230,13 +244,15 @@ void SpriteEditor::DrawPackDialog() {
     ImGui::Spacing();
     constexpr float kButtonW = 110.0f;
     bool close = false;
+    bool packed = false;
     ImGui::BeginDisabled(!refusal.empty());
     if (ImGui::Button("Pack", ImVec2{ kButtonW, 0.0f })) {
         std::error_code ec;
         std::filesystem::path absolutePath = std::filesystem::absolute(packPath, ec);
         settings.imagePath = (ec ? packPath : absolutePath).lexically_normal().string();
         dialog.error.clear();
-        close = PackProject(settings, dialog.error);
+        packed = PackProject(settings, dialog.error);
+        close = packed;
     }
     ImGui::EndDisabled();
     ImGui::SameLine();
@@ -247,6 +263,37 @@ void SpriteEditor::DrawPackDialog() {
         ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
+
+    // An export that needed a pack continues after a successful pack. Cancelling the dialog cancels the export.
+    if (close) {
+        std::optional<bool> const exportAfterPack = m_exportAfterPack;
+        m_exportAfterPack.reset();
+        if (packed && exportAfterPack.has_value()) {
+            ExportProject(*exportAfterPack);
+        }
+    }
+}
+
+std::optional<std::vector<PackCell>> SpriteEditor::ProjectPackCells(std::string& error) const {
+    std::vector<PackCell> cells;
+    cells.reserve(m_frames.size());
+    for (size_t i = 0; i < m_frames.size(); ++i) {
+        auto const& frame = m_frames[i];
+        if (frame.source) {
+            if (!frame.source->image) {
+                error = fmt::format("Could not read the image '{}' of cell #{}.", frame.source->path, i);
+                return std::nullopt;
+            }
+            cells.push_back({ frame.source->path, frame.rect });
+        } else {
+            if (m_imagePathBuffer[0] == '\0') {
+                error = "The project has no sheet image.";
+                return std::nullopt;
+            }
+            cells.push_back({ m_imagePathBuffer, frame.rect });
+        }
+    }
+    return cells;
 }
 
 void SpriteEditor::UpdatePackPreview() {
@@ -259,17 +306,12 @@ void SpriteEditor::UpdatePackPreview() {
     dialog.previewWidth = 0;
     dialog.previewHeight = 0;
     dialog.previewError.clear();
-    if (m_imagePathBuffer[0] == '\0') {
-        dialog.previewError = "The project has no sheet image.";
+    // The same cells as PackProject.
+    std::optional<std::vector<PackCell>> const cells = ProjectPackCells(dialog.previewError);
+    if (!cells.has_value()) {
         return;
     }
-    // The same cells as PackProject.
-    std::vector<PackCell> cells;
-    cells.reserve(m_frames.size());
-    for (auto const& frame : m_frames) {
-        cells.push_back({ m_imagePathBuffer, frame.rect });
-    }
-    std::optional<PackedSheet> const packed = PackCells(cells, dialog.settings, dialog.previewImages, dialog.previewError);
+    std::optional<PackedSheet> const packed = PackCells(*cells, dialog.settings, dialog.previewImages, dialog.previewError);
     if (!packed.has_value()) {
         return;
     }
@@ -321,17 +363,13 @@ void SpriteEditor::DrawPackPreview() {
 }
 
 bool SpriteEditor::PackProject(PackSettings const& settings, std::string& error) {
-    if (m_imagePathBuffer[0] == '\0') {
-        error = "The project has no sheet image.";
+    std::optional<std::vector<PackCell>> const cells = ProjectPackCells(error);
+    if (!cells.has_value()) {
+        moth::core::log::error("SpriteEditor: pack failed: {}", error);
         return false;
     }
-    std::vector<PackCell> cells;
-    cells.reserve(m_frames.size());
-    for (auto const& frame : m_frames) {
-        cells.push_back({ m_imagePathBuffer, frame.rect });
-    }
     PackImageCache imageCache;
-    std::optional<PackedSheet> const packed = PackCells(cells, settings, imageCache, error);
+    std::optional<PackedSheet> const packed = PackCells(*cells, settings, imageCache, error);
     if (!packed.has_value()) {
         moth::core::log::error("SpriteEditor: pack failed: {}", error);
         return false;
@@ -347,8 +385,8 @@ bool SpriteEditor::PackProject(PackSettings const& settings, std::string& error)
         return false;
     }
 
-    // The sheet image, the cell rectangles and the pack settings change as one undoable action. Cell order, sizes,
-    // pivots and clips stay. Each side keeps its sheet, and so its texture, alive. The packed file stays on disk.
+    // The sheet image, the cell rectangles and sources, and the pack settings change as one undoable action. Cell order,
+    // sizes, pivots and clips stay. Each side keeps its sheet, and so its texture, alive. The packed file stays on disk.
     struct PackState {
         std::shared_ptr<moth::gfx::SpriteSheet> sheet;
         std::string imagePath;
@@ -367,9 +405,11 @@ bool SpriteEditor::PackProject(PackSettings const& settings, std::string& error)
     PackState before{ m_spriteSheet, m_imagePathBuffer, m_frames, m_packSettings };
     PackState after{ nullptr, settings.imagePath, m_frames, settings };
     for (size_t i = 0; i < after.frames.size(); ++i) {
+        // Cells from other images become sheet cells. Undo restores their sources.
         after.frames[i].rect = packed->rects[i];
+        after.frames[i].source.reset();
     }
-    after.sheet = std::make_shared<moth::gfx::SpriteSheet>(moth::gfx::Image{ texture }, after.frames, m_clips);
+    after.sheet = std::make_shared<moth::gfx::SpriteSheet>(moth::gfx::Image{ texture }, ToFrameEntries(after.frames), m_clips);
     apply(after);
     AddSpriteAction(std::make_unique<BasicAction>(
         [apply, after]()  { apply(after); },

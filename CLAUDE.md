@@ -60,11 +60,18 @@ A project is a `.mothsprite` file with JSON content, read and written by the edi
 - `pack`: optional settings of the last File > Pack (`PackSettings`): the packed image path, padding, padding type
   and colour, minimum and maximum size, format and JPEG quality. A pack sets the sheet image, the cell rectangles
   and these settings as one undo action.
-- `frames`: cells, each `{ x, y, w, h, pivot_x, pivot_y }`.
+- `frames`: cells, each `{ x, y, w, h, pivot_x, pivot_y }`. A cell imported from another image (Cells window >
+  Import) is `{ image, pivot_x, pivot_y }`, with the image path relative to the project file.
 - `clips`: each `{ name, loop, frames: [ { frame, duration_ms } ] }`, where `frame` is an index into `frames`.
 
 The project is the editing source. It keeps data that games reject (no cells, clips with no steps, 0 ms steps)
 through save and load unchanged.
+
+In memory a cell is a `CellEntry`: a `FrameEntry` plus an optional `source` (`CellImage`: path and texture). A cell
+with a source is the whole image; its rectangle is (0, 0) and the image size, and does not change. The Sheet window
+and the sheet tools skip such cells, and `GetCellDrawSource` gives the image to draw any cell with. A project with
+such cells is unpacked: File > Pack makes them sheet cells, and Export opens the pack dialog first
+(`m_exportAfterPack`).
 
 Games load sprite sheet descriptors, not project files. A descriptor has `image`, `frames` and `clips` and no
 `version`; `SpriteSheetFactory` loads it. File > Export writes one to the export path (File > Export As picks a new

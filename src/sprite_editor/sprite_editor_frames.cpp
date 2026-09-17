@@ -9,6 +9,29 @@ namespace {
     constexpr float kListThumbCheckerSize = 8.0f;
 } // namespace
 
+CellDrawSource SpriteEditor::GetCellDrawSource(CellEntry const& cell) const {
+    CellDrawSource drawSource;
+    if (cell.source) {
+        if (cell.source->image) {
+            drawSource.image = &cell.source->image;
+        }
+        return drawSource;
+    }
+    if (!m_spriteSheet || !m_spriteSheet->GetImage()) {
+        return drawSource;
+    }
+    auto const& image = m_spriteSheet->GetImage();
+    float const imgW = static_cast<float>(image.GetWidth());
+    float const imgH = static_cast<float>(image.GetHeight());
+    // Clamp UVs so the cell shows a valid region even when its rect extends beyond the sheet image.
+    drawSource.image = &image;
+    drawSource.uv0 = { std::clamp(static_cast<float>(cell.rect.x())      / imgW, 0.0f, 1.0f),
+                       std::clamp(static_cast<float>(cell.rect.y())      / imgH, 0.0f, 1.0f) };
+    drawSource.uv1 = { std::clamp(static_cast<float>(cell.rect.right())  / imgW, 0.0f, 1.0f),
+                       std::clamp(static_cast<float>(cell.rect.bottom()) / imgH, 0.0f, 1.0f) };
+    return drawSource;
+}
+
 int SpriteEditor::PrimeCell() const {
     return m_selection.empty() ? -1 : m_selection.back();
 }
@@ -134,6 +157,13 @@ void SpriteEditor::CommitFrameEdit() {
 }
 
 void SpriteEditor::DrawCellListWindow() {
+    // Import adds cells from image files other than the sheet.
+    if (ImGui::Button("Import...")) {
+        ImportCellsWithDialog();
+    }
+    ImGui::SetItemTooltip("Add cells from other image files, one cell per image");
+    ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
     ImGui::Text("Cells: %d", static_cast<int>(m_frames.size()));
     if (m_selection.size() > 1) {
         ImGui::SameLine();
@@ -165,8 +195,6 @@ void SpriteEditor::DrawCellListWindow() {
     ImVec4 const primeHeader{ primeColor[0], primeColor[1], primeColor[2], primeColor[3] * 0.45f };
     ImVec4 const primeHeaderHovered{ primeColor[0], primeColor[1], primeColor[2], primeColor[3] * 0.65f };
 
-    auto const* image = (m_spriteSheet && m_spriteSheet->GetImage())
-                        ? &m_spriteSheet->GetImage() : nullptr;
     ImU32 const textColor = ImGui::GetColorU32(ImGuiCol_Text);
 
     int frameToDelete = -1;
@@ -218,22 +246,16 @@ void SpriteEditor::DrawCellListWindow() {
 
             // Thumbnail: the preview background, and the cell fitted in the box, keeping its aspect ratio.
             DrawImageBackground({ rowMin.x, rowMin.y }, { kListThumbSize, kListThumbSize }, kListThumbCheckerSize);
-            if (image != nullptr && fr.rect.w() > 0 && fr.rect.h() > 0) {
-                float const imgW = static_cast<float>(image->GetWidth());
-                float const imgH = static_cast<float>(image->GetHeight());
-                moth::gfx::FloatVec2 const uv0{
-                    std::clamp(static_cast<float>(fr.rect.x())      / imgW, 0.0f, 1.0f),
-                    std::clamp(static_cast<float>(fr.rect.y())      / imgH, 0.0f, 1.0f) };
-                moth::gfx::FloatVec2 const uv1{
-                    std::clamp(static_cast<float>(fr.rect.right())  / imgW, 0.0f, 1.0f),
-                    std::clamp(static_cast<float>(fr.rect.bottom()) / imgH, 0.0f, 1.0f) };
+            CellDrawSource const drawSource = GetCellDrawSource(fr);
+            if (drawSource.image != nullptr && fr.rect.w() > 0 && fr.rect.h() > 0) {
                 float const scale = std::min(kListThumbSize / static_cast<float>(fr.rect.w()),
                                              kListThumbSize / static_cast<float>(fr.rect.h()));
                 float const thumbW = static_cast<float>(fr.rect.w()) * scale;
                 float const thumbH = static_cast<float>(fr.rect.h()) * scale;
                 ImGui::SetCursorScreenPos({ rowMin.x + ((kListThumbSize - thumbW) * 0.5f),
                                             rowMin.y + ((kListThumbSize - thumbH) * 0.5f) });
-                DrawImage(*image, { static_cast<int>(thumbW), static_cast<int>(thumbH) }, uv0, uv1);
+                DrawImage(*drawSource.image, { static_cast<int>(thumbW), static_cast<int>(thumbH) }, drawSource.uv0,
+                          drawSource.uv1);
             }
 
             // Two lines to the right of the box: the index, then the offset and the size.
@@ -290,9 +312,12 @@ void SpriteEditor::DrawCellListWindow() {
             ImGui::SetNextItemWidth(-FLT_MIN);
             bool const changed = ImGui::InputInt(id, &value);
             bool const ended = TrackFrameEdit(changed);
-            w = std::max(w, 1);
-            h = std::max(h, 1);
-            fr.rect  = moth::gfx::MakeRect(x, y, w, h);
+            // The rectangle of a cell from another image is its image's size, and does not change.
+            if (!fr.source) {
+                w = std::max(w, 1);
+                h = std::max(h, 1);
+                fr.rect = moth::gfx::MakeRect(x, y, w, h);
+            }
             fr.pivot = { pivotX, pivotY };
             if (ended) {
                 CommitFrameEdit();
@@ -307,8 +332,11 @@ void SpriteEditor::DrawCellListWindow() {
             ImGui::TableSetColumnIndex(3); editField(id2, v2);
         };
 
+        // A cell from another image is the whole image, so only its pivot can change.
+        ImGui::BeginDisabled(fr.source != nullptr);
         editRow("X",       "##fedit_x",  x,      "Y",       "##fedit_y",  y);
         editRow("W",       "##fedit_w",  w,      "H",       "##fedit_h",  h);
+        ImGui::EndDisabled();
         editRow("Pivot X", "##fedit_px", pivotX, "Pivot Y", "##fedit_py", pivotY);
 
         ImGui::EndTable();
@@ -346,30 +374,22 @@ void SpriteEditor::DrawCellWindow() {
     // also previews the selected clip.
     DrawClipPlaybackControls();
 
-    auto const* image = (m_spriteSheet && m_spriteSheet->GetImage())
-                        ? &m_spriteSheet->GetImage() : nullptr;
-    if (image == nullptr) {
+    // The window shows the prime cell. A sheet cell needs the sheet image; a cell from another image does not.
+    int const prime = PrimeCell();
+    bool const primeInRange = prime >= 0 && prime < static_cast<int>(m_frames.size());
+    bool const hasSheetImage = m_spriteSheet && m_spriteSheet->GetImage();
+    if (!hasSheetImage && !(primeInRange && m_frames[prime].source)) {
         ImGui::TextDisabled("Use File > Import Sheet to add a sheet image.");
         return;
     }
-    // The window shows the prime cell.
-    int const prime = PrimeCell();
-    if (prime < 0 || prime >= static_cast<int>(m_frames.size())) {
+    if (!primeInRange) {
         ImGui::TextDisabled("Select a cell on the sheet or in the Cells window.");
         return;
     }
 
     auto& fr = m_frames[prime];
-    float const imgW = static_cast<float>(image->GetWidth());
-    float const imgH = static_cast<float>(image->GetHeight());
-    // Clamp UVs so the preview shows a valid region even when the frame rect
-    // extends beyond the imported image.
-    moth::gfx::FloatVec2 const uv0{
-        std::clamp(static_cast<float>(fr.rect.x())      / imgW, 0.0f, 1.0f),
-        std::clamp(static_cast<float>(fr.rect.y())      / imgH, 0.0f, 1.0f) };
-    moth::gfx::FloatVec2 const uv1{
-        std::clamp(static_cast<float>(fr.rect.right())  / imgW, 0.0f, 1.0f),
-        std::clamp(static_cast<float>(fr.rect.bottom()) / imgH, 0.0f, 1.0f) };
+    // A cell whose image did not load shows only the preview background.
+    CellDrawSource const drawSource = GetCellDrawSource(fr);
     int const maxFrameIdx = static_cast<int>(m_frames.size()) - 1;
 
     // During a pivot drag the layout uses the pivots from before the drag, so the cell stays still under the mouse
@@ -447,7 +467,9 @@ void SpriteEditor::DrawCellWindow() {
     float const dispW = static_cast<float>(std::max(fr.rect.w(), 1)) * zoom;
     float const dispH = static_cast<float>(std::max(fr.rect.h(), 1)) * zoom;
     ImGui::SetCursorScreenPos(imagePos);
-    DrawImage(*image, { static_cast<int>(dispW), static_cast<int>(dispH) }, uv0, uv1);
+    if (drawSource.image != nullptr) {
+        DrawImage(*drawSource.image, { static_cast<int>(dispW), static_cast<int>(dispH) }, drawSource.uv0, drawSource.uv1);
+    }
 
     // InvisibleButton over the cell so ImGui owns the left-button press
     // and the window cannot start a drag.
