@@ -384,7 +384,7 @@ The pack dialog shows a preview of the packing result, so the user can see the l
 4. Close with Cancel: no files are written and the project has no ` *`.
 5. While changing settings quickly, the log has no Vulkan validation errors.
 
-### [todo] T-025 Import cells from off-sheet images
+### [done] T-025 Import cells from off-sheet images
 
 **Review:** reviewed 2026-09-17
 
@@ -398,25 +398,25 @@ The imported image stays a separate file, and the project file (T-028) refers to
 other images is "unpacked": it must be packed (T-030) before it can be exported for games (T-029).
 
 **Requirements:**
-- [ ] The Cells window has an "Import..." button. It opens an image dialog (same filter and `LastImageDir` as
+- [x] The Cells window has an "Import..." button. It opens an image dialog (same filter and `LastImageDir` as
   Import Sheet) that allows several files to be chosen (`NFD_OpenDialogMultiple`).
-- [ ] Each chosen image is added as a new cell at the end of the cell list, in the dialog's order. The cell is the
+- [x] Each chosen image is added as a new cell at the end of the cell list, in the dialog's order. The cell is the
   whole image, with pivot (0, 0). The whole import is one undo action. An image that fails to load is skipped
   with a logged error; if none load, nothing changes.
-- [ ] Import works in a project with no sheet image.
-- [ ] The project file stores such a cell as its image path, relative to the project file, and its pivot. It has
+- [x] Import works in a project with no sheet image.
+- [x] The project file stores such a cell as its image path, relative to the project file, and its pivot. It has
   no x/y/w/h. A project whose cell image is missing still loads; the cell shows only the preview background, and
   a warning is logged.
-- [ ] The Cells thumbnails, the Selected Cell window and the Clips preview draw the cell from its own image. In
+- [x] The Cells thumbnails, the Selected Cell window and the Clips preview draw the cell from its own image. In
   the Selected Cell window its pivot can be edited, and its x/y/w/h fields are read-only (showing 0, 0 and the
   image size).
-- [ ] The Sheet window does not show cells from other images. Tools that work on the sheet (Grid Cells, Detect
+- [x] The Sheet window does not show cells from other images. Tools that work on the sheet (Grid Cells, Detect
   Cells, drawing and dragging cells on the sheet) do not change them.
-- [ ] Pack (T-030) packs cells from other images like sheet cells. After a pack, they are sheet cells with the
+- [x] Pack (T-030) packs cells from other images like sheet cells. After a pack, they are sheet cells with the
   packed rectangles, and the project no longer refers to their images. Undo of the pack restores them.
-- [ ] Export of a project with cells from other images opens the pack dialog. When the pack succeeds, the export
+- [x] Export of a project with cells from other images opens the pack dialog. When the pack succeeds, the export
   continues as File > Export would. Cancelling the dialog, or a failed pack, cancels the export.
-- [ ] `README.md` and `CLAUDE.md` describe importing cells, unpacked projects, and the cell's image path in the
+- [x] `README.md` and `CLAUDE.md` describe importing cells, unpacked projects, and the cell's image path in the
   project file.
 
 **Out of scope:**
@@ -453,9 +453,52 @@ other images is "unpacked": it must be packed (T-030) before it can be exported 
 - `m_frames` holds `moth::gfx::SpriteSheet::FrameEntry`, which has no image reference. The cell type needs a
   source image reference beside it.
 
+- Session 2026-09-17: a cell is now a `CellEntry` (`FrameEntry` plus a shared `CellImage` source with the path and
+  texture), so every undo snapshot of `m_frames` carries the source and keeps its texture alive. The undo helpers
+  are unchanged.
+- The X/Y/W/H fields are in the Cells window's form, not in the Selected Cell window. They are disabled for a cell
+  from another image. The pivot can be edited in the form, with the presets, and by dragging in the Selected Cell
+  window.
+- A cell whose image is missing on load has a size of 0 x 0. Pack refuses such a project with "Could not read the
+  image ... of cell #N".
+- Imported cells are selected as other new cells are: the first new cell becomes the selection. The import button
+  is "Import..." at the top of the Cells window, before the cell count.
+- Export As on an unpacked project continues as Export As after the pack (it asks for a path); Export continues as
+  Export. The requirement names File > Export only.
+- Export with cells from other images opens the pack dialog before checking the other export problems, because a
+  pack can fix some of them (no sheet image).
+- The pack dialog refuses a path that is the image of any cell, as well as the sheet image.
+- Cells that share an image file when a project is loaded share one texture. Cells imported separately load their
+  own texture, even for the same file.
+- The order of multiple imported files is the order NFD returns them.
+- Not run: the import dialog, drawing, saving and loading, and pack with cells from other images. The launch check
+  passed, and the code was checked by reading it.
+
 **Commits:**
+- cdc50f3 feat(T-025): import cells from images other than the sheet
 
 **Manual verification:**
+1. On a new project (no sheet image), Cells > Import...: the dialog filters on png, jpg, jpeg and bmp, starts in the
+   last image folder, and allows several files. Choose two images: two cells are added at the end, each the whole
+   image with pivot (0, 0), and the first is selected. Ctrl+Z removes both; Ctrl+Y adds both back.
+2. Include a file that is not an image: it is skipped with an error in the log. With only bad files, nothing
+   changes and there is no undo step.
+3. The Cells list thumbnails, the Selected Cell window and clip step thumbnails show the imported images. In the
+   Cells form, X, Y, W and H are disabled and show 0, 0 and the image size. Pivot X/Y, presets and dragging the pivot
+   in the Selected Cell window work and are undoable.
+4. Import a sheet as well. The Sheet window does not draw the imported cells. Clicking, box selecting, dragging and
+   resizing on the sheet never select or change them, also when they are part of the selection. Grid Cells and
+   Detect Cells only add cells.
+5. Save the project: the imported cells are `{ "image": "<relative path>", "pivot_x", "pivot_y" }`. Reload: the cells
+   and pivots are unchanged.
+6. Rename one imported image on disk and reload: the project loads, a warning is logged, and the cell shows only
+   the preview background.
+7. File > Pack: the preview includes the imported cells. Pack: they become sheet cells with packed rectangles, are
+   drawn on the sheet, and the saved file no longer refers to their images. Ctrl+Z restores them as imported cells.
+8. In the pack dialog, type the path of an imported image: the dialog refuses it.
+9. With imported cells, File > Export: the pack dialog opens. Cancel: nothing is exported. Export again and Pack:
+   the export continues (a save dialog for a project with no export path) and writes the descriptor and image.
+10. With a missing imported image, Export > Pack shows "Could not read the image" in the dialog.
 
 ## Discovered
 
