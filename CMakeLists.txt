@@ -28,6 +28,7 @@ set(SOURCES
 )
 
 find_package(moth_bridge REQUIRED)
+find_package(moth_packer REQUIRED)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
@@ -36,6 +37,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE src)
 # SYSTEM silences -Wall/-Werror noise from the vendored single-header library.
 target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE external/stb)
 target_link_libraries(${PROJECT_NAME} moth::bridge)
+target_link_libraries(${PROJECT_NAME} moth::packer)
 target_link_libraries(${PROJECT_NAME} nativefiledialog)
 target_precompile_headers(${PROJECT_NAME} PRIVATE src/common.h)
 # Shown in Help > About.
