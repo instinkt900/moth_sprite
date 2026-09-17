@@ -552,6 +552,34 @@ Add an unpack step which can save cells out as their own images.
 
 **Manual verification:**
 
+### [todo] T-033 Lock pivot editing behind a mode
+
+**Review:** unreviewed
+
+**Depends on:**
+
+**Goal:**
+It's too easy to accidentally click on the cell preview and move the pivot. Lock it behind a button/mode.
+
+**Requirements:**
+- [ ] Clicking on the cell preview does not move the pivot unless pivot editing is turned on with a button or mode.
+
+**Out of scope:**
+
+**Open questions:**
+- Q: Is it a toggle button that stays on (a mode, like New Cell), or does it turn off after one pivot change?
+- Q: Where is the button: the Selected Cell window's toolbar (beside Fit and 1:1), or elsewhere?
+- Q: Does it have a keyboard shortcut, and does Esc turn the mode off?
+- Q: Are the other ways to set a pivot (the Cells form fields, the presets, Edit > Pivot) also locked, or only the
+  click and drag in the preview?
+- Q: How does the preview show that pivot editing is on (button highlight, cursor, hint text)?
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
 ## Discovered
 
 Problems noticed during sessions that are outside the current tasks. Candidates for `/task-new`.
