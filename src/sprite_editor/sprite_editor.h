@@ -286,6 +286,7 @@ private:
     std::optional<PackSettings> m_packSettings;
     struct PackDialogState {
         PackSettings settings;     // being edited; the project changes only when Pack succeeds
+        PackSettings bestPackSizes; // the sizes shown, disabled, while Best pack is on
         char pathBuffer[1024] = {};
         std::string error;         // why the last Pack failed
         // The preview, packed in memory. Sources are read once while the dialog is open.

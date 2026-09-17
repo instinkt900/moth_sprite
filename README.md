@@ -129,6 +129,7 @@ The pack dialog has:
 | **Packed image** | The file to write. **...** chooses it in a dialog. The first time, it is `<project name>_packed.png` beside the project (in the last image folder for an untitled project). When the file exists, the dialog warns that it will be overwritten, and Pack still writes it. This includes the sheet image or the image of a cell: undo then restores the project but not the file on disk. |
 | **Padding (px)** | Space around each cell. |
 | **Padding type** | How the padding is filled: **Color** (with **Padding color**, which is also the background), **Extend**, **Mirror** or **Wrap**. |
+| **Best pack** | Pack into the smallest image the packer can find, from 1 x 1 up to 16384 x 16384. The size limits below are disabled and not used, but kept for when Best pack is turned off. |
 | **Min width**, **Min height**, **Max width**, **Max height** | The size limits of the packed image, in powers of two. |
 | **Format** | PNG, BMP, TGA or JPEG (with **JPEG quality**). Changing it changes the path's extension. |
 
@@ -311,7 +312,7 @@ not load. Games load sprite sheet descriptors, not project files.
 | `version` | The format version. The editor does not load a file with a version newer than it knows. |
 | `image` | Path to the sheet image, relative to the project file. Optional: a project can have no sheet image. |
 | `export_path` | Path of the last exported descriptor, relative to the project file. Optional. |
-| `pack` | The settings of the last pack. Optional. `image` (the packed image, relative to the project file), `padding`, `padding_type` (`color`, `extend`, `mirror` or `wrap`), `padding_color` (`RRGGBBAA` hex), `min_width`, `min_height`, `max_width`, `max_height`, `format` (`png`, `bmp`, `tga` or `jpeg`) and `jpeg_quality`. |
+| `pack` | The settings of the last pack. Optional. `image` (the packed image, relative to the project file), `padding`, `padding_type` (`color`, `extend`, `mirror` or `wrap`), `padding_color` (`RRGGBBAA` hex), `best_pack`, `min_width`, `min_height`, `max_width`, `max_height`, `format` (`png`, `bmp`, `tga` or `jpeg`) and `jpeg_quality`. |
 | `frames` | The cells. Each has `x`, `y`, `w` and `h` in pixels, and `pivot_x` and `pivot_y` relative to the cell's top-left corner. A cell from another image has `image`, its image path relative to the project file, instead of `x`, `y`, `w` and `h`. |
 | `clips` | Each clip has a `name`, a `loop` type (`stop`, `reset` or `loop`), and `frames`: its steps. |
 | `clips[].frames` | Each step has `frame`, an index into `frames`, and `duration_ms`. |

@@ -127,6 +127,7 @@ namespace {
         json["padding"] = settings.padding;
         json["padding_type"] = kPaddingTypeNames[static_cast<size_t>(settings.paddingType)];
         json["padding_color"] = fmt::format("{:08x}", settings.paddingColor);
+        json["best_pack"] = settings.bestPack;
         json["min_width"] = settings.minWidth;
         json["min_height"] = settings.minHeight;
         json["max_width"] = settings.maxWidth;
@@ -144,6 +145,7 @@ namespace {
         settings.paddingType = static_cast<moth::packer::PaddingType>(
             NameIndex(kPaddingTypeNames, json.value("padding_type", std::string{}), 0));
         settings.paddingColor = static_cast<uint32_t>(std::stoul(json.value("padding_color", std::string{ "0" }), nullptr, 16));
+        settings.bestPack = json.value("best_pack", settings.bestPack);
         settings.minWidth = std::max(json.value("min_width", settings.minWidth), 1);
         settings.minHeight = std::max(json.value("min_height", settings.minHeight), 1);
         settings.maxWidth = std::max(json.value("max_width", settings.maxWidth), settings.minWidth);

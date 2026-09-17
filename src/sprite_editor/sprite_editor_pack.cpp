@@ -49,7 +49,7 @@ namespace {
     // Settings that change the packed pixels. The path, format and JPEG quality only change how the file is written.
     bool SamePackLayout(PackSettings const& a, PackSettings const& b) {
         return a.padding == b.padding && a.paddingType == b.paddingType && a.paddingColor == b.paddingColor &&
-               a.minWidth == b.minWidth && a.minHeight == b.minHeight && a.maxWidth == b.maxWidth &&
+               a.bestPack == b.bestPack && a.minWidth == b.minWidth && a.minHeight == b.minHeight && a.maxWidth == b.maxWidth &&
                a.maxHeight == b.maxHeight;
     }
 
@@ -180,19 +180,31 @@ void SpriteEditor::DrawPackDialog() {
         }
     }
 
+    PackLabel("Best pack");
+    ImGui::Checkbox("##pack_best", &settings.bestPack);
+    ImGui::SetItemTooltip("Pack into the smallest image the packer can find, up to %d x %d. The size limits are not used.",
+                          kBestPackMaxSize, kBestPackMaxSize);
+
+    // With Best pack, the size limits are disabled and show the range it uses; the chosen limits are kept for later.
+    if (settings.bestPack) {
+        dialog.bestPackSizes = EffectivePackSettings(settings);
+    }
+    auto& sizes = settings.bestPack ? dialog.bestPackSizes : settings;
+    ImGui::BeginDisabled(settings.bestPack);
     // The minimum never goes above the maximum: changing one moves the other.
-    if (PackSizeCombo("Min width", "##pack_min_w", settings.minWidth)) {
-        settings.maxWidth = std::max(settings.maxWidth, settings.minWidth);
+    if (PackSizeCombo("Min width", "##pack_min_w", sizes.minWidth)) {
+        sizes.maxWidth = std::max(sizes.maxWidth, sizes.minWidth);
     }
-    if (PackSizeCombo("Min height", "##pack_min_h", settings.minHeight)) {
-        settings.maxHeight = std::max(settings.maxHeight, settings.minHeight);
+    if (PackSizeCombo("Min height", "##pack_min_h", sizes.minHeight)) {
+        sizes.maxHeight = std::max(sizes.maxHeight, sizes.minHeight);
     }
-    if (PackSizeCombo("Max width", "##pack_max_w", settings.maxWidth)) {
-        settings.minWidth = std::min(settings.minWidth, settings.maxWidth);
+    if (PackSizeCombo("Max width", "##pack_max_w", sizes.maxWidth)) {
+        sizes.minWidth = std::min(sizes.minWidth, sizes.maxWidth);
     }
-    if (PackSizeCombo("Max height", "##pack_max_h", settings.maxHeight)) {
-        settings.minHeight = std::min(settings.minHeight, settings.maxHeight);
+    if (PackSizeCombo("Max height", "##pack_max_h", sizes.maxHeight)) {
+        sizes.minHeight = std::min(sizes.minHeight, sizes.maxHeight);
     }
+    ImGui::EndDisabled();
 
     static constexpr std::array<char const*, 4> kFormatNames{ "PNG", "BMP", "TGA", "JPEG" };
     int format = static_cast<int>(settings.format);

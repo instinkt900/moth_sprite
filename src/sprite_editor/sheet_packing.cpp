@@ -15,6 +15,16 @@ namespace {
     }
 } // namespace
 
+PackSettings EffectivePackSettings(PackSettings settings) {
+    if (settings.bestPack) {
+        settings.minWidth = 1;
+        settings.minHeight = 1;
+        settings.maxWidth = kBestPackMaxSize;
+        settings.maxHeight = kBestPackMaxSize;
+    }
+    return settings;
+}
+
 char const* PackFormatExtension(moth::packer::AtlasFormat format) {
     switch (format) {
     case moth::packer::AtlasFormat::BMP:  return ".bmp";
@@ -25,8 +35,9 @@ char const* PackFormatExtension(moth::packer::AtlasFormat format) {
     }
 }
 
-std::optional<PackedSheet> PackCells(std::vector<PackCell> const& cells, PackSettings const& settings,
+std::optional<PackedSheet> PackCells(std::vector<PackCell> const& cells, PackSettings const& requestedSettings,
                                      PackImageCache& imageCache, std::string& error) {
+    PackSettings const settings = EffectivePackSettings(requestedSettings);
     if (cells.empty()) {
         error = "The project has no cells.";
         return std::nullopt;

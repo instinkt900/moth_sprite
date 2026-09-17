@@ -18,6 +18,9 @@ struct PackSettings {
     int padding = 0;       // pixels around each cell
     moth::packer::PaddingType paddingType = moth::packer::PaddingType::Color;
     uint32_t paddingColor = 0; // RRGGBBAA; also the background of the packed image
+    // Best pack: the smallest image the packer can find, from 1 x 1 up to kBestPackMaxSize. The sizes below are kept
+    // but not used.
+    bool bestPack = false;
     // Powers of two.
     int minWidth = 256;
     int minHeight = 256;
@@ -44,12 +47,18 @@ struct PackedSheet {
 // Decoded source images by path, so that they are read once.
 using PackImageCache = std::map<std::filesystem::path, ImagePixels>;
 
+// The largest width and height that Best pack tries.
+constexpr int kBestPackMaxSize = 16384;
+
+// The settings with the sizes that packing uses: the Best pack range when bestPack is set.
+PackSettings EffectivePackSettings(PackSettings settings);
+
 // The file extension of a packed image format, with the dot.
 char const* PackFormatExtension(moth::packer::AtlasFormat format);
 
 // Pack every cell as its own image into one image. Returns nothing, and sets error to the reason, when a source
 // image cannot be read or the cells do not fit into one image of the maximum size. Writes no files.
-std::optional<PackedSheet> PackCells(std::vector<PackCell> const& cells, PackSettings const& settings,
+std::optional<PackedSheet> PackCells(std::vector<PackCell> const& cells, PackSettings const& requestedSettings,
                                      PackImageCache& imageCache, std::string& error);
 
 // Write a packed image to path in the settings' format. Returns false, and sets error, when it cannot be written.
