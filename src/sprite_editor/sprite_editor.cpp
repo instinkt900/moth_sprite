@@ -175,7 +175,7 @@ void SpriteEditor::HandleShortcuts() {
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_N, false)) {
         RequestProjectAction({ ProjectActionKind::New, {} });
     }
-    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_L, false)) {
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O, false)) {
         RequestProjectAction({ ProjectActionKind::Load, {} });
     }
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_X, false)) {
@@ -229,11 +229,11 @@ void SpriteEditor::DrawMainMenuBar() {
         return;
     }
     if (ImGui::BeginMenu("File")) {
-        // New, Load and Open Recent replace the project, so with unsaved changes they ask first.
+        // New, Open and Open Recent replace the project, so with unsaved changes they ask first.
         if (ImGui::MenuItem("New", "Ctrl+N")) {
             RequestProjectAction({ ProjectActionKind::New, {} });
         }
-        if (ImGui::MenuItem("Load...", "Ctrl+L")) {
+        if (ImGui::MenuItem("Open...", "Ctrl+O")) {
             RequestProjectAction({ ProjectActionKind::Load, {} });
         }
         // The entry is opened after the submenu is drawn, because opening a project changes the list.
@@ -263,12 +263,6 @@ void SpriteEditor::DrawMainMenuBar() {
             SaveProjectAs();
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
-            ImportSheetWithDialog();
-        }
-        if (ImGui::MenuItem("Pack...", nullptr, false, !m_frames.empty())) {
-            m_openPackDialog = true;
-        }
         if (ImGui::MenuItem("Export...")) {
             ExportProject(false);
         }
@@ -289,6 +283,10 @@ void SpriteEditor::DrawMainMenuBar() {
         }
         if (ImGui::MenuItem("Redo", "Ctrl+Y", false, canRedo)) {
             RedoSpriteAction();
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
+            ImportSheetWithDialog();
         }
         ImGui::Separator();
         // Pivot rules apply to every selected cell, relative to each cell's own size.
@@ -346,6 +344,10 @@ void SpriteEditor::DrawMainMenuBar() {
         if (ImGui::MenuItem("Detect Cells...", nullptr, false, hasSheetImage && m_imagePathBuffer[0] != '\0')) {
             m_openDetectTool = true;
         }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Pack...", nullptr, false, !m_frames.empty())) {
+            m_openPackDialog = true;
+        }
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Window")) {
@@ -374,7 +376,7 @@ void SpriteEditor::DrawMainMenuBar() {
 }
 
 void SpriteEditor::LoadWithDialog() {
-    // Project dialogs (Load, Save As) start in the folder that a project dialog last used, and remember the folder
+    // Project dialogs (Open, Save As) start in the folder that a project dialog last used, and remember the folder
     // of the file chosen.
     nfdchar_t* outPath = nullptr;
     std::string const startDir = DialogFolder(m_config.LastProjectDir, std::filesystem::current_path());
@@ -626,7 +628,7 @@ void SpriteEditor::Draw() {
     DrawDetectFramesTool();
     DrawPackDialog();
 
-    // Asks about unsaved changes before New, Load, Open Recent and quitting.
+    // Asks about unsaved changes before New, Open, Open Recent and quitting.
     DrawUnsavedChangesPrompt();
     DrawAboutDialog();
     DrawExportMessage();

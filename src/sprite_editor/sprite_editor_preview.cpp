@@ -160,14 +160,14 @@ void SpriteEditor::DrawPreview() {
         return;
     }
 
-    // Import Sheet... does the same as File > Import Sheet.
+    // Import Sheet... does the same as Edit > Import Sheet.
     char const* const kImportSheetLabel = "Import Sheet...";
     auto const& image = m_spriteSheet->GetImage();
     if (!image) {
         if (ImGui::Button(kImportSheetLabel)) {
             ImportSheetWithDialog();
         }
-        ImGui::SetItemTooltip("Choose a sheet image (File > Import Sheet)");
+        ImGui::SetItemTooltip("Choose a sheet image (Edit > Import Sheet)");
         return;
     }
 
@@ -184,7 +184,7 @@ void SpriteEditor::DrawPreview() {
         ImportSheetWithDialog();
         return;
     }
-    ImGui::SetItemTooltip("Import a different sheet image (File > Import Sheet)");
+    ImGui::SetItemTooltip("Import a different sheet image (Edit > Import Sheet)");
 
     float const imgW = static_cast<float>(image.GetWidth());
     float const imgH = static_cast<float>(image.GetHeight());

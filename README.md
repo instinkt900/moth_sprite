@@ -99,25 +99,27 @@ The **File** menu has:
 | Item | Action |
 |---|---|
 | **New** | Start an empty, untitled project. |
-| **Load...** | Open a project file (`.mothsprite`), or import a sprite sheet descriptor (`.json`). |
+| **Open...** | Open a project file (`.mothsprite`), or import a sprite sheet descriptor (`.json`). |
 | **Open Recent** | Open one of the last 10 projects. **Clear Recent** empties the list. |
 | **Save** | Save the project. An untitled project asks for a file name first. |
 | **Save As...** | Save the project to a new file. |
-| **Import Sheet...** | Use a different sheet image (`png`, `jpg`, `jpeg` or `bmp`). Cells and clips are kept. |
-| **Pack...** | Pack every cell into a new sheet image (see [Packing](#packing)). Enabled when the project has cells. |
 | **Export...** | Export the sprite sheet descriptor that games load (see [Exporting](#exporting)) to the project's export path. The first export asks for a file name. |
 | **Export As...** | Export to a new file name, which becomes the project's export path. |
 | **Exit** | Quit. |
 
-The **Import Sheet...** button in the Sheet window does the same as **File > Import Sheet**. Without a sheet image it is
+**Edit > Import Sheet...** uses a different sheet image (`png`, `jpg`, `jpeg` or `bmp`). Cells and clips are kept.
+**Tools > Pack...** packs every cell into a new sheet image (see [Packing](#packing)); it is enabled when the project
+has cells.
+
+The **Import Sheet...** button in the Sheet window does the same as **Edit > Import Sheet**. Without a sheet image it is
 the only thing in the window; with one, it is next to the image path.
 
 A project can be saved without a sheet image. The window title shows the project's file name, and ` *` when it has
-unsaved changes. New, Load, Open Recent and quitting ask whether to save unsaved changes first.
+unsaved changes. New, Open, Open Recent and quitting ask whether to save unsaved changes first.
 
 ### Packing
 
-**File > Pack...** packs every cell, as its own image, into one new image, and makes the project use it: the new
+**Tools > Pack...** packs every cell, as its own image, into one new image, and makes the project use it: the new
 image becomes the sheet image, and each cell's rectangle becomes its place in it. Cell order, sizes, pivots and clips
 do not change. Parts of a cell outside the sheet image are transparent in the packed image. Cells from other images
 are packed too, and become sheet cells.
@@ -191,7 +193,7 @@ The image stays a separate file, and the project refers to it. Such a cell:
 - has a pivot that can be edited, and X, Y, W and H fields that are read-only (0, 0 and the image size).
 
 If the image is missing when the project is loaded, the project still loads with a warning, and the cell shows only
-the preview background. [File > Pack](#packing) puts these cells on the sheet.
+the preview background. [Tools > Pack](#packing) puts these cells on the sheet.
 
 ### Selecting and editing cells
 
@@ -249,7 +251,7 @@ step's cell as it plays. The Selected Cell window places each step's cell on its
 ### Undo
 
 **Edit > Undo** (Ctrl+Z) and **Edit > Redo** (Ctrl+Y) cover every change to cells, pivots, clips and steps, and
-**Import Sheet**, **Pack**, and a change of the export path. Typing in a field, or a drag, is one undo step. New, Load and Open Recent clear
+**Import Sheet**, **Pack**, and a change of the export path. Typing in a field, or a drag, is one undo step. New, Open and Open Recent clear
 the undo history.
 
 ### Keyboard shortcuts
@@ -259,7 +261,7 @@ Shortcuts do not work while a text field is being edited or a dialog is open.
 | Shortcut | Action |
 |---|---|
 | Ctrl+N | New |
-| Ctrl+L | Load |
+| Ctrl+O | Open |
 | Ctrl+S | Save |
 | Ctrl+Shift+S | Save As |
 | Ctrl+X | Exit |
@@ -326,7 +328,7 @@ A sprite sheet descriptor is the JSON file that moth::gfx loads as a `SpriteShee
 [File > Export](#exporting). It has the `image`, `frames` and `clips` fields above, with no `version` or
 `export_path`. Frame indices follow the project's cell order. Projects saved before the `.mothsprite` format are descriptors.
 
-**File > Load** opens a descriptor (`.json`) as a new project: the project has no file name and has unsaved changes,
+**File > Open** opens a descriptor (`.json`) as a new project: the project has no file name and has unsaved changes,
 so the first save asks for a `.mothsprite` file name and never writes over the descriptor. A descriptor that
 moth::gfx does not load is not opened. Opened descriptors are not added to Open Recent.
 

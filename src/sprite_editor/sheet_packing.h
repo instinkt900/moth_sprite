@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-// File > Pack settings, saved in the project file after a successful pack.
+// Tools > Pack settings, saved in the project file after a successful pack.
 struct PackSettings {
     std::string imagePath; // absolute path of the packed image
     int padding = 0;       // pixels around each cell

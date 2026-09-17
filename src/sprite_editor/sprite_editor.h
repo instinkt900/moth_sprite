@@ -68,7 +68,7 @@ public:
     bool HoldQuitForUnsavedChanges();
 
 private:
-    // Ctrl+S, Ctrl+Shift+S, Ctrl+N, Ctrl+L, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+A, Delete and Esc, in every window.
+    // Ctrl+S, Ctrl+Shift+S, Ctrl+N, Ctrl+O, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+A, Delete and Esc, in every window.
     void HandleShortcuts();
     void DrawMainMenuBar();
     // The dock space fills the application window below the main menu bar.
@@ -76,7 +76,7 @@ private:
     void NewSpriteSheet();
     // The extension of project files.
     static constexpr char const* kProjectExtension = ".mothsprite";
-    // Open a file from File > Load or Open Recent: a sprite sheet descriptor (.json) is imported with
+    // Open a file from File > Open or Open Recent: a sprite sheet descriptor (.json) is imported with
     // ImportDescriptor, and any other file is loaded as a project file with LoadProjectFile.
     void LoadSpriteSheet(std::filesystem::path const& path);
     // Load a project file. On success it replaces the open project, and path becomes the project path (the window
@@ -113,7 +113,7 @@ private:
     void DrawUnsavedChangesPrompt();
     // Help > About: the tool's name, version, description, author and repository.
     void DrawAboutDialog();
-    // File > Load: choose a project file in a dialog, then load it.
+    // File > Open: choose a project file in a dialog, then load it.
     void LoadWithDialog();
     // Save to the project path, or choose a path first when there is none. Returns true when the file was written.
     bool SaveProject();
@@ -121,7 +121,7 @@ private:
     bool SaveProjectAs();
     // Replace the sheet image, keeping the cells and clips, as one undoable action.
     void ImportSheet(std::filesystem::path const& imagePath);
-    // File > Import Sheet and the Sheet window's Import Sheet button: choose an image in a dialog, then import it.
+    // Edit > Import Sheet and the Sheet window's Import Sheet button: choose an image in a dialog, then import it.
     void ImportSheetWithDialog();
     // Add one cell for each image, at the end of the cell list, as one undoable action. Each cell is the whole image
     // with its pivot at (0, 0). An image that does not load is skipped; when none load, nothing changes.
@@ -141,7 +141,7 @@ private:
     // Show the export message popup on the next draw.
     void ShowExportMessage(std::string heading, std::vector<std::string> lines);
     void DrawExportMessage();
-    // File > Pack: the pack dialog. Pack runs PackProject with the dialog's settings.
+    // Tools > Pack: the pack dialog. Pack runs PackProject with the dialog's settings.
     void DrawPackDialog();
     // The pack dialog's preview of the packed image for its current settings. Writes no files.
     void UpdatePackPreview();
@@ -282,7 +282,7 @@ private:
     };
     ExportMessage m_exportMessage;
 
-    // File > Pack. The project's settings are set by a successful pack, and saved in the project file.
+    // Tools > Pack. The project's settings are set by a successful pack, and saved in the project file.
     std::optional<PackSettings> m_packSettings;
     struct PackDialogState {
         PackSettings settings;     // being edited; the project changes only when Pack succeeds

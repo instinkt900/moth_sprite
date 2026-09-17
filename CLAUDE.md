@@ -11,7 +11,7 @@ steps, and each step refers to a frame and has a duration.
 
 - C++17, CMake, Conan 2.
 - `moth_bridge` (Conan) brings in moth_core, moth_graphics and moth_ui: a GLFW + Vulkan platform, and ImGui.
-- `moth_packer` (Conan) packs cells into a new sheet image (File > Pack).
+- `moth_packer` (Conan) packs cells into a new sheet image (Tools > Pack).
 - `external/nativefiledialog` (git submodule) for file dialogs, `external/stb` for image loading and writing.
 
 ## Build and run
@@ -38,7 +38,7 @@ steps, and each step refers to a frame and has a duration.
 | `src/sprite_editor/sprite_editor_clips.cpp`   | Clips pane and clip playback.                                    |
 | `src/sprite_editor/sprite_editor_tools.cpp`   | Tools menu: grid generator, detect frames.                       |
 | `src/sprite_editor/sprite_editor_undo.cpp`    | Undo stack and snapshot helpers.                                 |
-| `src/sprite_editor/sprite_editor_pack.cpp`    | File > Pack dialog with preview; applying a pack as one undo.    |
+| `src/sprite_editor/sprite_editor_pack.cpp`    | Tools > Pack dialog with preview; applying a pack as one undo.    |
 | `src/sprite_editor/frame_detection.*`         | Frame detection from image pixels. No UI.                        |
 | `src/sprite_editor/sheet_packing.*`           | Packing cells with moth_packer, writing the packed image. No UI. |
 | `src/sprite_editor/packed_image_write.*`      | stb_image_write, compiled as C (outside clang-tidy).             |
@@ -57,7 +57,7 @@ A project is a `.mothsprite` file with JSON content, read and written by the edi
 - `image`: optional path to the sheet image, relative to the project file.
 - `export_path`: optional path of the last exported descriptor, relative to the project file. Changing it is
   undoable.
-- `pack`: optional settings of the last File > Pack (`PackSettings`): the packed image path, padding, padding type
+- `pack`: optional settings of the last Tools > Pack (`PackSettings`): the packed image path, padding, padding type
   and colour, minimum and maximum size, format and JPEG quality. A pack sets the sheet image, the cell rectangles
   and these settings as one undo action.
 - `frames`: cells, each `{ x, y, w, h, pivot_x, pivot_y }`. A cell imported from another image (Cells window >
@@ -70,14 +70,14 @@ through save and load unchanged.
 In memory a cell is a `CellEntry`: a `FrameEntry` plus an optional `source` (`CellImage`: path and texture). A cell
 with a source is the whole image; its rectangle is (0, 0) and the image size, and does not change. The Sheet window
 and the sheet tools skip such cells, and `GetCellDrawSource` gives the image to draw any cell with. A project with
-such cells is unpacked: File > Pack makes them sheet cells. Export chooses the descriptor path first, then opens the
+such cells is unpacked: Tools > Pack makes them sheet cells. Export chooses the descriptor path first, then opens the
 pack dialog with the packed image named after the descriptor, and exports after a successful pack
 (`m_exportAfterPack`).
 
 Games load sprite sheet descriptors, not project files. A descriptor has `image`, `frames` and `clips` and no
 `version`; `SpriteSheetFactory` loads it. File > Export writes one to the export path (File > Export As picks a new
 path) and copies the sheet image beside it, named after the descriptor. Export refuses, writing nothing, when the
-project has data that `SpriteSheetFactory` rejects or skips (`ExportProblems`). Saving does not export. File > Load imports a `.json` descriptor as a new project with no path and
+project has data that `SpriteSheetFactory` rejects or skips (`ExportProblems`). Saving does not export. File > Open imports a `.json` descriptor as a new project with no path and
 unsaved changes, so the first save opens Save As. Imported descriptors are not added to Open Recent.
 
 `.json` project files saved before the `.mothsprite` format still open, as a descriptor import.

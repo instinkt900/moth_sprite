@@ -64,7 +64,7 @@ void SpriteApplication::Shutdown() {
     // The asset factory caches live in the surface context, which is destroyed after the
     // ImGui context. A cached texture that was drawn through ImGui frees its ImGui
     // descriptor set on destruction, which crashes once the ImGui backend is gone
-    // (e.g. a sheet opened with File > Load). Release the caches while ImGui is alive.
+    // (e.g. a sheet opened with File > Open). Release the caches while ImGui is alive.
     auto& assetContext = GetUiWindow()->GetSurfaceContext().GetAssetContext();
     assetContext.GetSpriteSheetFactory().FlushCache();
     assetContext.GetTextureFactory().FlushCache();
