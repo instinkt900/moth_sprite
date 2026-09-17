@@ -297,8 +297,15 @@ a project that has only sheet cells is also allowed, and lays them out again tig
 - The dialog offers sizes 1 to 16384. Changing a minimum above the maximum raises the maximum, and the other way
   round. Changing the format changes the path's extension. The browse dialog filters on the format's extension and
   appends it when missing.
-- The refusal for a source-image path is shown live in the dialog, with Pack disabled. An empty path is refused
-  the same way.
+- An empty path is refused live in the dialog, with Pack disabled.
+- Changed after the session (691d6f3), at the user's request: a path that is a source image (the sheet image or a
+  cell's image) is no longer refused. When the path is an existing file, the dialog warns that it will be
+  overwritten, and Pack still writes it. For a source image the warning also says that undo does not restore the
+  file. The source pixels are read before the file is written. The requirement and the open question above still
+  say "refuses"; `/task-planning` should reword them.
+- Also after the session (691d6f3): an export of a project with cells from other images chooses the descriptor path
+  first, and the pack dialog opens with the packed image named after the descriptor (`hero.json` packs to
+  `hero.png`).
 - If the packed image is written but cannot be loaded as a texture, the pack fails and the project does not change;
   the file stays on disk.
 - `padding_color` is saved as an `RRGGBBAA` hex string.
@@ -309,6 +316,7 @@ a project that has only sheet cells is also allowed, and lays them out again tig
 
 **Commits:**
 - 7dade2e feat(T-030): pack the cells into a new sheet image
+- 691d6f3 fix: pack dialog and export follow-ups (after the session)
 
 **Manual verification:**
 1. With no cells, File > Pack... is disabled.
@@ -318,7 +326,9 @@ a project that has only sheet cells is also allowed, and lays them out again tig
 3. Change padding, padding type (the colour shows only for Color), sizes (min never above max) and format (the
    extension follows; JPEG shows quality). Cancel and reopen: the defaults are back, and the project is unchanged
    (no ` *` in the title).
-4. Type the sheet image's path: the dialog shows the refusal and Pack is disabled.
+4. Type the sheet image's path: the dialog warns that the file is a source image and will be overwritten, and Pack
+   is still enabled. Type another existing file: the plain overwrite warning shows. Clear the path: Pack is
+   disabled.
 5. Set max width and height to 16 with cells larger than that: Pack shows the reason in the dialog, and nothing
    changes.
 6. Pack with valid settings: the file is written, the Sheet window shows the packed image fitted, the selection
@@ -368,11 +378,15 @@ The pack dialog shows a preview of the packing result, so the user can see the l
 - The preview area is 400 x 400 pixels, to the right of the settings. The image is fitted and centred, on the
   preview background with 16 px checker squares. When there is no preview, the area shows the reason in the
   warning colour.
-- The old preview texture is released during the editor's draw, as textures are when a project is loaded. This was
-  not run in the session (the launch check does not open the dialog).
+- The old preview texture was released during the editor's draw. Testing after the session showed
+  `vkFreeDescriptorSets` "in use by VkCommandBuffer" validation errors on every preview update: the swapchain keeps
+  a submitted frame per image, and one of them could still use the texture. Fixed after the session (691d6f3): the
+  editor waits for the GPU (`IGraphics::WaitIdle`, passed to `SpriteEditor` as `waitForGpu`) before it frees the
+  preview texture, both when the preview is packed again and when the dialog closes (`ReleasePackPreviewImage`).
 
 **Commits:**
 - 2d8c986 feat(T-031): preview the packed image in the pack dialog
+- 691d6f3 fix: pack dialog and export follow-ups (after the session)
 
 **Manual verification:**
 1. Open File > Pack... on a project with cells: the preview shows the packed image, fitted and centred, on the
@@ -463,11 +477,17 @@ other images is "unpacked": it must be packed (T-030) before it can be exported 
   image ... of cell #N".
 - Imported cells are selected as other new cells are: the first new cell becomes the selection. The import button
   is "Import..." at the top of the Cells window, before the cell count.
-- Export As on an unpacked project continues as Export As after the pack (it asks for a path); Export continues as
-  Export. The requirement names File > Export only.
-- Export with cells from other images opens the pack dialog before checking the other export problems, because a
-  pack can fix some of them (no sheet image).
-- The pack dialog refuses a path that is the image of any cell, as well as the sheet image.
+- Changed after the session (691d6f3), at the user's request: Export (first time, with no export path) and Export As
+  on an unpacked project choose the descriptor path first. The pack dialog then opens with the packed image named
+  after the descriptor (`hero.json` packs to `hero.png`, extension from the format). Nothing is written until Pack
+  succeeds, then the export writes the descriptor to the chosen path. Cancelling either dialog cancels the export.
+  `ExportProject` chooses the path and `ExportToPath` writes. The requirement still says Export opens the pack dialog
+  first; `/task-planning` should reword it.
+- Export of an unpacked project checks the other export problems only after the pack, because a pack can fix some
+  of them (no sheet image). A problem a pack cannot fix, such as a 0 ms step, is reported after the pack has
+  already changed the project and written the image.
+- The pack dialog refused a path that is the image of any cell, as well as the sheet image. Since 691d6f3 it warns
+  that the file will be overwritten instead (see T-030).
 - Cells that share an image file when a project is loaded share one texture. Cells imported separately load their
   own texture, even for the same file.
 - The order of multiple imported files is the order NFD returns them.
@@ -476,6 +496,7 @@ other images is "unpacked": it must be packed (T-030) before it can be exported 
 
 **Commits:**
 - cdc50f3 feat(T-025): import cells from images other than the sheet
+- 691d6f3 fix: pack dialog and export follow-ups (after the session)
 
 **Manual verification:**
 1. On a new project (no sheet image), Cells > Import...: the dialog filters on png, jpg, jpeg and bmp, starts in the
@@ -495,9 +516,12 @@ other images is "unpacked": it must be packed (T-030) before it can be exported 
    the preview background.
 7. File > Pack: the preview includes the imported cells. Pack: they become sheet cells with packed rectangles, are
    drawn on the sheet, and the saved file no longer refers to their images. Ctrl+Z restores them as imported cells.
-8. In the pack dialog, type the path of an imported image: the dialog refuses it.
-9. With imported cells, File > Export: the pack dialog opens. Cancel: nothing is exported. Export again and Pack:
-   the export continues (a save dialog for a project with no export path) and writes the descriptor and image.
+8. In the pack dialog, type the path of an imported image: the dialog warns that it is a source image and will be
+   overwritten, and Pack is still enabled.
+9. With imported cells and no export path, File > Export: a save dialog for the descriptor opens first. Choose
+   `out/hero.json`: the pack dialog opens with the packed image `out/hero.png`, and no files exist yet. Cancel:
+   nothing is written. Export again and Pack: `out/hero.png` and then `out/hero.json` are written. Export As on an
+   unpacked project also asks for the descriptor path before the pack dialog.
 10. With a missing imported image, Export > Pack shows "Could not read the image" in the dialog.
 
 ## Discovered
