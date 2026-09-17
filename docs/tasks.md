@@ -13,7 +13,7 @@ Session reports are in [sessions/](sessions/). `/task-planning` moves finished t
 
 ## Tasks
 
-### [todo] T-028 Sprite project file format
+### [done] T-028 Sprite project file format
 
 **Review:** reviewed 2026-09-17
 
@@ -28,24 +28,24 @@ This replaces two earlier ideas: making moth_graphics load cells from more than 
 that the project does not work in game (T-027, now removed).
 
 **Requirements:**
-- [ ] Projects are saved as `.mothsprite` files with JSON content. The file has a format version field. The
+- [x] Projects are saved as `.mothsprite` files with JSON content. The file has a format version field. The
   project Open and Save As dialogs filter on `mothsprite`.
-- [ ] The editor reads and writes project files with its own code, not with `SpriteSheetFactory`.
-- [ ] The project file stores what the current format stores: the sheet image path (relative to the project
+- [x] The editor reads and writes project files with its own code, not with `SpriteSheetFactory`.
+- [x] The project file stores what the current format stores: the sheet image path (relative to the project
   file), the cells with their pivots, and the clips.
-- [ ] The sheet image is optional. A project with no sheet image, with or without cells and clips, is saved and
+- [x] The sheet image is optional. A project with no sheet image, with or without cells and clips, is saved and
   loaded again with its cells and clips unchanged.
-- [ ] A project with no cells, a clip with no steps, and a step with a 0 ms duration are saved and loaded again
+- [x] A project with no cells, a clip with no steps, and a step with a 0 ms duration are saved and loaded again
   unchanged.
-- [ ] File > Open also accepts sprite sheet descriptors (`.json`, the format saved before this task). Opening a
+- [x] File > Open also accepts sprite sheet descriptors (`.json`, the format saved before this task). Opening a
   descriptor makes a new project from it, with no project path and with unsaved changes. The first save opens
   Save As, so the descriptor is never written over. A descriptor that `SpriteSheetFactory` does not load is not
   opened, as today.
-- [ ] Open Recent lists project files only. Opening a descriptor does not add it; saving the project adds the
+- [x] Open Recent lists project files only. Opening a descriptor does not add it; saving the project adds the
   `.mothsprite` file, as for any save.
-- [ ] `CLAUDE.md` ("Project file") and `README.md` describe the project file and the descriptor import, and say
+- [x] `CLAUDE.md` ("Project file") and `README.md` describe the project file and the descriptor import, and say
   that games load exported descriptors, not project files.
-- [ ] `docs/task-profile.md` Compatibility says: `.json` project files saved before this task still open, as a
+- [x] `docs/task-profile.md` Compatibility says: `.json` project files saved before this task still open, as a
   descriptor import.
 
 **Out of scope:**
@@ -76,9 +76,41 @@ that the project does not work in game (T-027, now removed).
 - The editor draws from `m_spriteSheet`, built from the sheet image. With no sheet image it can be null, as after
   File > New.
 
+- Session 2026-09-17: "File > Open" in the requirements is the existing File > Load item (Ctrl+L). The menu item
+  keeps its name.
+- The file has `"version": 1`. A file with no version, or a version newer than 1, is not loaded, with a logged
+  error. A file that cannot be parsed, or has a field of the wrong type, is not loaded either.
+- `.json` files are imported as descriptors; any other extension is read as a project file.
+- Save As appends `.mothsprite` when the chosen name has another extension (`hero.json` becomes
+  `hero.json.mothsprite`). The dialog's overwrite question is about the name before the extension is added.
+- The project file is written from scratch. Unknown fields in an existing file are not kept (the old descriptor
+  save kept them). A sheet image that has no relative path from the project folder is stored as an absolute path.
+- Clip steps are saved with their frame index as it is, so a step of a project with no cells keeps its `-1`. The
+  old save clamped indices to the cell range; export (T-029) is where game data is checked.
+- A project whose sheet image fails to load still loads, with a warning. It keeps the image path, and the Sheet
+  window shows the "Import Sheet" hint.
+- Open Recent entries that are not `.mothsprite` files are removed from the list when the editor starts.
+- Save, Save As, Ctrl+S and the unsaved changes prompt's Save no longer need a sheet image.
+- No automated tests exist; the round trips were checked by reading the code, not by running them.
+
 **Commits:**
+- 0820b26 feat(T-028): .mothsprite project file format
 
 **Manual verification:**
+1. File > New, add no image. File > Save: the dialog filters on `mothsprite`. Save as `empty`; the file is
+   `empty.mothsprite` with `"version": 1` and no `image`. The title shows `empty.mothsprite`.
+2. Import a sheet, add two cells, a clip with no steps, and a clip with a step set to 0 ms. Save, File > New, then
+   Load the file: the image, cells, pivots and both clips are unchanged.
+3. Delete every cell of a project that has a clip with steps, save, and load again: the clips and steps are still
+   there.
+4. With no sheet image, add a cell (Grid Cells is disabled, so edit a saved file or delete the image first), save
+   and reload: the cells and clips are unchanged. Also rename the sheet image on disk and load a project using it:
+   the project loads, a warning is logged, and saving keeps the `image` path.
+5. File > Load a `.json` project saved by an older version: it opens as "Untitled *". Ctrl+S opens Save As, and the
+   `.json` file is not changed. It is not in Open Recent until saved as `.mothsprite`.
+6. File > Load a `.json` file that is not a valid descriptor (for example with an empty `frames` array): nothing
+   changes, and an error is logged.
+7. With `.json` entries in Open Recent from an older version, start the editor: only `.mothsprite` entries remain.
 
 ### [todo] T-029 Export to the game format
 
