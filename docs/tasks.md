@@ -581,6 +581,115 @@ It's too easy to accidentally click on the cell preview and move the pivot. Lock
 
 **Manual verification:**
 
+### [todo] T-034 Multi-select clip frames
+
+**Review:** unreviewed
+
+**Depends on:**
+
+**Goal:**
+Support the ability to multi select clip frames and drag/delete/set timing.
+
+**Requirements:**
+- [ ] More than one frame of a clip can be selected at a time.
+- [ ] Selected frames can be dragged.
+- [ ] Selected frames can be deleted.
+- [ ] The timing of the selected frames can be set.
+
+**Out of scope:**
+
+**Open questions:**
+- Q: How is a multi-selection made: click and drag a box, Ctrl+click to add, Shift+click for a range, or all of
+  these?
+- Q: Does dragging move the frames within the clip (reorder), or something else?
+- Q: Does setting the timing give every selected frame the same value, or change them relative to what they have?
+- Q: Which UI shows the timing for a multi-selection, and what does it show when the selected frames differ?
+- Q: Do the drag, delete and timing changes go on the undo stack as one step?
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
+### [todo] T-035 Export marks the project as unsaved
+
+**Review:** unreviewed
+
+**Depends on:**
+
+**Goal:**
+Exporting always seems to mark the project as unsaved. Investigate.
+
+**Requirements:**
+- [ ] The cause of the project being marked unsaved after an export is found.
+
+**Out of scope:**
+
+**Open questions:**
+- Q: Which export is this: the packed sheet, the JSON, or every export path?
+- Q: Should an export never mark the project unsaved, or does it legitimately change project data (for example
+  stored export settings or paths) that has to be saved?
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
+### [todo] T-036 Export the sprite sheet to a new location
+
+**Review:** unreviewed
+
+**Depends on:**
+
+**Goal:**
+Add an "export" option along side "import" that exports the sprite sheet to a new location. Currently the only way
+to achieve this behaviour is to repack the sheet. The option sits beside each import option, both in the menu and
+as a button in the window.
+
+**Requirements:**
+- [ ] An export option sits beside each import option, in the menu and as a button in the window.
+- [ ] The options are named "Import Spritesheet" and "Export Spritesheet", to tell them apart from exporting the
+      project.
+- [ ] Export writes the sprite sheet image to a new location, and does not write JSON.
+- [ ] Export updates the project and marks it as unsaved.
+
+**Out of scope:**
+
+**Open questions:**
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
+### [todo] T-037 Preview image filtering option
+
+**Review:** unreviewed
+
+**Depends on:**
+
+**Goal:**
+Add an option to change the filtering of the preview images.
+
+**Requirements:**
+- [ ] The filtering used for the preview images can be changed through an option.
+
+**Out of scope:**
+
+**Open questions:**
+- Q: Which previews does this cover: the canvas, the cell thumbnails, the clip preview, the pack dialog preview,
+     or all of them?
+- Q: Is the setting per project or an editor preference that persists between sessions?
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
 ## Discovered
 
 Problems noticed during sessions that are outside the current tasks. Candidates for `/task-new`.
