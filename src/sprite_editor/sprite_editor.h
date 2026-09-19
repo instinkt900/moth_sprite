@@ -83,7 +83,8 @@ private:
     // title, Save and Open Recent). A failed load changes nothing.
     void LoadProjectFile(std::filesystem::path const& path);
     // Make a new project from a sprite sheet descriptor, the format games load. The project has no path and has
-    // unsaved changes. A descriptor that SpriteSheetFactory does not load changes nothing.
+    // unsaved changes. A descriptor that cannot be parsed, has no 'image' field or has no frames changes nothing;
+    // one whose sheet image cannot be loaded opens without it.
     void ImportDescriptor(std::filesystem::path const& path);
     // File > Open Recent: move a loaded or saved project to the front of the list, which keeps 10 projects.
     void AddRecentProject(std::filesystem::path const& path);
