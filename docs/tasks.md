@@ -424,6 +424,43 @@ Assumptions:
    with the Clips window focused: the same.
 7. Select steps of one clip, then click a step of another clip: the first selection goes.
 
+### [todo] T-040 Show the cells on the Sheet window with no sheet image
+
+**Review:** unreviewed
+
+**Depends on:** none
+
+**Goal:**
+When we open a project that has no sprite sheet, can we still show the borders of the cells on the empty sprite
+sheet window? A project with no sheet image, or with a sheet image that could not be loaded (T-039), opens with its
+cells and clips, but the Sheet window shows nothing of them.
+
+Today `DrawPreview` (`src/sprite_editor/sprite_editor_preview.cpp:165`) draws the Import Spritesheet button and
+returns before the canvas, so there is nothing to draw the cells on. The cell borders and pivot crosses themselves
+do not need the image: they are drawn from the canvas origin and the zoom. What the image supplies is the canvas
+size, used in 27 places for the fit zoom, the scroll extent and the clamping of New Cell and of cell drags.
+
+T-039 put this out of scope ("Editing cells without a sheet image, beyond what already works. The Sheet window
+keeps its existing empty state"), so it is its own task.
+
+**Requirements:**
+- [ ] The Sheet window draws the cell borders, with the normal, selected and prime colours, and the pivot crosses,
+      when the project has no sheet image or its sheet image could not be loaded.
+
+**Open questions:**
+- Q: What is the canvas's size with no image? The cells' bounding box is the obvious substitute, but it changes as
+  the cells change, and an empty project has no bounding box at all.
+- Q: Do New Cell and cell dragging work on that canvas, or is it read-only? Clamping a drag to a bounding box that
+  grows with the drag needs a rule.
+- Q: Does the Import Spritesheet button stay where it is, as the only thing in the window, or does it move up to
+  the toolbar beside Fit and 1:1 with the canvas below it?
+
+**Notes:**
+
+**Commits:**
+
+**Manual verification:**
+
 ## Discovered
 
 Problems noticed during sessions that are outside the current tasks. Candidates for `/task-new`.
