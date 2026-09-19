@@ -352,7 +352,7 @@ Assumptions:
 5. After an unpack, the title bar shows no unsaved changes and Ctrl+Z undoes whatever came before the unpack, not
    the unpack.
 
-### [todo] T-034 Multi-select clip frames
+### [done] T-034 Multi-select clip frames
 
 **Review:** reviewed 2026-09-19
 
@@ -362,18 +362,18 @@ Assumptions:
 Support the ability to multi select clip frames and drag/delete/set timing.
 
 **Requirements:**
-- [ ] More than one step of a clip can be selected on its timeline. A selection is within one clip.
-- [ ] A plain click selects one step, and keeps doing what it does now: it selects the step's cell and moves
+- [x] More than one step of a clip can be selected on its timeline. A selection is within one clip.
+- [x] A plain click selects one step, and keeps doing what it does now: it selects the step's cell and moves
       playback to the step. Ctrl+click adds or removes a step, and Shift+click takes the range from the last
       clicked step, as the Cells window works.
-- [ ] The timeline shows which steps are selected.
-- [ ] Dragging a selected step moves every selected step to the drop position, keeping their order. Dragging an
+- [x] The timeline shows which steps are selected.
+- [x] Dragging a selected step moves every selected step to the drop position, keeping their order. Dragging an
       unselected step keeps moving that step alone, as now.
-- [ ] The x button on a selected step removes every selected step. The Delete key removes the selected steps while
+- [x] The x button on a selected step removes every selected step. The Delete key removes the selected steps while
       the Clips window has keyboard focus.
-- [ ] Typing a duration in the field under a selected step gives every selected step that duration. No new field
+- [x] Typing a duration in the field under a selected step gives every selected step that duration. No new field
       is added; the clip's "Set all" keeps applying to every step of the clip.
-- [ ] A multi-step drag, a multi-step delete and a multi-step duration change are each one undo action.
+- [x] A multi-step drag, a multi-step delete and a multi-step duration change are each one undo action.
 
 **Out of scope:**
 - Box selection on the timeline. It competes with dragging a step to reorder it.
@@ -392,10 +392,37 @@ Support the ability to multi select clip frames and drag/delete/set timing.
 - Q: How are the selected steps deleted? A: Both the x button on a selected step and the Delete key.
 
 **Notes:**
+The selection is `m_stepSelectionClip`, `m_stepSelection` (sorted step indices) and `m_stepSelectionAnchor`. It is
+view state, so it is not undoable and not saved. `ValidateStepSelection` runs each time the Clips window is drawn
+and drops steps that no longer exist, which covers an undo that shortens a clip; deleting a clip moves or clears
+it, and a new or loaded project clears it.
+
+Assumptions:
+- Ctrl+click and Shift+click only change the selection. They do not move playback or select the step's cell, as a
+  plain click still does.
+- Selected steps are outlined outside their box in the selected cell colour, so a step can show at once that it is
+  selected, that it is the current step, and that it is picking a cell.
+- A multi-step drag dropped on a selected step does nothing, because the drop position would be inside the block
+  being moved.
+- A multi-step drag lands where a single step's drag would: after the step dropped on when dragging to the right,
+  before it when dragging to the left.
+- Typing a duration under a step that is the only selected step behaves as before.
 
 **Commits:**
+- `686a673` feat(T-034): multi-select clip steps
 
 **Manual verification:**
+1. With a clip of several steps: click step 1 (it is selected and playback goes to it), Ctrl+click steps 3 and 4
+   (all three outlined), Ctrl+click step 3 again (it drops out).
+2. Click step 2, then Shift+click step 5: steps 2 to 5 are selected.
+3. Drag one of the selected steps onto a step to its right: the whole block moves there, in order, and stays
+   selected. Ctrl+Z restores the order in one undo.
+4. Drag an unselected step: it moves alone, as before.
+5. With several steps selected, type a duration in the field under one of them: every selected step gets it, and
+   Ctrl+Z undoes the whole change. "Set all" still sets every step of the clip.
+6. Press the x of a selected step: every selected step goes, in one undo step. Select some more and press Delete
+   with the Clips window focused: the same.
+7. Select steps of one clip, then click a step of another clip: the first selection goes.
 
 ## Discovered
 
