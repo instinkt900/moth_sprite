@@ -77,8 +77,12 @@ pack dialog with the packed image named after the descriptor, and exports after 
 Games load sprite sheet descriptors, not project files. A descriptor has `image`, `frames` and `clips` and no
 `version`; `SpriteSheetFactory` loads it. File > Export writes one to the export path (File > Export As picks a new
 path) and copies the sheet image beside it, named after the descriptor. Export refuses, writing nothing, when the
-project has data that `SpriteSheetFactory` rejects or skips (`ExportProblems`). Saving does not export. File > Open imports a `.json` descriptor as a new project with no path and
-unsaved changes, so the first save opens Save As. Imported descriptors are not added to Open Recent.
+project has data that `SpriteSheetFactory` rejects or skips (`ExportProblems`), and when the sheet image path names
+an image that could not be loaded. Saving does not export. File > Open imports a `.json` descriptor as a new project
+with no path and unsaved changes, so the first save opens Save As. Imported descriptors are not added to Open
+Recent. The editor reads a descriptor with its own code, as it does a project file, so it decides what is fatal: it
+refuses a file it cannot parse, one with no `image` string field and one with no frames, while a sheet image that
+cannot be loaded is a logged warning and the project opens without it.
 
 `.json` project files saved before the `.mothsprite` format still open, as a descriptor import.
 

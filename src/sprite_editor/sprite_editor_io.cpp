@@ -5,7 +5,6 @@
 #include <moth/graphics/graphics/igraphics.h>
 #include <moth/graphics/graphics/surface_context.h>
 #include <moth/graphics/graphics/asset_context.h>
-#include <moth/graphics/graphics/spritesheet_factory.h>
 
 #include <nfd.h>
 
@@ -165,6 +164,37 @@ namespace {
         std::vector<moth::gfx::SpriteSheet::ClipEntry> clips;
     };
 
+    // Read the cells and clips that project files and sprite sheet descriptors share. They are read as they were
+    // written, with no checks for what games reject, because the project is the editing source. Throws on fields of
+    // the wrong type or a cell with no rectangle.
+    void ReadFramesAndClips(nlohmann::json const& json, std::filesystem::path const& path, ProjectFileData& data) {
+        for (auto const& frameJson : json.value("frames", nlohmann::json::array())) {
+            CellEntry frame;
+            if (frameJson.contains("image")) {
+                frame.source = std::make_shared<CellImage const>(
+                    CellImage{ ResolveProjectPath(frameJson.at("image").get<std::string>(), path), {} });
+            } else {
+                frame.rect = moth::gfx::MakeRect(frameJson.at("x").get<int>(), frameJson.at("y").get<int>(),
+                                                 frameJson.at("w").get<int>(), frameJson.at("h").get<int>());
+            }
+            frame.pivot.x = frameJson.value("pivot_x", 0);
+            frame.pivot.y = frameJson.value("pivot_y", 0);
+            data.frames.push_back(frame);
+        }
+        for (auto const& clipJson : json.value("clips", nlohmann::json::array())) {
+            moth::gfx::SpriteSheet::ClipEntry clip;
+            clip.name = clipJson.at("name").get<std::string>();
+            clip.desc.loop = ParseLoopType(clipJson.value("loop", std::string{ "stop" }));
+            for (auto const& stepJson : clipJson.value("frames", nlohmann::json::array())) {
+                moth::gfx::SpriteSheet::ClipFrame step;
+                step.frameIndex = stepJson.at("frame").get<int>();
+                step.durationMs = stepJson.at("duration_ms").get<int>();
+                clip.desc.frames.push_back(step);
+            }
+            data.clips.push_back(std::move(clip));
+        }
+    }
+
     // Read a project file. The project is the editing source, so cells, clips and steps are read as they were saved,
     // with no checks for what games reject. Returns nothing, with a logged error, when the file cannot be read.
     std::optional<ProjectFileData> ReadProjectFile(std::filesystem::path const& path) {
@@ -193,34 +223,42 @@ namespace {
             if (json.contains("pack")) {
                 data.pack = PackSettingsFromJson(json.at("pack"), path);
             }
-            for (auto const& frameJson : json.value("frames", nlohmann::json::array())) {
-                CellEntry frame;
-                if (frameJson.contains("image")) {
-                    frame.source = std::make_shared<CellImage const>(
-                        CellImage{ ResolveProjectPath(frameJson.at("image").get<std::string>(), path), {} });
-                } else {
-                    frame.rect = moth::gfx::MakeRect(frameJson.at("x").get<int>(), frameJson.at("y").get<int>(),
-                                                     frameJson.at("w").get<int>(), frameJson.at("h").get<int>());
-                }
-                frame.pivot.x = frameJson.value("pivot_x", 0);
-                frame.pivot.y = frameJson.value("pivot_y", 0);
-                data.frames.push_back(frame);
-            }
-            for (auto const& clipJson : json.value("clips", nlohmann::json::array())) {
-                moth::gfx::SpriteSheet::ClipEntry clip;
-                clip.name = clipJson.at("name").get<std::string>();
-                clip.desc.loop = ParseLoopType(clipJson.value("loop", std::string{ "stop" }));
-                for (auto const& stepJson : clipJson.value("frames", nlohmann::json::array())) {
-                    moth::gfx::SpriteSheet::ClipFrame step;
-                    step.frameIndex = stepJson.at("frame").get<int>();
-                    step.durationMs = stepJson.at("duration_ms").get<int>();
-                    clip.desc.frames.push_back(step);
-                }
-                data.clips.push_back(std::move(clip));
-            }
+            ReadFramesAndClips(json, path, data);
             return data;
         } catch (std::exception const& e) {
             moth::core::log::error("SpriteEditor: failed to read project '{}': {}", path.string(), e.what());
+            return std::nullopt;
+        }
+    }
+
+    // Read a sprite sheet descriptor, the file File > Export writes and games load. The editor reads it itself,
+    // rather than with SpriteSheetFactory, so it decides what is fatal: a sheet image that cannot be loaded is not,
+    // and neither is data that games reject. Returns nothing, with a logged error, when the file cannot be parsed,
+    // has no 'image' string field, or has no frames.
+    std::optional<ProjectFileData> ReadDescriptorFile(std::filesystem::path const& path) {
+        std::ifstream ifile(path);
+        if (!ifile.is_open()) {
+            moth::core::log::error("SpriteEditor: failed to open descriptor '{}'", path.string());
+            return std::nullopt;
+        }
+        try {
+            nlohmann::json json;
+            ifile >> json;
+            if (!json.contains("image") || !json.at("image").is_string()) {
+                moth::core::log::error("SpriteEditor: descriptor '{}' has no 'image' field", path.string());
+                return std::nullopt;
+            }
+
+            ProjectFileData data;
+            data.imagePath = ResolveProjectPath(json.at("image").get<std::string>(), path);
+            ReadFramesAndClips(json, path, data);
+            if (data.frames.empty()) {
+                moth::core::log::error("SpriteEditor: descriptor '{}' has no frames", path.string());
+                return std::nullopt;
+            }
+            return data;
+        } catch (std::exception const& e) {
+            moth::core::log::error("SpriteEditor: failed to read descriptor '{}': {}", path.string(), e.what());
             return std::nullopt;
         }
     }
@@ -308,56 +346,27 @@ void SpriteEditor::LoadProjectFile(std::filesystem::path const& path) {
 }
 
 void SpriteEditor::ImportDescriptor(std::filesystem::path const& path) {
-    // Load and validate before touching any editor state so a failed load
-    // leaves the current document intact. The cache is flushed so the file is read as it is now.
-    auto& spriteSheetFactory = m_assetContext.GetSpriteSheetFactory();
-    spriteSheetFactory.FlushCache();
-    auto newSheet = spriteSheetFactory.GetSpriteSheet(path);
-    if (!newSheet) {
-        moth::core::log::error("Failed to load sprite sheet: {}", path.string());
+    // Read the whole file before touching any editor state, so a failed import leaves the open project intact.
+    std::optional<ProjectFileData> data = ReadDescriptorFile(path);
+    if (!data.has_value()) {
         return;
     }
 
-    // Read the image path from the JSON so Import Sheet and Save know it
-    std::string imagePath;
-    try {
-        std::ifstream ifile(path);
-        if (ifile.is_open()) {
-            nlohmann::json json;
-            ifile >> json;
-            if (json.contains("image") && json["image"].is_string()) {
-                imagePath = std::filesystem::absolute(path.parent_path() / json["image"].get<std::string>())
-                                .lexically_normal()
-                                .string();
-            }
-        }
-    } catch (std::exception const& e) {
-        moth::core::log::warn("SpriteEditor: could not read image path from '{}': {}", path.string(), e.what());
+    // As for a project file, a sheet image that does not load does not stop the descriptor from being imported. The
+    // project keeps the image path, so saving does not lose it.
+    moth::gfx::Image image;
+    std::shared_ptr<moth::gfx::ITexture> texture(m_assetContext.TextureFromFile(data->imagePath));
+    if (texture) {
+        image = moth::gfx::Image{ texture };
+    } else {
+        moth::core::log::warn("SpriteEditor: descriptor '{}' sheet image '{}' could not be loaded",
+            path.string(), data->imagePath);
     }
-
-    FrameVec frames;
-    frames.reserve(static_cast<size_t>(newSheet->GetFrameCount()));
-    for (int i = 0; i < newSheet->GetFrameCount(); ++i) {
-        if (auto entry = newSheet->GetFrameDesc(i)) {
-            frames.push_back(CellEntry{ *entry, nullptr });
-        }
-    }
-
-    ClipVec clips;
-    int const clipCount = newSheet->GetClipCount();
-    clips.reserve(static_cast<size_t>(clipCount));
-    for (int i = 0; i < clipCount; ++i) {
-        moth::gfx::SpriteSheet::ClipEntry entry;
-        entry.name = newSheet->GetClipName(i);
-        if (auto desc = newSheet->GetClipDesc(entry.name)) {
-            entry.desc = *desc;
-        }
-        clips.push_back(std::move(entry));
-    }
+    auto sheet = std::make_shared<moth::gfx::SpriteSheet>(std::move(image), ToFrameEntries(data->frames), data->clips);
 
     // The import is a new project with no path, so the first save opens Save As and never writes over the
     // descriptor. It is not added to Open Recent, which lists project files only.
-    ReplaceProject(std::move(newSheet), imagePath, std::move(frames), std::move(clips));
+    ReplaceProject(std::move(sheet), data->imagePath, std::move(data->frames), std::move(data->clips));
     m_pathBuffer[0] = '\0';
     MarkUnsaved();
 }
@@ -463,8 +472,12 @@ std::vector<std::string> SpriteEditor::ExportProblems(bool beforePack) const {
     std::vector<std::string> problems;
     // Before a pack, the sheet image and the cell sizes are left to the pack: it makes the sheet image, and it
     // refuses cells it cannot pack without changing the project.
-    if (!beforePack && m_imagePathBuffer[0] == '\0') {
-        problems.emplace_back("The project has no sheet image.");
+    if (!beforePack) {
+        if (m_imagePathBuffer[0] == '\0') {
+            problems.emplace_back("The project has no sheet image.");
+        } else if (!m_spriteSheet || !m_spriteSheet->GetImage()) {
+            problems.push_back(fmt::format("The project's sheet image '{}' could not be loaded.", m_imagePathBuffer));
+        }
     }
     if (m_frames.empty()) {
         problems.emplace_back("The project has no cells.");
