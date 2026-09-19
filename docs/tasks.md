@@ -80,7 +80,7 @@ The descriptor import no longer flushes the sprite sheet factory cache, because 
    each is refused with a logged error, and the project that was open is unchanged.
 5. File > Open a descriptor whose image is present: it opens as before.
 
-### [todo] T-038 Only write the sheet image when exporting packs
+### [done] T-038 Only write the sheet image when exporting packs
 
 **Review:** reviewed 2026-09-19
 
@@ -91,9 +91,9 @@ When exporting the spritesheet descriptor it should only output the spritesheet 
 just writes the descriptor with the path to the existing sheet image.
 
 **Requirements:**
-- [ ] File > Export writes a sprite sheet image only when it packs, which is when the project has cells from
+- [x] File > Export writes a sprite sheet image only when it packs, which is when the project has cells from
       other images. Today it always copies the sheet image beside the descriptor.
-- [ ] When the export does not pack, it writes only the descriptor. The descriptor's `image` field is the path
+- [x] When the export does not pack, it writes only the descriptor. The descriptor's `image` field is the path
       from the descriptor's folder to the existing sheet image, and an absolute path when there is no relative
       one.
 
@@ -110,10 +110,24 @@ just writes the descriptor with the path to the existing sheet image.
   descriptor, falling back to an absolute path when there is no relative one.
 
 **Notes:**
+`ExportToPath` no longer copies the sheet image, and writes the descriptor's `image` field with
+`ProjectRelativePath`, the helper project files already use for their paths. The export that packs first needed no
+change: the pack writes its image beside the descriptor and sets it as the project's sheet image, so the same
+relative path is that file's name.
+
+The export message no longer has a case for an image that could not be copied, because no copy is made.
 
 **Commits:**
+- `7062297` feat(T-038): export writes the sheet image only when it packs
 
 **Manual verification:**
+1. Open a project whose sheet image is not beside the descriptor's folder, File > Export As to a new folder: only
+   the `.json` is written, and its `image` field is a relative path (`../sheets/hero.png`) back to the image.
+   Loading it in a game finds the image.
+2. Export into the folder that holds the sheet image: the `image` field is just the image's file name, and the
+   image is not rewritten (its timestamp does not change).
+3. Export a project with cells from other images: the pack dialog opens, and after Pack the packed image is
+   written beside the descriptor and named after it, as before.
 ### [todo] T-036 Export the sprite sheet to a new location
 
 **Review:** reviewed 2026-09-19

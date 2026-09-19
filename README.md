@@ -162,10 +162,9 @@ continues. Cancelling either dialog cancels the export. Problems that a pack can
 are reported before the file dialog opens, so a pack never runs for an export that would be refused.
 
 Export refuses, writes no files, and lists the problems when the project has no sheet image, has a sheet image that
-could not be read, has no cells, has a cell
-with no width or height, has a clip with no steps, or has a step with a duration of 0 ms or with no cell. These are the
-things moth::gfx rejects or skips, so the game data never differs from the project without a warning. The same
-message shows when the descriptor cannot be written.
+could not be read, has no cells, has a cell with no width or height, has a clip with no steps, or has a step with a
+duration of 0 ms or with no cell. These are the things moth::gfx rejects or skips, so the game data never differs
+from the project without a warning. The same message shows when the descriptor cannot be written.
 
 ### Making cells
 
