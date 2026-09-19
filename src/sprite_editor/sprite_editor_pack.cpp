@@ -458,7 +458,7 @@ bool SpriteEditor::PackProject(PackSettings const& settings, std::string& error)
         [apply, before]() { apply(before); }
     ));
 
-    // As for Import Sheet.
+    // As for Import Spritesheet.
     m_selection.clear();
     m_selectedClip    = -1;
     m_clipPlaying     = false;

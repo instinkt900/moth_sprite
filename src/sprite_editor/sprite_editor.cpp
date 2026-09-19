@@ -223,8 +223,8 @@ void SpriteEditor::HandleShortcuts() {
 }
 
 void SpriteEditor::DrawMainMenuBar() {
-    // The Import Sheet dialog starts in the folder that an image dialog last used, and remembers the folder of the
-    // file chosen. The project dialogs do the same in LoadWithDialog and SaveProjectAs.
+    // The Import and Export Spritesheet dialogs start in the folder that an image dialog last used, and remember
+    // the folder of the file chosen. The project dialogs do the same in LoadWithDialog and SaveProjectAs.
     if (!ImGui::BeginMainMenuBar()) {
         return;
     }
@@ -285,8 +285,12 @@ void SpriteEditor::DrawMainMenuBar() {
             RedoSpriteAction();
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Import Sheet...", nullptr, false, m_spriteSheet != nullptr)) {
+        if (ImGui::MenuItem("Import Spritesheet...", nullptr, false, m_spriteSheet != nullptr)) {
             ImportSheetWithDialog();
+        }
+        // Exporting writes the sheet image file, so the project needs one.
+        if (ImGui::MenuItem("Export Spritesheet...", nullptr, false, m_imagePathBuffer[0] != '\0')) {
+            ExportSheetWithDialog();
         }
         ImGui::Separator();
         // Pivot rules apply to every selected cell, relative to each cell's own size.
@@ -401,8 +405,29 @@ void SpriteEditor::ImportSheetWithDialog() {
     }
 }
 
+void SpriteEditor::ExportSheetWithDialog() {
+    // The exported file keeps the format of the project's sheet image, so the dialog offers that type only, and a
+    // name typed without an extension gets it.
+    std::filesystem::path const sourcePath = m_imagePathBuffer;
+    std::string const extension = sourcePath.extension().string();
+    std::string const filter = extension.empty() ? std::string{} : extension.substr(1);
+    nfdchar_t* outPath = nullptr;
+    std::string const startDir = DialogFolder(m_config.LastImageDir, std::filesystem::current_path());
+    if (NFD_SaveDialog(filter.empty() ? nullptr : filter.c_str(), startDir.c_str(), &outPath) != NFD_OKAY
+        || outPath == nullptr) {
+        return;
+    }
+    std::filesystem::path imagePath = outPath;
+    NFD_Free(outPath);
+    if (imagePath.extension().empty()) {
+        imagePath += extension;
+    }
+    m_config.LastImageDir = imagePath.parent_path().string();
+    ExportSheet(imagePath);
+}
+
 void SpriteEditor::ImportCellsWithDialog() {
-    // The same image types and remembered folder as Import Sheet.
+    // The same image types and remembered folder as Import Spritesheet.
     nfdpathset_t pathSet{};
     std::string const startDir = DialogFolder(m_config.LastImageDir, std::filesystem::current_path());
     if (NFD_OpenDialogMultiple("png,jpg,jpeg,bmp", startDir.c_str(), &pathSet) != NFD_OKAY) {

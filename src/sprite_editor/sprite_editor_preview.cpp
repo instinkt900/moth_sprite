@@ -160,23 +160,29 @@ void SpriteEditor::DrawPreview() {
         return;
     }
 
-    // Import Sheet... does the same as Edit > Import Sheet.
-    char const* const kImportSheetLabel = "Import Sheet...";
+    // The two buttons do the same as Edit > Import Spritesheet and Edit > Export Spritesheet.
+    char const* const kImportSheetLabel = "Import Spritesheet...";
+    char const* const kExportSheetLabel = "Export Spritesheet...";
     auto const& image = m_spriteSheet->GetImage();
     if (!image) {
         if (ImGui::Button(kImportSheetLabel)) {
             ImportSheetWithDialog();
         }
-        ImGui::SetItemTooltip("Choose a sheet image (Edit > Import Sheet)");
+        ImGui::SetItemTooltip("Choose a sheet image (Edit > Import Spritesheet)");
         return;
     }
 
-    // The sheet image file the project uses. Read-only; Import Sheet... beside it imports another image.
+    // The sheet image file the project uses. Read-only; the buttons beside it import another image, or write this
+    // one somewhere else.
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Image");
     ImGui::SameLine();
-    float const importW = ImGui::CalcTextSize(kImportSheetLabel).x + (ImGui::GetStyle().FramePadding.x * 2.0f);
-    ImGui::SetNextItemWidth(-(importW + ImGui::GetStyle().ItemSpacing.x));
+    auto const buttonWidth = [](char const* label) {
+        return ImGui::CalcTextSize(label).x + (ImGui::GetStyle().FramePadding.x * 2.0f);
+    };
+    float const buttonsW = buttonWidth(kImportSheetLabel) + buttonWidth(kExportSheetLabel)
+                           + ImGui::GetStyle().ItemSpacing.x;
+    ImGui::SetNextItemWidth(-(buttonsW + ImGui::GetStyle().ItemSpacing.x));
     ImGui::InputText("##sheet_image_path", m_imagePathBuffer, sizeof(m_imagePathBuffer), ImGuiInputTextFlags_ReadOnly);
     ImGui::SameLine();
     if (ImGui::Button(kImportSheetLabel)) {
@@ -184,7 +190,14 @@ void SpriteEditor::DrawPreview() {
         ImportSheetWithDialog();
         return;
     }
-    ImGui::SetItemTooltip("Import a different sheet image (Edit > Import Sheet)");
+    ImGui::SetItemTooltip("Import a different sheet image (Edit > Import Spritesheet)");
+    ImGui::SameLine();
+    if (ImGui::Button(kExportSheetLabel)) {
+        // The export changes the image path drawn above, so stop drawing for this frame.
+        ExportSheetWithDialog();
+        return;
+    }
+    ImGui::SetItemTooltip("Write the sheet image to another file (Edit > Export Spritesheet)");
 
     float const imgW = static_cast<float>(image.GetWidth());
     float const imgH = static_cast<float>(image.GetHeight());

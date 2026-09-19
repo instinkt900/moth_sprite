@@ -84,7 +84,7 @@ restores the default layout and opens every window.
 
 | Window | Content |
 |---|---|
-| **Sheet** | The sheet image with every cell drawn over it. The sheet image path with **Import Sheet...**, New Cell, Fit and 1:1 are above it. |
+| **Sheet** | The sheet image with every cell drawn over it. The sheet image path with **Import Spritesheet...** and **Export Spritesheet...**, New Cell, Fit and 1:1 are above it. |
 | **Selected Cell** | Clip playback buttons, and the prime cell (see [Selecting and editing cells](#selecting-and-editing-cells)) with its pivot. With a clip selected, it previews the clip. |
 | **Cells** | **Import...** (see [Cells from other images](#cells-from-other-images)), the list of cells, each with a thumbnail, its index, offset and size, and a form for the prime cell below. |
 | **Clips** | Clip playback buttons, a new clip row, and each clip as a timeline of steps. |
@@ -107,12 +107,16 @@ The **File** menu has:
 | **Export As...** | Export to a new file name, which becomes the project's export path. |
 | **Exit** | Quit. |
 
-**Edit > Import Sheet...** uses a different sheet image (`png`, `jpg`, `jpeg` or `bmp`). Cells and clips are kept.
+**Edit > Import Spritesheet...** uses a different sheet image (`png`, `jpg`, `jpeg` or `bmp`). Cells and clips are
+kept. **Edit > Export Spritesheet...** writes the project's sheet image to another file, chosen in a save dialog. It
+writes no JSON, keeps the format of the image, and the exported file becomes the project's sheet image, as one undo
+step, so the project has unsaved changes. It is enabled when the project has a sheet image.
 **Tools > Pack...** packs every cell into a new sheet image (see [Packing](#packing)); it is enabled when the project
 has cells.
 
-The **Import Sheet...** button in the Sheet window does the same as **Edit > Import Sheet**. Without a sheet image it is
-the only thing in the window; with one, it is next to the image path.
+The **Import Spritesheet...** and **Export Spritesheet...** buttons in the Sheet window do the same as the two Edit
+items. Without a sheet image, **Import Spritesheet...** is the only thing in the window; with one, both are next to
+the image path.
 
 A project can be saved without a sheet image. The window title shows the project's file name, and ` *` when it has
 unsaved changes. New, Open, Open Recent and quitting ask whether to save unsaved changes first.
@@ -255,8 +259,8 @@ step's cell as it plays. The Selected Cell window places each step's cell on its
 ### Undo
 
 **Edit > Undo** (Ctrl+Z) and **Edit > Redo** (Ctrl+Y) cover every change to cells, pivots, clips and steps, and
-**Import Sheet**, **Pack**, and a change of the export path. Typing in a field, or a drag, is one undo step. New, Open and Open Recent clear
-the undo history.
+**Import Spritesheet**, **Export Spritesheet**, **Pack**, and a change of the export path. Typing in a field, or a
+drag, is one undo step. New, Open and Open Recent clear the undo history.
 
 ### Keyboard shortcuts
 

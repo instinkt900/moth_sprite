@@ -407,7 +407,7 @@ void SpriteEditor::DrawCellWindow() {
     bool const primeInRange = prime >= 0 && prime < static_cast<int>(m_frames.size());
     bool const hasSheetImage = m_spriteSheet && m_spriteSheet->GetImage();
     if (!hasSheetImage && !(primeInRange && m_frames[prime].source)) {
-        ImGui::TextDisabled("Use Edit > Import Sheet to add a sheet image.");
+        ImGui::TextDisabled("Use Edit > Import Spritesheet to add a sheet image.");
         return;
     }
     if (!primeInRange) {

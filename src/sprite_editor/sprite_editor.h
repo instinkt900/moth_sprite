@@ -121,8 +121,14 @@ private:
     bool SaveProjectAs();
     // Replace the sheet image, keeping the cells and clips, as one undoable action.
     void ImportSheet(std::filesystem::path const& imagePath);
-    // Edit > Import Sheet and the Sheet window's Import Sheet button: choose an image in a dialog, then import it.
+    // Edit > Import Spritesheet and the Sheet window's button: choose an image in a dialog, then import it.
     void ImportSheetWithDialog();
+    // Write the project's sheet image to imagePath, then make it the project's sheet image as one undoable action.
+    // Nothing changes when the file cannot be written; the export message says why.
+    void ExportSheet(std::filesystem::path const& imagePath);
+    // Edit > Export Spritesheet and the Sheet window's button: choose a file in a dialog, then export the sheet
+    // image to it. The file keeps the format of the project's sheet image, so no image is re-encoded.
+    void ExportSheetWithDialog();
     // Add one cell for each image, at the end of the cell list, as one undoable action. Each cell is the whole image
     // with its pivot at (0, 0). An image that does not load is skipped; when none load, nothing changes.
     void ImportCells(std::vector<std::filesystem::path> const& imagePaths);

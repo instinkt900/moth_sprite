@@ -467,6 +467,40 @@ void SpriteEditor::ImportSheet(std::filesystem::path const& imagePath) {
     m_clipElapsedMs   = 0.0f;
 }
 
+void SpriteEditor::ExportSheet(std::filesystem::path const& imagePath) {
+    std::filesystem::path const sourcePath = m_imagePathBuffer;
+    std::error_code ec;
+    // Exporting the sheet image over itself needs no copy, and would empty the file.
+    if (!std::filesystem::equivalent(sourcePath, imagePath, ec)) {
+        ec.clear();
+        std::filesystem::copy_file(sourcePath, imagePath, std::filesystem::copy_options::overwrite_existing, ec);
+        if (ec) {
+            std::string message = fmt::format("Could not write the sheet image '{}' to '{}': {}", sourcePath.string(),
+                                              imagePath.string(), ec.message());
+            moth::core::log::error("SpriteEditor: {}", message);
+            ShowExportMessage("The sprite sheet could not be exported:", { std::move(message) });
+            return;
+        }
+    }
+    moth::core::log::info("SpriteEditor: exported the sheet image to '{}'", imagePath.string());
+
+    // The project uses the exported file from now on, as one undoable action. Undo does not remove the file.
+    std::string const exportedPath = imagePath.string();
+    std::string const previousPath = m_imagePathBuffer;
+    if (exportedPath == previousPath) {
+        return;
+    }
+    auto const setPath = [this](std::string const& path) {
+        strncpy(m_imagePathBuffer, path.c_str(), sizeof(m_imagePathBuffer) - 1);
+        m_imagePathBuffer[sizeof(m_imagePathBuffer) - 1] = '\0';
+    };
+    setPath(exportedPath);
+    AddSpriteAction(std::make_unique<BasicAction>(
+        [setPath, exportedPath]() { setPath(exportedPath); },
+        [setPath, previousPath]() { setPath(previousPath); }
+    ));
+}
+
 std::vector<std::string> SpriteEditor::ExportProblems(bool beforePack) const {
     // Everything that SpriteSheetFactory rejects or skips, so the game data never differs from the project.
     std::vector<std::string> problems;
