@@ -50,8 +50,8 @@ Ctrl+click or a selection box, and move them together.
 **Cell generation:** add a regular grid of cells in one step, or detect cells from the image's pixels by alpha or by a
 background color, with a live preview before the cells are added.
 
-**Pivots:** set each cell's pivot by clicking in a zoomable preview of the cell, by typing it, or with nine presets
-that apply to every selected cell.
+**Pivots:** set each cell's pivot in the Pivot mode of a zoomable preview of the cell, by typing it, or with nine
+presets that apply to every selected cell.
 
 **Animation clips:** build clips as timelines of steps, each with a cell and a duration. Reorder steps by dragging,
 change a step's cell by picking it on the sheet, and choose Stop, Reset or Loop playback.
@@ -85,7 +85,7 @@ restores the default layout and opens every window.
 | Window | Content |
 |---|---|
 | **Sheet** | The sheet image with every cell drawn over it. The sheet image path with **Import Spritesheet...** and **Export Spritesheet...**, New Cell, Fit and 1:1 are above it. |
-| **Selected Cell** | Clip playback buttons, and the prime cell (see [Selecting and editing cells](#selecting-and-editing-cells)) with its pivot. With a clip selected, it previews the clip. |
+| **Selected Cell** | Clip playback buttons, and the prime cell (see [Selecting and editing cells](#selecting-and-editing-cells)) with its pivot. Pivot, Fit and 1:1 are above it. With a clip selected, it previews the clip. |
 | **Cells** | **Import...** (see [Cells from other images](#cells-from-other-images)), the list of cells, each with a thumbnail, its index, offset and size, and a form for the prime cell below. |
 | **Clips** | Clip playback buttons, a new clip row, and each clip as a timeline of steps. |
 
@@ -232,7 +232,10 @@ clip steps that use the cells after it.
 
 A pivot is a point relative to the cell's top-left corner. Set it in one of these ways:
 
-- Click or drag on the cell in the **Selected Cell** window.
+- Turn on **Pivot** in the Selected Cell window's toolbar, then click or drag on the cell. The button is
+  highlighted and the toolbar says what a drag does while the mode is on. The mode stays on until the button is
+  pressed again or Esc ends it, and it is off every time the editor starts. With it off, a click on the cell does
+  nothing, so the pivot cannot be moved by accident.
 - Type it in the Cells form.
 - Use the nine **Pivot presets** buttons in the Cells form, or **Edit > Pivot**. These set the pivot of every selected
   cell, relative to each cell's own size: top left, top center, top right, and so on to bottom right.
@@ -277,7 +280,7 @@ Shortcuts do not work while a text field is being edited or a dialog is open.
 | Ctrl+Y | Redo |
 | Ctrl+A | Select every cell |
 | Delete | Delete the selected cells, or the current clip step when the Clips window is focused |
-| Esc | Cancel picking a cell for a step, else end New Cell, else clear the selection |
+| Esc | Cancel picking a cell for a step, else end New Cell, else end Pivot mode, else clear the selection |
 
 ### Preferences and editor settings
 

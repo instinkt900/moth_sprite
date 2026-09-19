@@ -461,7 +461,19 @@ void SpriteEditor::DrawCellWindow() {
         fitZoom();
     }
 
-    // Toolbar
+    // Toolbar. Pivot comes first, where New Cell is in the Sheet window, so the zoom text changing width does not
+    // move it.
+    if (m_pivotEditMode) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+    }
+    if (ImGui::Button("Pivot")) {
+        m_pivotEditMode = !m_pivotEditMode;
+    }
+    if (m_pivotEditMode) {
+        ImGui::PopStyleColor();
+    }
+    ImGui::SetItemTooltip("Set the cell's pivot by clicking or dragging on it");
+    ImGui::SameLine();
     if (ImGui::Button("Fit")) {
         fitZoom();
     }
@@ -471,8 +483,12 @@ void SpriteEditor::DrawCellWindow() {
     }
     ImGui::SameLine();
     ImGui::Text("%.0f%%", m_cellZoom * 100.0f);
+    if (m_pivotEditMode) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("Drag on the cell to set its pivot (Esc to end)");
+    }
 
-    // Scrollable canvas. Click or drag on the cell to set its pivot.
+    // Scrollable canvas. In Pivot mode, a click or drag on the cell sets its pivot.
     ImGui::BeginChild("##cell_canvas", ImVec2{ 0.0f, std::max(canvasH, 1.0f) }, ImGuiChildFlags_None,
                       ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ZoomWithMouseWheel(m_cellZoom);
@@ -500,15 +516,16 @@ void SpriteEditor::DrawCellWindow() {
     }
 
     // InvisibleButton over the cell so ImGui owns the left-button press
-    // and the window cannot start a drag.
+    // and the window cannot start a drag. Outside Pivot mode it does nothing else, so a stray click on the cell
+    // leaves the pivot alone. A drag that is still running when the mode ends keeps its undo step.
     ImGui::SetCursorScreenPos(imagePos);
     ImGui::InvisibleButton("##pivot_drag_area", ImVec2{ dispW, dispH });
 
-    if (ImGui::IsItemActivated()) {
+    if (m_pivotEditMode && ImGui::IsItemActivated()) {
         m_pivotDragSnapshot = m_frames;
         m_pivotDragging = true;
     }
-    if (ImGui::IsItemActive()) {
+    if (m_pivotDragging && ImGui::IsItemActive()) {
         ImVec2 const mouse = ImGui::GetMousePos();
         fr.pivot.x = static_cast<int>(std::round(std::clamp((mouse.x - imagePos.x) / zoom, 0.0f, static_cast<float>(fr.rect.w()))));
         fr.pivot.y = static_cast<int>(std::round(std::clamp((mouse.y - imagePos.y) / zoom, 0.0f, static_cast<float>(fr.rect.h()))));

@@ -361,6 +361,10 @@ private:
     };
     std::optional<BoxSelectState> m_boxSelect;
 
+    // "Pivot" mode: a click or drag on the Selected Cell window's canvas sets the prime cell's pivot. With the mode
+    // off, such a click does nothing. It is off at every start and is not saved to moth_sprite.json.
+    bool m_pivotEditMode = false;
+
     // "New Cell" mode: the next click-drag on the preview canvas draws a new frame rect.
     bool m_newCellMode = false;
     std::optional<moth::gfx::IntVec2> m_newCellAnchor; // image-space drag start, set while dragging

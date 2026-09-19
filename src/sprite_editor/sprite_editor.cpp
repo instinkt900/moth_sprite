@@ -212,13 +212,16 @@ void SpriteEditor::HandleShortcuts() {
             DeleteFrames(m_selection);
         }
     }
-    // Esc cancels one thing: picking a cell for a clip step, else New Cell drawing, else the selection.
+    // Esc cancels one thing: picking a cell for a clip step, else New Cell drawing, else Pivot mode, else the
+    // selection.
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
         if (m_cellPick.has_value()) {
             m_cellPick.reset();
         } else if (m_newCellMode) {
             m_newCellMode = false;
             m_newCellAnchor.reset();
+        } else if (m_pivotEditMode) {
+            m_pivotEditMode = false;
         } else if (!m_frameDrag.has_value() && !m_boxSelect.has_value()) {
             m_selection.clear();
         }
@@ -625,6 +628,10 @@ void SpriteEditor::Draw() {
     if (!(m_spriteSheet && m_spriteSheet->GetImage()) || !m_config.ShowSheetWindow) {
         m_newCellMode = false;
         m_newCellAnchor.reset();
+    }
+    // Pivot mode works on the canvas of the Selected Cell window, so it can't outlive it either.
+    if (!m_config.ShowCellWindow) {
+        m_pivotEditMode = false;
     }
 
     DrawMainMenuBar();
