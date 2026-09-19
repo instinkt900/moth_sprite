@@ -289,7 +289,7 @@ Assumptions:
 5. The Cells form's Pivot X and Y fields, the nine presets and Edit > Pivot work whether the mode is on or off.
 6. Quit with the mode on and start the editor again: the mode is off, and `moth_sprite.json` has no entry for it.
 
-### [todo] T-032 Unpack cells to their own images
+### [done] T-032 Unpack cells to their own images
 
 **Review:** reviewed 2026-09-19
 
@@ -299,15 +299,15 @@ Assumptions:
 Add an unpack step which can save cells out as their own images.
 
 **Requirements:**
-- [ ] `Tools > Unpack...` opens a dialog, beside `Tools > Pack...`. It is disabled when the project has no cells.
-- [ ] The dialog asks for the output folder and the image format, offering the same formats as the pack dialog
+- [x] `Tools > Unpack...` opens a dialog, beside `Tools > Pack...`. It is disabled when the project has no cells.
+- [x] The dialog asks for the output folder and the image format, offering the same formats as the pack dialog
       (PNG, BMP, TGA, JPEG, with the JPEG quality).
-- [ ] Unpack writes every cell as its own image, in cell order.
-- [ ] The files are named after the sheet image with a zero-padded cell number, for example `hero_000.png`, so the
+- [x] Unpack writes every cell as its own image, in cell order.
+- [x] The files are named after the sheet image with a zero-padded cell number, for example `hero_000.png`, so the
       names keep the cell order, as packing already names the cells it packs.
-- [ ] Before Unpack is pressed, the dialog says how many files in the folder would be overwritten. Unpack then
+- [x] Before Unpack is pressed, the dialog says how many files in the folder would be overwritten. Unpack then
       overwrites them, as the pack dialog warns about overwriting a source image.
-- [ ] Unpack writes files only. The cells, the sheet image and the clips do not change, nothing is added to the
+- [x] Unpack writes files only. The cells, the sheet image and the clips do not change, nothing is added to the
       undo stack, and the project is not marked as unsaved.
 
 **Out of scope:**
@@ -324,10 +324,33 @@ Add an unpack step which can save cells out as their own images.
   Unpack overwrites them.
 
 **Notes:**
+The cell pixels and the image writing that Pack already had are now `CellPixels` and `WriteImageFile` in
+`sheet_packing.*`, which Unpack uses as well. `PackCells` and `WritePackedSheet` do the same as before through
+them.
+
+Assumptions:
+- The cell numbers are zero-padded to three digits, and to more for a project with more than 1000 cells, so the
+  names always keep the cell order.
+- A project with no sheet image is named after the project file, and an untitled one after "cells".
+- The dialog refuses an empty folder and a folder that does not exist, as the pack dialog refuses an empty path.
+- Every cell is checked before any file is written, so a project with a cell of size 0 or a cell whose image
+  cannot be read writes nothing. A file that cannot be written stops the unpack there, and the dialog says why;
+  the files written before it stay.
+- The dialog's settings, including the folder, are kept between openings, as the grid and detect tools keep
+  theirs.
 
 **Commits:**
+- `1a9ec5a` feat(T-032): Tools > Unpack writes every cell as its own image
 
 **Manual verification:**
+1. Open a project with cells, Tools > Unpack..., choose an empty folder and press Unpack: one file per cell,
+   named `<sheet image name>_000.png` upwards, in cell order.
+2. Open the dialog again on the same folder: it says how many files will be overwritten. Press Unpack: they are
+   overwritten.
+3. Choose JPEG, with a quality: the files are `.jpg`.
+4. With a new, empty project, Tools > Unpack... is greyed out.
+5. After an unpack, the title bar shows no unsaved changes and Ctrl+Z undoes whatever came before the unpack, not
+   the unpack.
 
 ### [todo] T-034 Multi-select clip frames
 
