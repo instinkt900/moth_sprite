@@ -161,7 +161,8 @@ after the descriptor: `hero.json` packs to `hero.png`. Nothing is written until 
 continues. Cancelling either dialog cancels the export. Problems that a pack cannot fix, such as a clip with no steps,
 are reported before the file dialog opens, so a pack never runs for an export that would be refused.
 
-Export refuses, writes no files, and lists the problems when the project has no sheet image, has no cells, has a cell
+Export refuses, writes no files, and lists the problems when the project has no sheet image, has a sheet image that
+could not be read, has no cells, has a cell
 with no width or height, has a clip with no steps, or has a step with a duration of 0 ms or with no cell. These are the
 things moth::gfx rejects or skips, so the game data never differs from the project without a warning. The same
 message shows when the descriptor cannot be written.
@@ -333,8 +334,14 @@ A sprite sheet descriptor is the JSON file that moth::gfx loads as a `SpriteShee
 `export_path`. Frame indices follow the project's cell order. Projects saved before the `.mothsprite` format are descriptors.
 
 **File > Open** opens a descriptor (`.json`) as a new project: the project has no file name and has unsaved changes,
-so the first save asks for a `.mothsprite` file name and never writes over the descriptor. A descriptor that
-moth::gfx does not load is not opened. Opened descriptors are not added to Open Recent.
+so the first save asks for a `.mothsprite` file name and never writes over the descriptor. Opened descriptors are
+not added to Open Recent.
+
+The editor reads a descriptor itself, so it opens files that games reject: it keeps clips with no steps, 0 ms steps
+and steps whose cell does not exist, and it opens a descriptor whose sheet image cannot be read, with the cells,
+the clips and the image path, and a warning in the log. It does not open a file it cannot parse, one with no
+`image` field, or one with no cells. A project whose sheet image could not be read cannot be exported until the
+image is there again.
 
 moth::gfx loads a descriptor with at least one cell. It skips a clip that has no steps, or a step whose duration is
 0 or whose cell does not exist.
