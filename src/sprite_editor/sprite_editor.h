@@ -129,12 +129,12 @@ private:
     // The Cells window's Import button: choose images in a dialog, then import them as cells.
     void ImportCellsWithDialog();
     // File > Export (choosePath false) and File > Export As (choosePath true): write the sprite sheet descriptor
-    // that games load, and copy the sheet image beside it. Export uses the project's export path, and chooses one in
-    // a dialog when there is none. A new export path is set as one undoable action after a successful export.
+    // that games load, which names the project's sheet image where it is. Export uses the project's export path,
+    // and chooses one in a dialog when there is none. A new export path is set as one undoable action after a successful export.
     // Refuses, writing no files, when ExportProblems finds any. A project with cells from other images gets its path
     // first, then the pack dialog, and is exported after a successful pack.
     void ExportProject(bool choosePath);
-    // Write the descriptor to exportPath (absolute) and copy the sheet image beside it, then set the export path.
+    // Write the descriptor to exportPath (absolute), then set the export path. No image is written.
     void ExportToPath(std::filesystem::path const& exportPath);
     // What stops the project from being exported as game data, one message each. Empty when it can be exported.
     // beforePack leaves out the problems a pack fixes or refuses by itself (no sheet image, cell sizes).
