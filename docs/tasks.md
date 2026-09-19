@@ -128,7 +128,7 @@ The export message no longer has a case for an image that could not be copied, b
    image is not rewritten (its timestamp does not change).
 3. Export a project with cells from other images: the pack dialog opens, and after Pack the packed image is
    written beside the descriptor and named after it, as before.
-### [todo] T-036 Export the sprite sheet to a new location
+### [done] T-036 Export the sprite sheet to a new location
 
 **Review:** reviewed 2026-09-19
 
@@ -140,12 +140,12 @@ to achieve this behaviour is to repack the sheet. The option sits beside each im
 as a button in the window.
 
 **Requirements:**
-- [ ] An export option sits beside the sheet image import, both as `Edit > Export Spritesheet...` and as a button
+- [x] An export option sits beside the sheet image import, both as `Edit > Export Spritesheet...` and as a button
       in the Sheet window beside its Import button.
-- [ ] The sheet image options are named "Import Spritesheet" and "Export Spritesheet", to tell them apart from
+- [x] The sheet image options are named "Import Spritesheet" and "Export Spritesheet", to tell them apart from
       exporting the project (File > Export).
-- [ ] Export writes the sprite sheet image to a location chosen in a save dialog, and writes no JSON.
-- [ ] After a successful export the project's sheet image path is the exported file, as one undoable action, so
+- [x] Export writes the sprite sheet image to a location chosen in a save dialog, and writes no JSON.
+- [x] After a successful export the project's sheet image path is the exported file, as one undoable action, so
       the project is marked as unsaved.
 
 **Out of scope:**
@@ -159,10 +159,28 @@ as a button in the window.
   exported file, as one undoable action, which marks the project as unsaved.
 
 **Notes:**
+Assumptions:
+- The export copies the sheet image file rather than re-encoding it, so the exported file keeps the format of the
+  project's image. The save dialog therefore offers that one file type, and a name typed with no extension gets
+  the image's own. Converting between formats stays the pack dialog's job.
+- `Edit > Export Spritesheet...` is enabled when the project has a sheet image path. The Sheet window's button is
+  drawn beside Import only when the sheet image is loaded, as the image path row itself is.
+- Exporting over the project's own sheet image writes nothing and changes nothing, because the copy would empty
+  the file it reads.
+- A file that cannot be written is reported in the export message popup, the one File > Export uses.
 
 **Commits:**
+- `6b7101b` feat(T-036): Export Spritesheet writes the sheet image to a new file
 
 **Manual verification:**
+1. Open a project with a sheet image. Edit shows "Import Spritesheet..." and "Export Spritesheet...", and the
+   Sheet window has both buttons beside the image path.
+2. Edit > Export Spritesheet..., choose a new folder and name: the image file is written there, no JSON is
+   written, the Sheet window's image path is the new file, and the title bar shows unsaved changes.
+3. Ctrl+Z: the image path goes back to the previous file, and the exported file is still on disk. Ctrl+Y puts it
+   back.
+4. With a new, empty project, Edit > Export Spritesheet... is greyed out.
+5. Export to a file name typed without an extension: the file gets the sheet image's extension.
 
 ### [todo] T-037 Preview image filtering option
 
