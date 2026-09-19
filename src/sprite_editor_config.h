@@ -2,6 +2,7 @@
 
 #include <moth/core/vector_serialization.h>
 #include <moth/graphics/graphics/color.h>
+#include <moth/graphics/graphics/texture_filter.h>
 
 #include <nlohmann/json.hpp>
 
@@ -16,6 +17,8 @@ struct SpriteEditorConfig {
     int SpriteEditorRectThickness = 1;
     // The background behind the image in every preview window. Alpha 0 draws a gray and white checkerboard.
     moth::gfx::Color PreviewBackgroundColor = moth::gfx::Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+    // How every preview image is filtered when it is drawn at another size than its own.
+    moth::gfx::TextureFilter PreviewFilter = moth::gfx::TextureFilter::Nearest;
     // Whether each editor window is open. Toggled from the Window menu.
     bool ShowSheetWindow = true;
     bool ShowCellWindow = true;
@@ -29,12 +32,18 @@ struct SpriteEditorConfig {
     std::string LastImageDir;
 };
 
+// The names of the filters in moth_sprite.json, in the order of moth::gfx::TextureFilter.
+inline char const* PreviewFilterName(moth::gfx::TextureFilter filter) {
+    return filter == moth::gfx::TextureFilter::Linear ? "linear" : "nearest";
+}
+
 inline void to_json(nlohmann::json& j, SpriteEditorConfig const& config) {
     j["SpriteEditorNormalColor"] = config.SpriteEditorNormalColor;
     j["SpriteEditorSelectedColor"] = config.SpriteEditorSelectedColor;
     j["SpriteEditorPrimeColor"] = config.SpriteEditorPrimeColor;
     j["SpriteEditorRectThickness"] = config.SpriteEditorRectThickness;
     j["PreviewBackgroundColor"] = config.PreviewBackgroundColor;
+    j["PreviewFilter"] = PreviewFilterName(config.PreviewFilter);
     j["ShowSheetWindow"] = config.ShowSheetWindow;
     j["ShowCellWindow"] = config.ShowCellWindow;
     j["ShowCellListWindow"] = config.ShowCellListWindow;
@@ -50,6 +59,10 @@ inline void from_json(nlohmann::json const& j, SpriteEditorConfig& config) {
     config.SpriteEditorPrimeColor = j.value("SpriteEditorPrimeColor", config.SpriteEditorPrimeColor);
     config.SpriteEditorRectThickness = std::max(j.value("SpriteEditorRectThickness", config.SpriteEditorRectThickness), 1);
     config.PreviewBackgroundColor = j.value("PreviewBackgroundColor", config.PreviewBackgroundColor);
+    // Any name that is not "linear", including a missing field, is Nearest.
+    config.PreviewFilter = j.value("PreviewFilter", std::string{ PreviewFilterName(config.PreviewFilter) }) == "linear"
+                               ? moth::gfx::TextureFilter::Linear
+                               : moth::gfx::TextureFilter::Nearest;
     config.ShowSheetWindow = j.value("ShowSheetWindow", config.ShowSheetWindow);
     config.ShowCellWindow = j.value("ShowCellWindow", config.ShowCellWindow);
     config.ShowCellListWindow = j.value("ShowCellListWindow", config.ShowCellListWindow);

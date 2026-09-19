@@ -100,6 +100,9 @@ void SpriteEditor::NewSpriteSheet() {
 void SpriteEditor::DrawImage(moth::gfx::Image const& image, moth::gfx::IntVec2 const& size,
                              moth::gfx::FloatVec2 const& uv0, moth::gfx::FloatVec2 const& uv1) {
     if (image) {
+        // Every preview draws through here, so the Preferences filtering is set on each one as it is drawn. The
+        // filter is only recorded on the texture, so setting it again each frame costs nothing.
+        image.GetTexture()->SetFilter(m_config.PreviewFilter, m_config.PreviewFilter);
         m_imgui.Image(*image.GetTexture(), size, uv0, uv1);
     }
 }
@@ -335,6 +338,15 @@ void SpriteEditor::DrawMainMenuBar() {
             // Shared by every preview window. Alpha 0 shows a checkerboard.
             ImGui::ColorEdit4("Preview background##pref", cfg.PreviewBackgroundColor.data,
                               ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
+            // How every preview image is scaled. Nearest keeps the pixels of a zoomed sprite sheet sharp.
+            static constexpr std::array<char const*, 2> kPreviewFilterLabels{ "Nearest", "Linear" };
+            int filterIndex = cfg.PreviewFilter == moth::gfx::TextureFilter::Linear ? 1 : 0;
+            ImGui::SetNextItemWidth(120.0f);
+            if (ImGui::Combo("Preview filtering##pref", &filterIndex, kPreviewFilterLabels.data(),
+                             static_cast<int>(kPreviewFilterLabels.size()))) {
+                cfg.PreviewFilter = filterIndex == 1 ? moth::gfx::TextureFilter::Linear
+                                                     : moth::gfx::TextureFilter::Nearest;
+            }
             ImGui::EndMenu();
         }
         ImGui::EndMenu();

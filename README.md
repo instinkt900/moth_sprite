@@ -281,8 +281,11 @@ Shortcuts do not work while a text field is being edited or a dialog is open.
 
 ### Preferences and editor settings
 
-**Edit > Preferences** sets the normal, selected and prime cell border colors, the border thickness, and the preview
-background color. A background color with alpha 0 shows a gray and white checkerboard.
+**Edit > Preferences** sets the normal, selected and prime cell border colors, the border thickness, the preview
+background color and the preview filtering. A background color with alpha 0 shows a gray and white checkerboard.
+**Preview filtering** is **Nearest** or **Linear**, and applies to every preview image: the sheet, the selected
+cell, the cell and clip thumbnails and the pack preview. Nearest, the default, keeps the pixels of a zoomed image
+sharp. The filtering changes how the editor draws, nothing in the project.
 
 The editor keeps its settings in `moth_sprite.json` and its window layout in `imgui.ini`, both in the folder it is
 started from.
