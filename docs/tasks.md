@@ -229,7 +229,7 @@ their format. Any other name, and a missing field, reads as Nearest.
    "linear"`.
 4. Delete `moth_sprite.json` and start the editor: the filtering is Nearest.
 
-### [todo] T-033 Lock pivot editing behind a mode
+### [done] T-033 Lock pivot editing behind a mode
 
 **Review:** reviewed 2026-09-19
 
@@ -239,14 +239,14 @@ their format. Any other name, and a missing field, reads as Nearest.
 It's too easy to accidentally click on the cell preview and move the pivot. Lock it behind a button/mode.
 
 **Requirements:**
-- [ ] Clicking or dragging on the Selected Cell window's preview moves the pivot only while pivot editing is on.
+- [x] Clicking or dragging on the Selected Cell window's preview moves the pivot only while pivot editing is on.
       With it off, the click does nothing.
-- [ ] A "Pivot" toggle button turns it on and off. It is the first button of the Selected Cell window's toolbar,
+- [x] A "Pivot" toggle button turns it on and off. It is the first button of the Selected Cell window's toolbar,
       before Fit and 1:1, in the place New Cell has in the Sheet window's toolbar.
-- [ ] The mode stays on until it is turned off. Esc turns it off, as it cancels New Cell mode.
-- [ ] While the mode is on, the toolbar shows it: the button is highlighted and a hint beside the zoom reads that
+- [x] The mode stays on until it is turned off. Esc turns it off, as it cancels New Cell mode.
+- [x] While the mode is on, the toolbar shows it: the button is highlighted and a hint beside the zoom reads that
       dragging on the cell sets the pivot, as New Cell mode does.
-- [ ] The mode is off every time the editor starts. It is not saved to `moth_sprite.json`.
+- [x] The mode is off every time the editor starts. It is not saved to `moth_sprite.json`.
 
 **Out of scope:**
 - The other ways to set a pivot. The Cells form's Pivot X and Y fields, the 3x3 preset grid and Edit > Pivot keep
@@ -265,10 +265,29 @@ It's too easy to accidentally click on the cell preview and move the pivot. Lock
 - Q: What does a click on the preview do while the mode is off? A: Nothing.
 
 **Notes:**
+The canvas keeps its invisible button whether the mode is on or off, so a click on the cell is still swallowed and
+cannot start anything else; only the pivot update is behind the mode. A drag that is running when the mode ends
+stops following the mouse but still leaves one undo step for what it moved.
+
+Assumptions:
+- The button is called "Pivot", and is highlighted by drawing it in the active button colour while the mode is on.
+  New Cell disables its button instead, which cannot show a mode that is turned off by pressing the button again.
+- The hint reads "Drag on the cell to set its pivot (Esc to end)", beside the zoom, as New Cell's hint is.
+- Esc ends Pivot mode after picking a cell and New Cell, and before clearing the selection.
+- Closing the Selected Cell window ends the mode, as closing the Sheet window ends New Cell.
 
 **Commits:**
+- `63362d0` feat(T-033): lock pivot editing behind a Pivot mode
 
 **Manual verification:**
+1. Select a cell. Click and drag on the cell in the Selected Cell window: the pivot does not move.
+2. Press Pivot: the button is highlighted and the toolbar reads "Drag on the cell to set its pivot (Esc to end)".
+   Click on the cell: the pivot moves there. Drag: the pivot follows, and Ctrl+Z undoes the whole drag.
+3. The mode stays on across clicks and cell changes. Press Pivot again, or Esc, to end it; the hint goes away and
+   clicks on the cell do nothing again.
+4. With Pivot on, press Esc while picking a cell for a clip step: the pick is cancelled and Pivot is still on.
+5. The Cells form's Pivot X and Y fields, the nine presets and Edit > Pivot work whether the mode is on or off.
+6. Quit with the mode on and start the editor again: the mode is off, and `moth_sprite.json` has no entry for it.
 
 ### [todo] T-032 Unpack cells to their own images
 
