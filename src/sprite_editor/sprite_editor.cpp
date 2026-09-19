@@ -86,6 +86,9 @@ void SpriteEditor::NewSpriteSheet() {
     m_clips.clear();
     m_selection.clear();
     m_selectedClip    = -1;
+    m_stepSelectionClip = -1;
+    m_stepSelection.clear();
+    m_stepSelectionAnchor = -1;
     m_clipPlaying     = false;
     m_clipCurrentStep = 0;
     m_clipElapsedMs   = 0.0f;
@@ -206,8 +209,13 @@ void SpriteEditor::HandleShortcuts() {
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
         if (m_clipWindowFocused) {
-            // In the Clips window, Delete removes the selected clip's current step and never removes cells.
-            DeleteClipStep(m_selectedClip, m_clipCurrentStep);
+            // In the Clips window, Delete removes the selected steps of a timeline, else the selected clip's
+            // current step, and never removes cells.
+            if (!m_stepSelection.empty()) {
+                DeleteSelectedClipSteps();
+            } else {
+                DeleteClipStep(m_selectedClip, m_clipCurrentStep);
+            }
         } else {
             DeleteFrames(m_selection);
         }

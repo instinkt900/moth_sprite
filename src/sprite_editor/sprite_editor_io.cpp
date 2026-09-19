@@ -277,6 +277,9 @@ void SpriteEditor::ReplaceProject(std::shared_ptr<moth::gfx::SpriteSheet> sheet,
     ClearSpriteActions();
     m_selection.clear();
     m_selectedClip = -1;
+    m_stepSelectionClip = -1;
+    m_stepSelection.clear();
+    m_stepSelectionAnchor = -1;
     m_clipPlaying = false;
     m_clipCurrentStep = 0;
     m_clipElapsedMs = 0.0f;

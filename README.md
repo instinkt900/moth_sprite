@@ -271,6 +271,19 @@ In the **Clips** window:
 - Double-click a step, then select a cell on the sheet or in the Cells list, to change the step's cell. Esc cancels.
 - Click a step to go to it. With the Clips window focused, Delete removes the current step.
 
+More than one step of a clip can be selected. A selection is within one clip, and the selected steps are outlined
+in the selected cell colour:
+
+- Click a step to select it alone, and go to it. Ctrl+click adds or removes a step, and Shift+click selects the
+  range from the last step clicked without a modifier, as the Cells window works.
+- Dragging a selected step moves every selected step to where it is dropped, keeping their order. Dragging an
+  unselected step moves that step alone.
+- The **x** of a selected step removes every selected step, and so does Delete while the Clips window is focused.
+- Typing a duration under a selected step gives every selected step that duration. **Set all** still applies to
+  every step of the clip.
+
+A multi-step move, delete or duration change is one undo step.
+
 **Play**/**Pause**, **Step** and **Reset** are in both the Clips and the Selected Cell windows. Playback selects each
 step's cell as it plays. The Selected Cell window places each step's cell on its pivot inside the clip's bounds.
 

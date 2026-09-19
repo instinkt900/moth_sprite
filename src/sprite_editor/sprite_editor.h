@@ -211,6 +211,18 @@ private:
     void SelectClip(int clipIndex);
     // Remove one step from a clip as one undoable action. Playback stays on a step that still exists.
     void DeleteClipStep(int clipIndex, int stepIndex);
+    // Whether a step is in the timeline selection.
+    bool IsStepSelected(int clipIndex, int stepIndex) const;
+    // A click on a step of a timeline. A plain click selects that step alone, Ctrl+click adds or removes it, and
+    // Shift+click selects the range from the last step clicked without a modifier, as the Cells window works.
+    void ClickClipStep(int clipIndex, int stepIndex, bool ctrl, bool shift);
+    // Drop the timeline selection when it no longer names steps that exist, for example after an undo.
+    void ValidateStepSelection();
+    // Remove every selected step of the timeline selection as one undoable action.
+    void DeleteSelectedClipSteps();
+    // Move every selected step of a clip to the position of the step at 'to', keeping their order, as one undoable
+    // action. The moved steps stay selected.
+    void MoveSelectedClipSteps(int clipIndex, int to);
     // Select only this cell (-1 clears the selection) from the cell list or the sheet. While picking a cell for a
     // clip step, also assigns it to the step as one undoable action.
     void SelectCell(int frameIndex);
@@ -357,6 +369,12 @@ private:
         int step = 0;
     };
     std::optional<CellPick> m_cellPick;
+    // The selected steps of one clip's timeline, sorted, and the clip they belong to (-1 when nothing is selected).
+    // A selection never spans two clips.
+    int m_stepSelectionClip = -1;
+    std::vector<int> m_stepSelection;
+    int m_stepSelectionAnchor = -1; // the last step clicked without a modifier; Shift+click takes its range from it
+
     bool m_scrollToClipStep = false; // set by Step; the timeline scrolls to show the current step
     bool m_clipWindowFocused = false; // the Clips window had focus when last drawn; Delete then removes a step
     float m_cellFormHeight = 0.0f;    // the Cells form's height when last drawn, so the list leaves room for it

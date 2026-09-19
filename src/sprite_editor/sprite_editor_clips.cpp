@@ -219,8 +219,151 @@ void SpriteEditor::DeleteClipStep(int clipIndex, int stepIndex) {
     PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
 }
 
+bool SpriteEditor::IsStepSelected(int clipIndex, int stepIndex) const {
+    return clipIndex == m_stepSelectionClip &&
+           std::find(m_stepSelection.begin(), m_stepSelection.end(), stepIndex) != m_stepSelection.end();
+}
+
+void SpriteEditor::ClickClipStep(int clipIndex, int stepIndex, bool ctrl, bool shift) {
+    // A selection is within one clip, so a click in another clip starts a new one.
+    bool const sameClip = clipIndex == m_stepSelectionClip;
+    if (shift && sameClip && m_stepSelectionAnchor >= 0) {
+        int const first = std::min(m_stepSelectionAnchor, stepIndex);
+        int const last = std::max(m_stepSelectionAnchor, stepIndex);
+        m_stepSelection.clear();
+        for (int step = first; step <= last; ++step) {
+            m_stepSelection.push_back(step);
+        }
+        return;
+    }
+    if (ctrl && sameClip) {
+        auto const found = std::find(m_stepSelection.begin(), m_stepSelection.end(), stepIndex);
+        if (found != m_stepSelection.end()) {
+            m_stepSelection.erase(found);
+        } else {
+            // The selection is kept in timeline order, which is the order a multi-step drag moves the steps in.
+            m_stepSelection.insert(std::upper_bound(m_stepSelection.begin(), m_stepSelection.end(), stepIndex),
+                                   stepIndex);
+        }
+        m_stepSelectionAnchor = stepIndex;
+        return;
+    }
+    m_stepSelectionClip = clipIndex;
+    m_stepSelection = { stepIndex };
+    m_stepSelectionAnchor = stepIndex;
+}
+
+void SpriteEditor::ValidateStepSelection() {
+    if (m_stepSelectionClip < 0 || m_stepSelectionClip >= static_cast<int>(m_clips.size())) {
+        m_stepSelectionClip = -1;
+        m_stepSelection.clear();
+        m_stepSelectionAnchor = -1;
+        return;
+    }
+    int const stepCount = static_cast<int>(m_clips[m_stepSelectionClip].desc.frames.size());
+    m_stepSelection.erase(std::remove_if(m_stepSelection.begin(), m_stepSelection.end(),
+                                         [stepCount](int step) { return step < 0 || step >= stepCount; }),
+                          m_stepSelection.end());
+    if (m_stepSelectionAnchor >= stepCount) {
+        m_stepSelectionAnchor = m_stepSelection.empty() ? -1 : m_stepSelection.back();
+    }
+}
+
+void SpriteEditor::DeleteSelectedClipSteps() {
+    ValidateStepSelection();
+    if (m_stepSelectionClip < 0 || m_stepSelection.empty()) {
+        return;
+    }
+    int const clipIndex = m_stepSelectionClip;
+    auto before = m_clips;
+    auto& steps = m_clips[clipIndex].desc.frames;
+    // Highest index first, so the indices of the steps still to remove do not move.
+    int removedBeforeCurrent = 0;
+    for (auto it = m_stepSelection.rbegin(); it != m_stepSelection.rend(); ++it) {
+        if (*it < m_clipCurrentStep) {
+            ++removedBeforeCurrent;
+        }
+        steps.erase(steps.begin() + *it);
+    }
+    // Playback moves to the step that took the current one's place, or to the new last step, as it does when one
+    // step is removed.
+    if (clipIndex == m_selectedClip) {
+        m_clipCurrentStep -= removedBeforeCurrent;
+        m_clipCurrentStep = std::clamp(m_clipCurrentStep, 0, std::max(static_cast<int>(steps.size()) - 1, 0));
+    }
+    m_stepSelection.clear();
+    m_stepSelectionClip = -1;
+    m_stepSelectionAnchor = -1;
+    m_cellPick.reset();
+    PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
+}
+
+void SpriteEditor::MoveSelectedClipSteps(int clipIndex, int to) {
+    ValidateStepSelection();
+    if (clipIndex != m_stepSelectionClip || m_stepSelection.empty() || IsStepSelected(clipIndex, to)) {
+        return;
+    }
+    auto before = m_clips;
+    auto& steps = m_clips[clipIndex].desc.frames;
+    int const stepCount = static_cast<int>(steps.size());
+    // The moved steps go where the step dropped on is, so a drag to the right lands after it and one to the left
+    // before it, as a single step's drag does.
+    int insertAt = 0;
+    bool selectedBeforeTarget = false;
+    for (int step = 0; step < to; ++step) {
+        if (IsStepSelected(clipIndex, step)) {
+            selectedBeforeTarget = true;
+        } else {
+            ++insertAt;
+        }
+    }
+    if (selectedBeforeTarget) {
+        ++insertAt;
+    }
+
+    std::vector<moth::gfx::SpriteSheet::ClipFrame> moved;
+    std::vector<moth::gfx::SpriteSheet::ClipFrame> rest;
+    std::vector<int> restIndices; // where each kept step came from, so playback can follow it
+    moved.reserve(m_stepSelection.size());
+    rest.reserve(steps.size());
+    restIndices.reserve(steps.size());
+    for (int step = 0; step < stepCount; ++step) {
+        if (IsStepSelected(clipIndex, step)) {
+            moved.push_back(steps[step]);
+        } else {
+            rest.push_back(steps[step]);
+            restIndices.push_back(step);
+        }
+    }
+    std::vector<int> const movedIndices = m_stepSelection;
+    rest.insert(rest.begin() + insertAt, moved.begin(), moved.end());
+    restIndices.insert(restIndices.begin() + insertAt, movedIndices.begin(), movedIndices.end());
+    steps = std::move(rest);
+
+    // Playback stays on the step it was on, wherever it moved to.
+    if (clipIndex == m_selectedClip) {
+        for (size_t i = 0; i < restIndices.size(); ++i) {
+            if (restIndices[i] == m_clipCurrentStep) {
+                m_clipCurrentStep = static_cast<int>(i);
+                break;
+            }
+        }
+        m_clipCurrentStep = std::clamp(m_clipCurrentStep, 0, std::max(static_cast<int>(steps.size()) - 1, 0));
+    }
+    // The moved steps stay selected, in their new places.
+    m_stepSelection.clear();
+    for (size_t i = 0; i < moved.size(); ++i) {
+        m_stepSelection.push_back(insertAt + static_cast<int>(i));
+    }
+    m_stepSelectionAnchor = m_stepSelection.empty() ? -1 : m_stepSelection.front();
+    m_cellPick.reset();
+    PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
+}
+
 void SpriteEditor::DrawClipEditorWindow() {
     m_clipWindowFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+    // An undo, or a change made elsewhere, can leave the selection naming steps that no longer exist.
+    ValidateStepSelection();
 
     // ---- Playback ----
     DrawClipPlaybackControls();
@@ -285,7 +428,9 @@ void SpriteEditor::DrawClipEditorWindow() {
         int to = 0;
     };
     std::optional<StepMove> stepMove;
+    bool moveSelectedSteps = false; // the dragged step was selected, so every selected step moves
     std::optional<StepPayload> stepToDelete;
+    bool deleteSelectedSteps = false; // the x pressed was on a selected step, so every selected step goes
     int clipToAddStep = -1;
     int addStepDurationMs = kDefaultStepDurationMs; // the Set all value of clipToAddStep, used when it has no steps
     int clipToDelete = -1;
@@ -404,13 +549,18 @@ void SpriteEditor::DrawClipEditorWindow() {
 
             ImGui::SetCursorScreenPos(boxMin);
             if (ImGui::InvisibleButton("##step", ImVec2{ kThumbSize, kThumbSize })) {
-                // Single click: select the step's cell and move playback to the step.
-                SelectClip(c);
-                m_clipCurrentStep = f;
-                m_clipElapsedMs = 0.0f;
-                m_clipPlaying = false;
-                if (maxFrameIdx >= 0) {
-                    m_selection = { std::clamp(frameIdx, 0, maxFrameIdx) };
+                ImGuiIO const& io = ImGui::GetIO();
+                ClickClipStep(c, f, io.KeyCtrl, io.KeyShift);
+                // A plain click also selects the step's cell and moves playback to the step, as it always has.
+                // Ctrl+click and Shift+click only change which steps are selected.
+                if (!io.KeyCtrl && !io.KeyShift) {
+                    SelectClip(c);
+                    m_clipCurrentStep = f;
+                    m_clipElapsedMs = 0.0f;
+                    m_clipPlaying = false;
+                    if (maxFrameIdx >= 0) {
+                        m_selection = { std::clamp(frameIdx, 0, maxFrameIdx) };
+                    }
                 }
             }
             if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
@@ -428,23 +578,42 @@ void SpriteEditor::DrawClipEditorWindow() {
             }
 
             // Drag a step onto another step of the same clip to move it there.
+            bool const stepSelected = IsStepSelected(c, f);
+            bool const multiSelected = stepSelected && m_stepSelection.size() > 1;
             if (ImGui::BeginDragDropSource()) {
                 StepPayload const payload{ c, f };
                 ImGui::SetDragDropPayload(kStepPayloadType, &payload, sizeof(payload));
-                ImGui::Text("Step %d", f + 1);
+                if (multiSelected) {
+                    ImGui::Text("%d steps", static_cast<int>(m_stepSelection.size()));
+                } else {
+                    ImGui::Text("Step %d", f + 1);
+                }
                 ImGui::EndDragDropSource();
             }
             if (ImGui::BeginDragDropTarget()) {
                 if (ImGuiPayload const* const payload = ImGui::AcceptDragDropPayload(kStepPayloadType)) {
                     StepPayload source{};
                     std::memcpy(&source, payload->Data, sizeof(source));
-                    if (source.clip == c && source.step != f) {
+                    // Dragging a selected step moves every selected step; dragging an unselected one moves it alone.
+                    bool const sourceSelected = IsStepSelected(source.clip, source.step) && m_stepSelection.size() > 1;
+                    if (source.clip == c && sourceSelected && !IsStepSelected(c, f)) {
+                        stepMove = StepMove{ c, source.step, f };
+                        moveSelectedSteps = true;
+                    } else if (source.clip == c && !sourceSelected && source.step != f) {
                         stepMove = StepMove{ c, source.step, f };
                     }
                 }
                 ImGui::EndDragDropTarget();
             }
 
+            // The selection is drawn outside the box, so a step can show that it is selected, current and picking.
+            if (stepSelected) {
+                auto const& sel = m_config.SpriteEditorSelectedColor;
+                ImU32 const selectedU32 = ImGui::ColorConvertFloat4ToU32(
+                    ImVec4{ sel.data[0], sel.data[1], sel.data[2], sel.data[3] });
+                dl->AddRect({ boxMin.x - 3.0f, boxMin.y - 3.0f }, { boxMax.x + 3.0f, boxMax.y + 3.0f }, selectedU32,
+                            0.0f, 0, 2.0f);
+            }
             bool const isPicking = m_cellPick.has_value() && m_cellPick->clip == c && m_cellPick->step == f;
             if (isPicking) {
                 dl->AddRect(boxMin, boxMax, kPickColor, 0.0f, 0, 3.0f);
@@ -463,14 +632,27 @@ void SpriteEditor::DrawClipEditorWindow() {
             bool const durationChanged = ImGui::InputInt("##ms", &step.durationMs, 0, 0);
             if (durationChanged) {
                 step.durationMs = std::max(step.durationMs, 0);
+                // Typing under a selected step gives every selected step that duration, in one undo step, because
+                // TrackClipEdit took its snapshot when the field was activated.
+                if (stepSelected) {
+                    for (int const selected : m_stepSelection) {
+                        if (selected >= 0 && selected < stepCount) {
+                            clip.desc.frames[selected].durationMs = step.durationMs;
+                        }
+                    }
+                }
             }
             TrackClipEdit(durationChanged);
-            ImGui::SetItemTooltip("Duration (ms)");
+            ImGui::SetItemTooltip(multiSelected ? "Duration (ms) for every selected step" : "Duration (ms)");
             ImGui::SameLine();
             if (ImGui::Button("x")) {
-                stepToDelete = StepPayload{ c, f };
+                if (multiSelected) {
+                    deleteSelectedSteps = true;
+                } else {
+                    stepToDelete = StepPayload{ c, f };
+                }
             }
-            ImGui::SetItemTooltip("Remove step");
+            ImGui::SetItemTooltip(multiSelected ? "Remove every selected step" : "Remove step");
 
             ImGui::EndGroup();
             ImGui::PopID();
@@ -502,7 +684,9 @@ void SpriteEditor::DrawClipEditorWindow() {
     ImGui::EndChild();
     m_scrollToClipStep = false;
 
-    if (stepMove.has_value()) {
+    if (stepMove.has_value() && moveSelectedSteps) {
+        MoveSelectedClipSteps(stepMove->clip, stepMove->to);
+    } else if (stepMove.has_value()) {
         auto before = m_clips;
         auto& steps = m_clips[stepMove->clip].desc.frames;
         auto const moved = steps[stepMove->from];
@@ -514,6 +698,8 @@ void SpriteEditor::DrawClipEditorWindow() {
         }
         m_cellPick.reset();
         PushClipAction(std::move(before), m_selectedClip, m_selectedClip);
+    } else if (deleteSelectedSteps) {
+        DeleteSelectedClipSteps();
     } else if (stepToDelete.has_value()) {
         DeleteClipStep(stepToDelete->clip, stepToDelete->step);
     } else if (clipToAddStep >= 0) {
@@ -540,6 +726,14 @@ void SpriteEditor::DrawClipEditorWindow() {
         auto before = m_clips;
         int const beforeSel = m_selectedClip;
         m_clips.erase(m_clips.begin() + clipToDelete);
+        // The timeline selection follows its clip, and goes when that clip goes.
+        if (m_stepSelectionClip == clipToDelete) {
+            m_stepSelectionClip = -1;
+            m_stepSelection.clear();
+            m_stepSelectionAnchor = -1;
+        } else if (m_stepSelectionClip > clipToDelete) {
+            --m_stepSelectionClip;
+        }
         if (m_selectedClip == clipToDelete) {
             m_selectedClip = -1;
             m_clipPlaying = false;
