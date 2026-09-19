@@ -13,7 +13,7 @@ Session reports are in [sessions/](sessions/). `/task-planning` moves finished t
 
 ## Tasks
 
-### [todo] T-039 Open a project whose sheet image is missing
+### [done] T-039 Open a project whose sheet image is missing
 
 **Review:** reviewed 2026-09-19
 
@@ -29,16 +29,16 @@ The failure is the descriptor import. `ImportDescriptor` uses `SpriteSheetFactor
 nothing when the image cannot be loaded, so the whole open is refused.
 
 **Requirements:**
-- [ ] Opening an exported descriptor (`.json`) whose image cannot be loaded opens it as a new project, with the
+- [x] Opening an exported descriptor (`.json`) whose image cannot be loaded opens it as a new project, with the
       cells, the clips and the image path from the file, and no sheet image. It is no longer refused.
-- [ ] The editor reads descriptors with its own code, not with `SpriteSheetFactory`, so it decides what is fatal.
+- [x] The editor reads descriptors with its own code, not with `SpriteSheetFactory`, so it decides what is fatal.
       It still refuses a file it cannot parse, one with no `image` string field, and one with no frames.
-- [ ] An image that cannot be loaded is a logged warning. No dialog and no banner is added.
-- [ ] Such a project can be saved, and saving keeps the sheet image path. Save on an imported descriptor still
+- [x] An image that cannot be loaded is a logged warning. No dialog and no banner is added.
+- [x] Such a project can be saved, and saving keeps the sheet image path. Save on an imported descriptor still
       opens Save As, as it does now.
-- [ ] Opening a `.mothsprite` project whose sheet image cannot be loaded keeps working as it does today, with the
+- [x] Opening a `.mothsprite` project whose sheet image cannot be loaded keeps working as it does today, with the
       cells, clips, pivots and image path kept.
-- [ ] File > Export refuses, and writes nothing, when the project has a sheet image path whose image could not be
+- [x] File > Export refuses, and writes nothing, when the project has a sheet image path whose image could not be
       loaded. The export message says so, as it does for a project with no sheet image at all.
 
 **Out of scope:**
@@ -55,10 +55,30 @@ nothing when the image cannot be loaded, so the whole open is refused.
 - Q: How does the editor say that the sheet image could not be loaded? A: A logged warning only.
 
 **Notes:**
+`ImportDescriptor` now reads the file with `ReadDescriptorFile`, beside `ReadProjectFile`, and the cell and clip
+reading the two share is in `ReadFramesAndClips`. A descriptor is therefore read as it was written: clips with no
+steps, 0 ms steps and out-of-range step indices are kept, where `SpriteSheetFactory` skipped them. That matches
+project files, and `ExportProblems` still refuses to export such data.
+
+Assumption: the export message names the image path it could not load ("The project's sheet image '<path>' could
+not be loaded."), rather than repeating the wording of "The project has no sheet image."
+
+The descriptor import no longer flushes the sprite sheet factory cache, because it no longer uses the factory.
 
 **Commits:**
+- `9062609` fix(T-039): open a descriptor whose sheet image is missing
 
 **Manual verification:**
+1. Export a project to a descriptor, then rename or delete the image file beside it. File > Open the descriptor:
+   it opens with its cells and clips, the Sheet window shows its empty state, and the log has a warning naming the
+   image. No dialog appears.
+2. With that project open, File > Save opens Save As. Save it, reopen the saved `.mothsprite`: the cells, clips,
+   pivots and the sheet image path are kept, and the log warns about the image again.
+3. With that project open, File > Export: the export message says the sheet image could not be loaded, and no
+   files are written.
+4. File > Open a `.json` file that is not JSON, one with no `image` field, and one with an empty `frames` array:
+   each is refused with a logged error, and the project that was open is unchanged.
+5. File > Open a descriptor whose image is present: it opens as before.
 
 ### [todo] T-038 Only write the sheet image when exporting packs
 
