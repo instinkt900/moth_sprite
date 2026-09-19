@@ -182,7 +182,7 @@ Assumptions:
 4. With a new, empty project, Edit > Export Spritesheet... is greyed out.
 5. Export to a file name typed without an extension: the file gets the sheet image's extension.
 
-### [todo] T-037 Preview image filtering option
+### [done] T-037 Preview image filtering option
 
 **Review:** reviewed 2026-09-19
 
@@ -192,11 +192,11 @@ Assumptions:
 Add an option to change the filtering of the preview images.
 
 **Requirements:**
-- [ ] `Edit > Preferences` has a "Preview filtering" option with the values Nearest and Linear, below "Preview
+- [x] `Edit > Preferences` has a "Preview filtering" option with the values Nearest and Linear, below "Preview
       background".
-- [ ] The option sets the filtering of every preview image: the sheet canvas, the selected cell, the cell list
+- [x] The option sets the filtering of every preview image: the sheet canvas, the selected cell, the cell list
       thumbnails, the clip timeline thumbnails and the pack dialog preview.
-- [ ] The setting is saved in `moth_sprite.json` with the other editor settings, and is used again the next time
+- [x] The setting is saved in `moth_sprite.json` with the other editor settings, and is used again the next time
       the editor starts. The default is Nearest.
 
 **Out of scope:**
@@ -210,10 +210,24 @@ Add an option to change the filtering of the preview images.
   saved in `moth_sprite.json`.
 
 **Notes:**
+`SpriteEditor::DrawImage` sets the filter on the texture it is about to draw, so every preview picks the setting up
+on the next frame, with no reload. `moth::gfx` only records the filter on the texture and makes the sampler when it
+draws, so setting it every frame costs nothing.
+
+Assumption: `moth_sprite.json` stores the filter as the name "nearest" or "linear", like the pack settings store
+their format. Any other name, and a missing field, reads as Nearest.
 
 **Commits:**
+- `f1460c6` feat(T-037): preview filtering preference
 
 **Manual verification:**
+1. Open a project, zoom the Sheet window well past 1:1: the pixels are sharp. Edit > Preferences > Preview
+   filtering > Linear: the sheet, the Selected Cell preview, the cell list thumbnails and the clip timeline
+   thumbnails all become smooth.
+2. Open Tools > Pack... with Linear set: its preview is smooth too.
+3. Quit and start the editor again: the filtering is still Linear. `moth_sprite.json` has `"PreviewFilter":
+   "linear"`.
+4. Delete `moth_sprite.json` and start the editor: the filtering is Nearest.
 
 ### [todo] T-033 Lock pivot editing behind a mode
 
