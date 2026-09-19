@@ -8,6 +8,7 @@
 
 namespace {
     char const* const kPackPopupId = "Pack##pack_dialog";
+    char const* const kUnpackPopupId = "Unpack##unpack_dialog";
     constexpr float kPackLabelWidth = 130.0f;
     constexpr float kPackFieldWidth = 360.0f;
     constexpr int kMaxPackPadding = 1024;
@@ -467,4 +468,215 @@ bool SpriteEditor::PackProject(PackSettings const& settings, std::string& error)
     moth::core::log::info("SpriteEditor: packed {} cells into '{}' ({} x {})", m_frames.size(), settings.imagePath,
                           packed->width, packed->height);
     return true;
+}
+
+std::string SpriteEditor::UnpackBaseName() const {
+    if (m_imagePathBuffer[0] != '\0') {
+        std::string name = std::filesystem::path(m_imagePathBuffer).stem().string();
+        if (!name.empty()) {
+            return name;
+        }
+    }
+    if (m_pathBuffer[0] != '\0') {
+        std::string name = std::filesystem::path(m_pathBuffer).stem().string();
+        if (!name.empty()) {
+            return name;
+        }
+    }
+    return "cells";
+}
+
+std::vector<std::filesystem::path> SpriteEditor::UnpackPaths(std::filesystem::path const& folder,
+                                                             moth::packer::AtlasFormat format) const {
+    // Three digits, as in hero_000.png, and more for a project with more than 1000 cells, so the names keep the
+    // cell order.
+    size_t const count = m_frames.size();
+    int digits = 3;
+    for (size_t limit = 1000; count > limit; limit *= 10) {
+        ++digits;
+    }
+    std::string const base = UnpackBaseName();
+    char const* const extension = PackFormatExtension(format);
+    std::vector<std::filesystem::path> paths;
+    paths.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        paths.push_back(folder / fmt::format("{}_{:0{}}{}", base, i, digits, extension));
+    }
+    return paths;
+}
+
+bool SpriteEditor::UnpackProject(std::filesystem::path const& folder, std::string& error) {
+    // The same cells as a pack, so a cell with no image to read is refused in the same way.
+    std::optional<std::vector<PackCell>> const cells = ProjectPackCells(error);
+    if (!cells.has_value()) {
+        return false;
+    }
+    if (cells->empty()) {
+        error = "The project has no cells.";
+        return false;
+    }
+    // Every cell is checked before any file is written, so a project that cannot be unpacked writes nothing.
+    for (size_t i = 0; i < cells->size(); ++i) {
+        auto const& rect = (*cells)[i].rect;
+        if (rect.w() <= 0 || rect.h() <= 0) {
+            error = fmt::format("Cell #{} has a size of {} x {}.", i, rect.w(), rect.h());
+            return false;
+        }
+    }
+
+    auto const& dialog = m_unpackDialog;
+    std::vector<std::filesystem::path> const paths = UnpackPaths(folder, dialog.format);
+    PackImageCache imageCache;
+    for (size_t i = 0; i < cells->size(); ++i) {
+        auto const& cell = (*cells)[i];
+        auto found = imageCache.find(cell.imagePath);
+        if (found == imageCache.end()) {
+            std::optional<ImagePixels> pixels = LoadImagePixels(cell.imagePath);
+            if (!pixels.has_value()) {
+                error = fmt::format("Could not read the image '{}'.", cell.imagePath.string());
+                return false;
+            }
+            found = imageCache.emplace(cell.imagePath, std::move(*pixels)).first;
+        }
+        ImagePixels const cellImage = CellPixels(cell, found->second);
+        if (!WriteImageFile(paths[i], cellImage, dialog.format, dialog.jpegQuality, error)) {
+            return false;
+        }
+    }
+    moth::core::log::info("SpriteEditor: unpacked {} cells into '{}'", cells->size(), folder.string());
+    return true;
+}
+
+void SpriteEditor::DrawUnpackDialog() {
+    auto& dialog = m_unpackDialog;
+    if (m_openUnpackDialog) {
+        m_openUnpackDialog = false;
+        // The first opening starts in the sheet image's folder, else the project's, else the last image folder.
+        if (!dialog.folderChosen) {
+            std::error_code ec;
+            std::filesystem::path folder;
+            if (m_imagePathBuffer[0] != '\0') {
+                folder = std::filesystem::path(m_imagePathBuffer).parent_path();
+            } else if (m_pathBuffer[0] != '\0') {
+                folder = std::filesystem::path(m_pathBuffer).parent_path();
+            }
+            if (!std::filesystem::is_directory(folder, ec)) {
+                folder = (!m_config.LastImageDir.empty() && std::filesystem::is_directory(m_config.LastImageDir, ec))
+                             ? std::filesystem::path(m_config.LastImageDir)
+                             : std::filesystem::current_path(ec);
+            }
+            std::string const folderStr = folder.string();
+            strncpy(dialog.folderBuffer, folderStr.c_str(), sizeof(dialog.folderBuffer) - 1);
+            dialog.folderBuffer[sizeof(dialog.folderBuffer) - 1] = '\0';
+            dialog.folderChosen = true;
+        }
+        dialog.error.clear();
+        ImGui::OpenPopup(kUnpackPopupId);
+    }
+    ImGuiViewport const* const viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2{ 0.5f, 0.5f });
+    if (!ImGui::BeginPopupModal(kUnpackPopupId, nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+        return;
+    }
+
+    // Output folder, with a browse button.
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Output folder");
+    ImGui::SameLine(kPackLabelWidth);
+    float const browseW = ImGui::CalcTextSize("...").x + (ImGui::GetStyle().FramePadding.x * 2.0f);
+    ImGui::SetNextItemWidth(kPackFieldWidth - browseW - ImGui::GetStyle().ItemSpacing.x);
+    if (ImGui::InputText("##unpack_folder", dialog.folderBuffer, sizeof(dialog.folderBuffer))) {
+        dialog.error.clear();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("...##unpack_browse")) {
+        std::error_code ec;
+        std::filesystem::path const current = dialog.folderBuffer;
+        std::string const startDir = std::filesystem::is_directory(current, ec)
+                                         ? current.string()
+                                         : std::filesystem::current_path(ec).string();
+        nfdchar_t* outPath = nullptr;
+        if (NFD_PickFolder(startDir.c_str(), &outPath) == NFD_OKAY && outPath != nullptr) {
+            std::string const chosen = outPath;
+            NFD_Free(outPath);
+            strncpy(dialog.folderBuffer, chosen.c_str(), sizeof(dialog.folderBuffer) - 1);
+            dialog.folderBuffer[sizeof(dialog.folderBuffer) - 1] = '\0';
+            dialog.error.clear();
+        }
+    }
+
+    static constexpr std::array<char const*, 4> kFormatNames{ "PNG", "BMP", "TGA", "JPEG" };
+    int format = static_cast<int>(dialog.format);
+    PackLabel("Format");
+    if (ImGui::Combo("##unpack_format", &format, kFormatNames.data(), static_cast<int>(kFormatNames.size()))) {
+        dialog.format = static_cast<moth::packer::AtlasFormat>(format);
+        dialog.error.clear();
+    }
+    if (dialog.format == moth::packer::AtlasFormat::JPEG) {
+        PackLabel("JPEG quality");
+        ImGui::SliderInt("##unpack_jpeg_quality", &dialog.jpegQuality, 1, 100);
+        dialog.jpegQuality = std::clamp(dialog.jpegQuality, 1, 100);
+    }
+
+    // The files that would be written, and how many of them are already there.
+    std::filesystem::path const folder = dialog.folderBuffer;
+    std::vector<std::filesystem::path> const paths = UnpackPaths(folder, dialog.format);
+    std::error_code ec;
+    std::string refusal;
+    if (folder.empty()) {
+        refusal = "Choose the folder to write the cell images to.";
+    } else if (!std::filesystem::is_directory(folder, ec)) {
+        refusal = "That folder does not exist.";
+    } else if (paths.empty()) {
+        refusal = "The project has no cells.";
+    }
+    size_t existing = 0;
+    if (refusal.empty()) {
+        for (auto const& path : paths) {
+            ec.clear();
+            if (std::filesystem::exists(path, ec)) {
+                ++existing;
+            }
+        }
+    }
+
+    ImGui::Spacing();
+    if (!paths.empty()) {
+        ImGui::Text("%zu cells, written as %s to %s", paths.size(), paths.front().filename().string().c_str(),
+                    paths.back().filename().string().c_str());
+    }
+    // A refusal, else the last Unpack error, else the overwrite warning.
+    std::string warning;
+    if (existing > 0) {
+        warning = fmt::format("{} file{} in this folder will be overwritten.", existing, existing == 1 ? "" : "s");
+    }
+    std::string const* message = &warning;
+    if (!refusal.empty()) {
+        message = &refusal;
+    } else if (!dialog.error.empty()) {
+        message = &dialog.error;
+    }
+    if (!message->empty()) {
+        ImGui::PushTextWrapPos(kPackLabelWidth + kPackFieldWidth);
+        ImGui::TextColored(kPackWarningColor, "%s", message->c_str());
+        ImGui::PopTextWrapPos();
+    }
+
+    ImGui::Spacing();
+    constexpr float kButtonW = 110.0f;
+    bool close = false;
+    ImGui::BeginDisabled(!refusal.empty());
+    if (ImGui::Button("Unpack", ImVec2{ kButtonW, 0.0f })) {
+        dialog.error.clear();
+        close = UnpackProject(folder, dialog.error);
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", ImVec2{ kButtonW, 0.0f }) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        close = true;
+    }
+    if (close) {
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
 }

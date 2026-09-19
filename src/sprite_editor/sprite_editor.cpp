@@ -367,6 +367,9 @@ void SpriteEditor::DrawMainMenuBar() {
         if (ImGui::MenuItem("Pack...", nullptr, false, !m_frames.empty())) {
             m_openPackDialog = true;
         }
+        if (ImGui::MenuItem("Unpack...", nullptr, false, !m_frames.empty())) {
+            m_openUnpackDialog = true;
+        }
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Window")) {
@@ -671,6 +674,7 @@ void SpriteEditor::Draw() {
     DrawGridTool();
     DrawDetectFramesTool();
     DrawPackDialog();
+    DrawUnpackDialog();
 
     // Asks about unsaved changes before New, Open, Open Recent and quitting.
     DrawUnsavedChangesPrompt();

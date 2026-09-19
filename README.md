@@ -23,6 +23,7 @@ of it.
   - [Projects and sheet images](#projects-and-sheet-images)
   - [Cells from other images](#cells-from-other-images)
   - [Packing](#packing)
+  - [Unpacking](#unpacking)
   - [Exporting](#exporting)
   - [Making cells](#making-cells)
   - [Selecting and editing cells](#selecting-and-editing-cells)
@@ -147,6 +148,20 @@ image cannot be read. The preview writes no files.
 rectangles, cells from other images and pack settings; the packed file stays on disk. If the cells do not fit into one image of the maximum
 size, or an image cannot be read or written, the dialog shows why and nothing changes. The dialog changes nothing
 until **Pack** succeeds, and the project saves the settings of its last pack.
+
+### Unpacking
+
+**Tools > Unpack...** writes every cell as its own image file. It is enabled when the project has cells. The dialog
+asks for the output folder and the image format (PNG, BMP, TGA or JPEG, with the JPEG quality), and says how many
+files in the folder would be overwritten.
+
+**Unpack** writes the files in cell order, named after the sheet image with a zero-padded cell number:
+`hero_000.png`, `hero_001.png` and so on. A project with no sheet image uses the project's name, and an untitled one
+uses `cells`. Files with those names are overwritten. Unpack changes nothing else: the cells, the sheet image and
+the clips stay as they are, nothing is added to the undo history, and the project is not marked as unsaved.
+
+If a cell has no image to read, or a size of 0, the dialog says so and no file is written. A file that cannot be
+written stops the unpack there, and the files written before it stay.
 
 ### Exporting
 

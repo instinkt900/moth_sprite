@@ -151,6 +151,17 @@ private:
     void DrawExportMessage();
     // Tools > Pack: the pack dialog. Pack runs PackProject with the dialog's settings.
     void DrawPackDialog();
+    // Tools > Unpack: the unpack dialog. Unpack runs UnpackProject with the dialog's settings.
+    void DrawUnpackDialog();
+    // The name every unpacked file starts with: the sheet image's name, else the project's, else "cells".
+    std::string UnpackBaseName() const;
+    // The paths Unpack would write, in cell order: <folder>/<base>_<cell number><ext>.
+    std::vector<std::filesystem::path> UnpackPaths(std::filesystem::path const& folder,
+                                                   moth::packer::AtlasFormat format) const;
+    // Write every cell to its own image file in folder. The project does not change and nothing is undoable.
+    // Returns false, and sets error, when a cell cannot be read or a file cannot be written; the files written
+    // before that stay.
+    bool UnpackProject(std::filesystem::path const& folder, std::string& error);
     // The pack dialog's preview of the packed image for its current settings. Writes no files.
     void UpdatePackPreview();
     // Free the preview texture. Frames still in flight may use it, so this waits for the GPU first.
@@ -307,6 +318,17 @@ private:
     };
     PackDialogState m_packDialog;
     bool m_openPackDialog = false; // set by the menu; the popup is opened outside the menu's ID scope
+
+    // Tools > Unpack: where and how every cell is written as its own image. Values persist between openings.
+    struct UnpackDialogState {
+        char folderBuffer[1024] = {};
+        moth::packer::AtlasFormat format = moth::packer::AtlasFormat::PNG;
+        int jpegQuality = 90; // 1-100, JPEG only
+        bool folderChosen = false; // the folder was set once; later openings keep it
+        std::string error;         // why the last Unpack failed
+    };
+    UnpackDialogState m_unpackDialog;
+    bool m_openUnpackDialog = false; // set by the menu; the popup is opened outside the menu's ID scope
     // Set when Export opened the pack dialog because the project has cells from other images: the descriptor path
     // chosen for the export. The dialog's packed image is named after it, and the export continues after a successful
     // pack. Cleared when the dialog closes.

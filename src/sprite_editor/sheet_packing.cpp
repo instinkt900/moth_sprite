@@ -6,6 +6,17 @@
 namespace {
     constexpr size_t kChannels = 4;
 
+    // The format WritePackedImageFile takes.
+    int PackedImageFormat(moth::packer::AtlasFormat format) {
+        switch (format) {
+        case moth::packer::AtlasFormat::BMP:  return PACKED_IMAGE_BMP;
+        case moth::packer::AtlasFormat::TGA:  return PACKED_IMAGE_TGA;
+        case moth::packer::AtlasFormat::JPEG: return PACKED_IMAGE_JPEG;
+        case moth::packer::AtlasFormat::PNG:
+        default:                              return PACKED_IMAGE_PNG;
+        }
+    }
+
     int NextPowerOfTwo(int value) {
         int result = 1;
         while (result < value) {
@@ -33,6 +44,41 @@ char const* PackFormatExtension(moth::packer::AtlasFormat format) {
     case moth::packer::AtlasFormat::PNG:
     default:                              return ".png";
     }
+}
+
+ImagePixels CellPixels(PackCell const& cell, ImagePixels const& source) {
+    ImagePixels cellImage;
+    cellImage.width = cell.rect.w();
+    cellImage.height = cell.rect.h();
+    cellImage.rgba.assign(static_cast<size_t>(cellImage.width) * static_cast<size_t>(cellImage.height) * kChannels, 0);
+    int const x0 = std::max(cell.rect.x(), 0);
+    int const y0 = std::max(cell.rect.y(), 0);
+    int const x1 = std::min(cell.rect.x() + cellImage.width, source.width);
+    int const y1 = std::min(cell.rect.y() + cellImage.height, source.height);
+    for (int y = y0; y < y1 && x0 < x1; ++y) {
+        size_t const srcOffset = ((static_cast<size_t>(y) * static_cast<size_t>(source.width)) + static_cast<size_t>(x0)) * kChannels;
+        size_t const dstOffset = ((static_cast<size_t>(y - cell.rect.y()) * static_cast<size_t>(cellImage.width)) +
+                                  static_cast<size_t>(x0 - cell.rect.x())) * kChannels;
+        std::memcpy(&cellImage.rgba[dstOffset], &source.rgba[srcOffset], static_cast<size_t>(x1 - x0) * kChannels);
+    }
+    return cellImage;
+}
+
+bool WriteImageFile(std::filesystem::path const& path, ImagePixels const& image, moth::packer::AtlasFormat format,
+                    int jpegQuality, std::string& error) {
+    std::string const pathStr = path.string();
+    if (image.width <= 0 || image.height <= 0 ||
+        image.rgba.size() != static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * kChannels) {
+        error = fmt::format("Could not write the image '{}': the image is empty.", pathStr);
+        return false;
+    }
+    int const written = WritePackedImageFile(pathStr.c_str(), PackedImageFormat(format), image.width, image.height,
+                                             image.rgba.data(), jpegQuality);
+    if (written == 0) {
+        error = fmt::format("Could not write the image '{}'.", pathStr);
+        return false;
+    }
+    return true;
 }
 
 std::optional<PackedSheet> PackCells(std::vector<PackCell> const& cells, PackSettings const& requestedSettings,
@@ -74,24 +120,12 @@ std::optional<PackedSheet> PackCells(std::vector<PackCell> const& cells, PackSet
         ImagePixels const& source = found->second;
 
         // Flipbook packing sorts images by name, so zero-padded indices keep the cells in order.
+        ImagePixels cellImage = CellPixels(cell, source);
         moth::packer::ImageInput input;
         input.name = fmt::format("{:010}", i);
         input.width = w;
         input.height = h;
-        input.pixels.assign(static_cast<size_t>(w) * static_cast<size_t>(h) * kChannels, 0);
-        int const x0 = std::max(cell.rect.x(), 0);
-        int const y0 = std::max(cell.rect.y(), 0);
-        int const x1 = std::min(cell.rect.x() + w, source.width);
-        int const y1 = std::min(cell.rect.y() + h, source.height);
-        for (int y = y0; y < y1; ++y) {
-            if (x0 >= x1) {
-                break;
-            }
-            size_t const srcOffset = ((static_cast<size_t>(y) * static_cast<size_t>(source.width)) + static_cast<size_t>(x0)) * kChannels;
-            size_t const dstOffset = ((static_cast<size_t>(y - cell.rect.y()) * static_cast<size_t>(w)) +
-                                      static_cast<size_t>(x0 - cell.rect.x())) * kChannels;
-            std::memcpy(&input.pixels[dstOffset], &source.rgba[srcOffset], static_cast<size_t>(x1 - x0) * kChannels);
-        }
+        input.pixels = std::move(cellImage.rgba);
         inputs.push_back(std::move(input));
     }
 
@@ -132,15 +166,8 @@ bool WritePackedSheet(std::filesystem::path const& path, PackedSheet const& shee
         error = fmt::format("Could not write the packed image '{}': the image is empty.", pathStr);
         return false;
     }
-    int format = PACKED_IMAGE_PNG;
-    switch (settings.format) {
-    case moth::packer::AtlasFormat::PNG:  format = PACKED_IMAGE_PNG;  break;
-    case moth::packer::AtlasFormat::BMP:  format = PACKED_IMAGE_BMP;  break;
-    case moth::packer::AtlasFormat::TGA:  format = PACKED_IMAGE_TGA;  break;
-    case moth::packer::AtlasFormat::JPEG: format = PACKED_IMAGE_JPEG; break;
-    }
-    int const written = WritePackedImageFile(pathStr.c_str(), format, sheet.width, sheet.height, sheet.rgba.data(),
-                                             settings.jpegQuality);
+    int const written = WritePackedImageFile(pathStr.c_str(), PackedImageFormat(settings.format), sheet.width,
+                                             sheet.height, sheet.rgba.data(), settings.jpegQuality);
     if (written == 0) {
         error = fmt::format("Could not write the packed image '{}'.", pathStr);
         return false;

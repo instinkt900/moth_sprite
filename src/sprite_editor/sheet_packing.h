@@ -56,6 +56,14 @@ PackSettings EffectivePackSettings(PackSettings settings);
 // The file extension of a packed image format, with the dot.
 char const* PackFormatExtension(moth::packer::AtlasFormat format);
 
+// The RGBA8 pixels of one cell, cut from its source image. Parts of the rectangle outside the image are
+// transparent. The cell's rectangle must have a positive width and height.
+ImagePixels CellPixels(PackCell const& cell, ImagePixels const& source);
+
+// Write RGBA8 pixels to path in the given format. Returns false, and sets error, when they cannot be written.
+bool WriteImageFile(std::filesystem::path const& path, ImagePixels const& image, moth::packer::AtlasFormat format,
+                    int jpegQuality, std::string& error);
+
 // Pack every cell as its own image into one image. Returns nothing, and sets error to the reason, when a source
 // image cannot be read or the cells do not fit into one image of the maximum size. Writes no files.
 std::optional<PackedSheet> PackCells(std::vector<PackCell> const& cells, PackSettings const& requestedSettings,
