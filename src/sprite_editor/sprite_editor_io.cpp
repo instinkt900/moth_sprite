@@ -576,26 +576,10 @@ void SpriteEditor::ExportToPath(std::filesystem::path const& exportPath) {
         return;
     }
 
-    // The sheet image is copied beside the descriptor, named after it with the image's extension.
-    std::filesystem::path const sheetPath = m_imagePathBuffer;
-    std::filesystem::path imageTarget = exportPath;
-    imageTarget.replace_extension(sheetPath.extension());
-    // Exporting beside the sheet image with its own name needs no copy.
-    std::error_code ec;
-    if (!std::filesystem::equivalent(sheetPath, imageTarget, ec)) {
-        ec.clear();
-        std::filesystem::copy_file(sheetPath, imageTarget, std::filesystem::copy_options::overwrite_existing, ec);
-        if (ec) {
-            std::string message = fmt::format("Could not copy the sheet image '{}' to '{}': {}", sheetPath.string(),
-                                              imageTarget.string(), ec.message());
-            moth::core::log::error("SpriteEditor: {}", message);
-            ShowExportMessage("The export failed:", { std::move(message) });
-            return;
-        }
-    }
-
+    // Only the descriptor is written. The sheet image the project already has stays where it is, and an export that
+    // packs first has just written its packed image beside the descriptor.
     nlohmann::json json = nlohmann::json::object();
-    json["image"] = imageTarget.filename().string();
+    json["image"] = ProjectRelativePath(m_imagePathBuffer, exportPath);
     WriteFramesAndClips(json, m_frames, m_clips, exportPath);
     if (!WriteJsonFile(exportPath, json)) {
         std::string message = fmt::format("Could not write '{}'.", exportPath.string());

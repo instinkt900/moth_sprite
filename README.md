@@ -147,8 +147,10 @@ until **Pack** succeeds, and the project saves the settings of its last pack.
 ### Exporting
 
 Games do not load project files. **File > Export...** writes a sprite sheet descriptor (`.json`) that moth::gfx loads
-as a `SpriteSheet`, and copies the sheet image beside it, named after the descriptor with the image's extension:
-exporting `hero.json` writes `hero.png`. Files already there are overwritten. Saving the project does not export.
+as a `SpriteSheet`. It writes no image: the descriptor's `image` field is the path from the descriptor's folder to
+the project's sheet image, or an absolute path when there is no relative one, and the image stays where it is. Only
+an export that packs first writes an image, the packed one, beside the descriptor. A descriptor already there is
+overwritten. Saving the project does not export.
 
 The project remembers its export path, relative to the project file, so **Export...** does not ask again. **Export
 As...** always asks. Setting a new export path is an undo step; undo does not remove exported files.
@@ -162,7 +164,7 @@ are reported before the file dialog opens, so a pack never runs for an export th
 Export refuses, writes no files, and lists the problems when the project has no sheet image, has no cells, has a cell
 with no width or height, has a clip with no steps, or has a step with a duration of 0 ms or with no cell. These are the
 things moth::gfx rejects or skips, so the game data never differs from the project without a warning. The same
-message shows when the image cannot be copied or the descriptor cannot be written.
+message shows when the descriptor cannot be written.
 
 ### Making cells
 

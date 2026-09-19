@@ -76,7 +76,9 @@ pack dialog with the packed image named after the descriptor, and exports after 
 
 Games load sprite sheet descriptors, not project files. A descriptor has `image`, `frames` and `clips` and no
 `version`; `SpriteSheetFactory` loads it. File > Export writes one to the export path (File > Export As picks a new
-path) and copies the sheet image beside it, named after the descriptor. Export refuses, writing nothing, when the
+path), and writes no image: the descriptor's `image` field is the path from its folder to the project's sheet
+image, or an absolute path when there is no relative one. Only an export that packs first writes an image, the
+packed one, beside the descriptor. Export refuses, writing nothing, when the
 project has data that `SpriteSheetFactory` rejects or skips (`ExportProblems`), and when the sheet image path names
 an image that could not be loaded. Saving does not export. File > Open imports a `.json` descriptor as a new project
 with no path and unsaved changes, so the first save opens Save As. Imported descriptors are not added to Open
